@@ -1,0 +1,532 @@
+/* ===========================================================
+   Teachers Section
+=========================================================== */
+
+.teachers-section {
+  position: relative;
+  padding: 100px 5% 80px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f8faff 0%, #eef4ff 40%, #f0f7ff 100%);
+}
+
+/* ── Decorative dot grids ── */
+.teachers-dots {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  background-image: radial-gradient(circle, #c7d2fe 1.5px, transparent 1.5px);
+  background-size: 16px 16px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+.teachers-dots--tl { top: 30px; left: 20px; }
+.teachers-dots--tr { top: 30px; right: 20px; }
+
+/* ── Header ── */
+.teachers-header {
+  text-align: center;
+  margin-bottom: 50px;
+}
+
+.teachers-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #2563eb;
+  font-family: "Manrope", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+.teachers-title {
+  font-family: "Manrope", sans-serif;
+  font-size: 42px;
+  font-weight: 800;
+  color: #1e293b;
+  margin-bottom: 14px;
+}
+
+/* Same gradient as Courses title */
+.teachers-title span {
+  background: linear-gradient(90deg, #2563eb, #39c96b);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.teachers-sub {
+  font-family: "Manrope", sans-serif;
+  font-size: 15px;
+  color: #64748b;
+  line-height: 1.7;
+}
+
+/* ── Content: Orbital + Detail card ── */
+.teachers-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 50px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* ===========================================================
+   Orbital Layout  — larger & more visible
+=========================================================== */
+
+.teachers-orbital {
+  position: relative;
+  width: 600px;
+  height: 580px;
+  flex-shrink: 0;
+}
+
+/* Orbit rings — bigger, more visible, animated */
+.orbit-ring {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.orbit-ring--1 {
+  width: 260px; height: 260px;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px solid rgba(37, 99, 235, 0.12);
+  animation: orbit-spin 30s linear infinite;
+}
+.orbit-ring--2 {
+  width: 420px; height: 420px;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px solid rgba(37, 99, 235, 0.10);
+  animation: orbit-spin 45s linear infinite reverse;
+}
+.orbit-ring--3 {
+  width: 560px; height: 560px;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px dashed rgba(37, 99, 235, 0.08);
+  animation: orbit-spin 60s linear infinite;
+}
+
+@keyframes orbit-spin {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to   { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* ── Small rounded dots on the orbit rings ── */
+.orbit-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb, #39c96b);
+  opacity: 0.5;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 6px rgba(37, 99, 235, 0.3);
+}
+
+
+/* Sparkle dots */
+.sparkle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2563eb;
+  opacity: 0.35;
+  animation: sparkle-pulse 3s ease-in-out infinite;
+}
+.sparkle-1 { top: 12%; left: 55%; animation-delay: 0s; }
+.sparkle-2 { top: 35%; left: 90%; animation-delay: 0.5s; background: #10b981; }
+.sparkle-3 { top: 78%; left: 88%; animation-delay: 1s; }
+.sparkle-4 { top: 88%; left: 18%; animation-delay: 1.5s; background: #f59e0b; }
+.sparkle-5 { top: 8%;  left: 12%; animation-delay: 2s; background: #ec4899; }
+.sparkle-6 { top: 52%; left: 2%;  animation-delay: 2.5s; }
+
+@keyframes sparkle-pulse {
+  0%, 100% { opacity: 0.2; transform: scale(1); }
+  50%      { opacity: 0.6; transform: scale(1.6); }
+}
+
+/* ── Center logo ── */
+.orbital-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 2;
+}
+
+.orbital-center img {
+  height: 56px;
+  margin-bottom: 8px;
+}
+
+.orbital-tagline {
+  font-family: "Manrope", sans-serif;
+  font-size: 13px;
+  color: #475569;
+  text-align: center;
+  line-height: 1.5;
+}
+.orbital-tagline strong {
+  color: #1e293b;
+}
+
+.orbital-underline {
+  width: 30px;
+  height: 3px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #2563eb, #39c96b);
+  margin-top: 8px;
+}
+
+/* ── Teacher nodes ── */
+.orbital-node {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  z-index: 3;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.orbital-node:hover {
+  transform: scale(1.08);
+}
+
+.orbital-node--active {
+  transform: scale(1.1);
+}
+
+/* Icon badge */
+.orbital-icon-badge {
+  position: absolute;
+  top: -4px;
+  right: -8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  z-index: 4;
+  border: 2px solid #fff;
+}
+
+/* Avatar */
+.orbital-avatar {
+  width: 95px;
+  height: 95px;
+  border-radius: 50%;
+  border: 3px solid;
+  padding: 3px;
+  background: #fff;
+  box-shadow:
+    0 8px 25px rgba(37, 99, 235, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.3s;
+}
+
+.orbital-node:hover .orbital-avatar {
+  box-shadow:
+    0 12px 35px rgba(37, 99, 235, 0.2),
+    0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.orbital-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* Name card */
+.orbital-name-card {
+  margin-top: 8px;
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+}
+
+.orbital-name {
+  font-family: "Manrope", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
+}
+
+.orbital-subject {
+  font-family: "Manrope", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ===========================================================
+   Detail Card
+=========================================================== */
+
+.teacher-detail-card {
+  width: 360px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(24px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow:
+    0 20px 60px rgba(37, 99, 235, 0.08),
+    0 4px 16px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+  padding: 28px;
+  position: relative;
+  opacity: 0;
+  transform: translateX(30px);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+.teacher-detail-card--visible {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: all;
+}
+
+/* Close button */
+.detail-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #64748b;
+  transition: all 0.25s;
+}
+.detail-close:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+/* Header */
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.detail-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 3px solid;
+  padding: 2px;
+  background: #fff;
+  flex-shrink: 0;
+}
+.detail-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.detail-intro h3 {
+  font-family: "Manrope", sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.verified-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb, #10b981);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.detail-role {
+  font-family: "Manrope", sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #10b981;
+  margin: 2px 0 4px;
+}
+
+.detail-exp {
+  font-family: "Manrope", sans-serif;
+  font-size: 12px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Info list */
+.detail-info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.detail-info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.info-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.info-icon--blue  { color: #2563eb; }
+.info-icon--green { color: #10b981; }
+.info-icon--amber { color: #f59e0b; }
+.info-icon--cyan  { color: #0ea5e9; }
+.info-icon--pink  { color: #ec4899; }
+
+.detail-info-row strong {
+  font-family: "Manrope", sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.detail-info-row p {
+  font-family: "Manrope", sans-serif;
+  font-size: 12px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.star-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* CTA */
+.detail-cta {
+  width: 100%;
+  height: 48px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #10b981, #0ea5e9);
+  color: #fff;
+  font-family: "Manrope", sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.3s;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.25);
+}
+.detail-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(16, 185, 129, 0.35);
+}
+
+/* Placeholder */
+.detail-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: #94a3b8;
+  gap: 16px;
+}
+.detail-placeholder p {
+  font-family: "Manrope", sans-serif;
+  font-size: 14px;
+  color: #94a3b8;
+  text-align: center;
+}
+
+/* ===========================================================
+   Responsive
+=========================================================== */
+
+@media (max-width: 1100px) {
+  .teachers-content {
+    flex-direction: column;
+    gap: 40px;
+  }
+
+  .teachers-orbital {
+    width: 100%;
+    max-width: 520px;
+    height: 500px;
+  }
+
+  .teacher-detail-card {
+    width: 100%;
+    max-width: 400px;
+  }
+}
+
+@media (max-width: 768px) {
+  .teachers-section {
+    padding: 60px 4% 40px;
+  }
+
+  .teachers-title {
+    font-size: 30px;
+  }
+
+  .orbital-avatar {
+    width: 70px;
+    height: 70px;
+  }
+
+  .orbit-ring--3 {
+    display: none;
+  }
+}

@@ -1,0 +1,98 @@
+import { createElement } from "react";
+import { Code, BookOpen, Zap, Monitor, FlaskConical } from "lucide-react";
+
+import h1 from "../../../../assets/courses/human1.jpg";
+import h2 from "../../../../assets/courses/human2.jpg";
+import h3 from "../../../../assets/courses/human3.jpg";
+import h4 from "../../../../assets/courses/human4.jpg";
+import h5 from "../../../../assets/courses/human5.jpg";
+
+const teachers = [
+  {
+    id: 1,
+    name: "Mr. John Mathew",
+    subject: "Mathematics",
+    role: "Mathematics Teacher",
+    image: h1,
+    experience: "12+ Years Experience",
+    qualification: "M.Sc. Mathematics, B.Ed.",
+    specialization: "Algebra, Calculus, Geometry, Statistics",
+    rating: 4.9,
+    reviews: 640,
+    students: 640,
+    teachingStyle: "Conceptual · Interactive · Practical",
+    borderColor: "#2563eb",
+    iconElement: createElement(BookOpen, { size: 14 }),
+    iconBg: "#eff6ff",
+  },
+  {
+    id: 2,
+    name: "Ms. Ananya Rao",
+    subject: "English",
+    role: "English Teacher",
+    image: h2,
+    experience: "8+ Years Experience",
+    qualification: "M.A. English Literature, CELTA",
+    specialization: "Grammar, Creative Writing, Public Speaking",
+    rating: 4.8,
+    reviews: 520,
+    students: 520,
+    teachingStyle: "Communicative · Engaging · Adaptive",
+    borderColor: "#ec4899",
+    iconElement: createElement(BookOpen, { size: 14 }),
+    iconBg: "#fdf2f8",
+  },
+  {
+    id: 3,
+    name: "Mrs. Aruna Kumar",
+    subject: "Physics",
+    role: "Physics Teacher",
+    image: h3,
+    experience: "15+ Years Experience",
+    qualification: "M.Sc. Physics, B.Ed.",
+    specialization: "Mechanics, Quantum Physics, Optics, Thermodynamics",
+    rating: 4.9,
+    reviews: 780,
+    students: 780,
+    teachingStyle: "Conceptual · Interactive · Practical",
+    borderColor: "#3b82f6",
+    iconElement: createElement(Zap, { size: 14 }),
+    iconBg: "#eff6ff",
+  },
+  {
+    id: 4,
+    name: "Ms. Kayal",
+    subject: "Python Programming",
+    role: "Programming Instructor",
+    image: h4,
+    experience: "10+ Years Experience",
+    qualification: "B.Tech CS, AWS Certified",
+    specialization: "Python, Data Science, Machine Learning, Django",
+    rating: 5.0,
+    reviews: 920,
+    students: 920,
+    teachingStyle: "Hands-on · Project Based · Industry Ready",
+    borderColor: "#0ea5e9",
+    iconElement: createElement(Code, { size: 14 }),
+    iconBg: "#ecfeff",
+  },
+  {
+    id: 5,
+    name: "Dr. Meera Nair",
+    subject: "Chemistry",
+    role: "Chemistry Teacher",
+    image: h5,
+    experience: "14+ Years Experience",
+    qualification: "Ph.D. Chemistry, M.Sc.",
+    specialization: "Organic, Inorganic, Physical Chemistry",
+    rating: 4.8,
+    reviews: 590,
+    students: 590,
+    teachingStyle: "Visual · Lab Oriented · Conceptual",
+    borderColor: "#f59e0b",
+    iconElement: createElement(FlaskConical, { size: 14 }),
+    iconBg: "#fffbeb",
+  },
+];
+
+export default teachers;
