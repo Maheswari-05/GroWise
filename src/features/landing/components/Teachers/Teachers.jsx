@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
-  X, GraduationCap, Award, Target, Star, Users, Heart,
-  ArrowRight, BookOpen, Crosshair, BadgeCheck
+  X, GraduationCap, Star, Users, Heart,
+  ArrowRight, Crosshair, BadgeCheck
 } from "lucide-react";
 import teachers from "./teachersData";
 import logo from "../../../../assets/logo.png";

@@ -1,5 +1,5 @@
 import { createElement } from "react";
-import { Code, BookOpen, Zap, Monitor, FlaskConical } from "lucide-react";
+import { Code, BookOpen, Zap, FlaskConical } from "lucide-react";
 
 import h1 from "../../../../assets/courses/human1.jpg";
 import h2 from "../../../../assets/courses/human2.jpg";
