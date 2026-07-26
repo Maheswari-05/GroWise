@@ -1,6 +1,7 @@
+import LandingPage from "./features/landing/LandingPage";
 function App() {
   return (
-    <h1>GroWise</h1>
+    <LandingPage />
   );
 }
 

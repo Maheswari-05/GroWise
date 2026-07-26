@@ -1,0 +1,126 @@
+/* ===========================
+   Landing Page
+=========================== */
+
+.landing-page {
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
+
+  background: linear-gradient(
+    135deg,
+    #eef7ff 0%,
+    #f7fcff 40%,
+    #f5fff7 100%
+  );
+
+  position: relative;
+}
+
+/* ===========================
+   Decorative Background
+=========================== */
+
+.landing-page::before {
+  content: "";
+
+  position: absolute;
+
+  top: -250px;
+  left: -200px;
+
+  width: 650px;
+  height: 650px;
+
+  background: radial-gradient(
+    circle,
+    rgba(35, 107, 255, 0.18),
+    transparent 70%
+  );
+
+  filter: blur(60px);
+
+  z-index: 0;
+}
+
+.landing-page::after {
+  content: "";
+
+  position: absolute;
+
+  right: -220px;
+  top: -120px;
+
+  width: 550px;
+  height: 550px;
+
+  background: radial-gradient(
+    circle,
+    rgba(57, 181, 74, 0.16),
+    transparent 70%
+  );
+
+  filter: blur(60px);
+
+  z-index: 0;
+}
+
+/* ===========================
+   Hero Section
+=========================== */
+
+.hero-section {
+  min-height: 100vh;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  position: relative;
+  z-index: 1;
+
+  padding-top: 120px;
+}
+
+.hero-content {
+  text-align: center;
+}
+
+.hero-content h1 {
+  font-size: 4rem;
+  font-weight: 700;
+
+  color: #1b2b48;
+
+  margin-bottom: 18px;
+}
+
+.hero-content p {
+  font-size: 1.2rem;
+
+  color: #5f6d87;
+}
+
+/* ===========================
+   Responsive
+=========================== */
+
+@media (max-width: 992px) {
+  .hero-content h1 {
+    font-size: 3rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero-content h1 {
+    font-size: 2.3rem;
+  }
+
+  .hero-content p {
+    font-size: 1rem;
+  }
+
+  .hero-section {
+    padding-top: 100px;
+  }
+}
