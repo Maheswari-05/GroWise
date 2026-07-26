@@ -8,21 +8,22 @@ const links = [
   "Contact",
 ];
 
-const NavLinks=()=>{
-    return(
-        <ul className="nav-links">
-          {links.map((item,index)=>(
-            <li key={item}>
-                <a
-                href={`#${item.toLowerCase()}`}
-                className={index===0?"active":""}
-                >
-                {item}
-                </a>
-            </li>
-          ))}  
-        </ul>
-    );
+const NavLinks = ({ onLinkClick }) => {
+  return (
+    <ul className="nav-links">
+      {links.map((item, index) => (
+        <li key={item}>
+          <a
+            href={`#${item.toLowerCase()}`}
+            className={index === 0 ? "active" : ""}
+            onClick={onLinkClick}
+          >
+            {item}
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
 };
 
 export default NavLinks;

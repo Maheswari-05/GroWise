@@ -1,126 +1,582 @@
-/* ===========================
-   Landing Page
-=========================== */
+/* ======================================================
+GOOGLE FONT
+====================================================== */
 
-.landing-page {
-  min-height: 100vh;
-  width: 100%;
-  overflow-x: hidden;
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
 
-  background: linear-gradient(
-    135deg,
-    #eef7ff 0%,
-    #f7fcff 40%,
-    #f5fff7 100%
-  );
+:root{
 
-  position: relative;
+    --primary:#236BFF;
+    --secondary:#3ACB72;
+    --text:#1C2541;
+    --white:#ffffff;
+
 }
 
-/* ===========================
-   Decorative Background
-=========================== */
+/* ======================================================
+RESET
+====================================================== */
 
-.landing-page::before {
-  content: "";
+*{
 
-  position: absolute;
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
 
-  top: -250px;
-  left: -200px;
-
-  width: 650px;
-  height: 650px;
-
-  background: radial-gradient(
-    circle,
-    rgba(35, 107, 255, 0.18),
-    transparent 70%
-  );
-
-  filter: blur(60px);
-
-  z-index: 0;
 }
 
-.landing-page::after {
-  content: "";
+body{
 
-  position: absolute;
+    font-family:"Manrope",sans-serif;
 
-  right: -220px;
-  top: -120px;
-
-  width: 550px;
-  height: 550px;
-
-  background: radial-gradient(
-    circle,
-    rgba(57, 181, 74, 0.16),
-    transparent 70%
-  );
-
-  filter: blur(60px);
-
-  z-index: 0;
 }
 
-/* ===========================
-   Hero Section
-=========================== */
+/* ======================================================
+NAVBAR WRAPPER
+====================================================== */
 
-.hero-section {
-  min-height: 100vh;
+.navbar-wrapper{
 
-  display: flex;
-  justify-content: center;
-  align-items: center;
+    position:fixed;
 
-  position: relative;
-  z-index: 1;
+    top:24px;
+    left:0;
 
-  padding-top: 120px;
+    width:100%;
+
+    display:flex;
+    justify-content:center;
+
+    z-index:9999;
+
 }
 
-.hero-content {
-  text-align: center;
+/* ======================================================
+NAVBAR
+====================================================== */
+
+.navbar{
+
+    width:82%;
+
+    max-width:1320px;
+
+    min-width:1100px;
+
+    height:86px;
+
+    padding:0 36px;
+
+    display:grid;
+
+    grid-template-columns:
+    220px
+    1fr
+    auto;
+
+    align-items:center;
+
+    background:rgba(255,255,255,.82);
+
+    
+    -webkit-backdrop-filter:blur(22px);
+    backdrop-filter:blur(22px);
+
+    border-radius:30px;
+
+    border:1px solid rgba(255,255,255,.65);
+
+    box-shadow:
+    0 12px 40px rgba(20,40,120,.08),
+    inset 0 1px 0 rgba(255,255,255,.9);
+
 }
 
-.hero-content h1 {
-  font-size: 4rem;
-  font-weight: 700;
+/* ======================================================
+LOGO
+====================================================== */
 
-  color: #1b2b48;
+.navbar-logo{
 
-  margin-bottom: 18px;
+    display:flex;
+    align-items:center;
 }
 
-.hero-content p {
-  font-size: 1.2rem;
+.logo{
 
-  color: #5f6d87;
+    display:flex;
+    align-items:center;
 }
 
-/* ===========================
-   Responsive
-=========================== */
+.logo img{
 
-@media (max-width: 992px) {
-  .hero-content h1 {
-    font-size: 3rem;
-  }
+    width:auto;
+
+    height:54px;
+
+    display:block;
+
+    transition:.3s;
+
 }
 
-@media (max-width: 768px) {
-  .hero-content h1 {
-    font-size: 2.3rem;
-  }
+.logo img:hover{
 
-  .hero-content p {
-    font-size: 1rem;
-  }
+    transform:scale(1.03);
 
-  .hero-section {
-    padding-top: 100px;
-  }
+}
+
+/* ======================================================
+CENTER NAVIGATION
+====================================================== */
+
+.navbar-center{
+
+    display:flex;
+
+    justify-content:center;
+
+    align-items:center;
+
+}
+
+.nav-links{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:38px;
+
+    list-style:none;
+
+}
+
+.nav-links li{
+
+    position:relative;
+
+}
+
+.nav-links a{
+
+    text-decoration:none;
+
+    color:var(--text);
+
+    font-size:16px;
+
+    font-weight:600;
+
+    transition:.3s;
+
+    position:relative;
+
+}
+
+.nav-links a::after{
+
+    content:"";
+
+    position:absolute;
+
+    left:50%;
+
+    bottom:-11px;
+
+    transform:translateX(-50%);
+
+    width:0;
+
+    height:3px;
+
+    border-radius:50px;
+
+    background:
+
+    linear-gradient(
+    90deg,
+    var(--primary),
+    var(--secondary)
+    );
+
+    transition:.35s;
+
+}
+
+.nav-links a:hover{
+
+    color:var(--primary);
+
+}
+
+.nav-links a:hover::after{
+
+    width:100%;
+
+}
+
+.nav-links a.active{
+
+    color:var(--primary);
+
+}
+
+.nav-links a.active::after{
+
+    width:100%;
+
+}
+
+/* ======================================================
+RIGHT SIDE
+====================================================== */
+
+.navbar-actions{
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:flex-end;
+
+}
+
+.nav-buttons{
+
+    display:flex;
+
+    gap:16px;
+
+}
+/* ======================================================
+LOGIN BUTTON
+====================================================== */
+
+.login-btn{
+
+    width:125px;
+    height:48px;
+
+    border-radius:999px;
+
+    border:2px solid #C7D9FF;
+
+    background:#fff;
+
+    color:var(--primary);
+
+    font-family:"Manrope";
+
+    font-size:15px;
+
+    font-weight:700;
+
+    cursor:pointer;
+
+    transition:.35s ease;
+
+}
+
+.login-btn:hover{
+
+    color:#fff;
+
+    border-color:transparent;
+
+    background:linear-gradient(
+        135deg,
+        var(--primary),
+        var(--secondary)
+    );
+
+    transform:translateY(-2px);
+
+    box-shadow:
+        0 12px 30px rgba(35,107,255,.22);
+
+}
+
+/* ======================================================
+GET STARTED
+====================================================== */
+
+.get-started-btn{
+
+    width:165px;
+
+    height:50px;
+
+    border:none;
+
+    border-radius:999px;
+
+    cursor:pointer;
+
+    color:#fff;
+
+    font-family:"Manrope";
+
+    font-size:15px;
+
+    font-weight:700;
+
+    background:linear-gradient(
+        135deg,
+        #236BFF,
+        #39C96B
+    );
+
+    transition:.35s ease;
+
+    box-shadow:
+        0 10px 25px rgba(35,107,255,.18);
+
+}
+
+.get-started-btn:hover{
+
+    transform:translateY(-2px);
+
+    background:linear-gradient(
+        135deg,
+        #1E5FFF,
+        #45D676
+    );
+
+    box-shadow:
+        0 15px 35px rgba(35,107,255,.28);
+
+}
+
+/* ======================================================
+MENU BUTTON
+====================================================== */
+
+.menu-btn{
+
+    display:none;
+
+    width:46px;
+    height:46px;
+
+    border:none;
+
+    border-radius:14px;
+
+    background:rgba(255,255,255,.75);
+
+    cursor:pointer;
+
+    align-items:center;
+    justify-content:center;
+
+    transition:.3s;
+
+}
+
+.menu-btn:hover{
+
+    background:#F5F8FF;
+
+}
+
+/* ======================================================
+MOBILE DRAWER
+====================================================== */
+
+.mobile-drawer{
+
+    display:none;
+
+}
+
+/* ======================================================
+LAPTOP
+====================================================== */
+
+@media (max-width:1280px){
+
+.navbar{
+
+width:92%;
+
+min-width:auto;
+
+padding:0 28px;
+
+}
+
+.nav-links{
+
+gap:26px;
+
+}
+
+.nav-links a{
+
+font-size:15px;
+
+}
+
+.logo img{
+
+height:48px;
+
+}
+
+}
+
+/* ======================================================
+TABLET
+====================================================== */
+
+@media (max-width:992px){
+
+.menu-btn{
+
+display:flex;
+
+}
+
+.navbar{
+
+grid-template-columns:auto auto;
+
+}
+
+.navbar-center,
+.navbar-actions{
+
+display:none;
+
+}
+
+.mobile-drawer{
+
+position:absolute;
+
+top:100px;
+
+left:50%;
+
+transform:translateX(-50%) translateY(-15px);
+
+width:92%;
+
+padding:30px;
+
+background:rgba(255,255,255,.94);
+
+backdrop-filter:blur(25px);
+
+border-radius:24px;
+
+box-shadow:
+0 20px 60px rgba(0,0,0,.08);
+
+display:flex;
+
+flex-direction:column;
+
+align-items:center;
+
+gap:28px;
+
+opacity:0;
+
+visibility:hidden;
+
+transition:.35s;
+
+}
+
+.mobile-drawer.show{
+
+opacity:1;
+
+visibility:visible;
+
+transform:translateX(-50%) translateY(0);
+
+}
+
+.mobile-drawer .nav-links{
+
+flex-direction:column;
+
+gap:22px;
+
+}
+
+.mobile-drawer .nav-buttons{
+
+width:100%;
+
+flex-direction:column;
+
+}
+
+.mobile-drawer .login-btn,
+.mobile-drawer .get-started-btn{
+
+width:100%;
+
+}
+
+}
+
+/* ======================================================
+PHONE
+====================================================== */
+
+@media (max-width:768px){
+
+.navbar{
+
+width:95%;
+
+height:74px;
+
+padding:0 20px;
+
+border-radius:22px;
+
+}
+
+.logo img{
+
+height:42px;
+
+}
+
+.mobile-drawer{
+
+width:95%;
+
+}
+
+}
+
+@media (max-width:480px){
+
+.logo img{
+
+height:36px;
+
+}
+
+.nav-links a{
+
+font-size:16px;
+
+}
+
+.login-btn,
+.get-started-btn{
+
+height:46px;
+
+}
+
 }
