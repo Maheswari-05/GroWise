@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Menu, X } from "lucide-react";
 
 import "./Navbar.css";
@@ -10,23 +10,34 @@ import AuthButtons from "./AuthButtons";
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isNavHovered, setIsNavHovered] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 50);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const toggleMenu = () => setMenuOpen((prev) => !prev);
   const closeMenu = () => setMenuOpen(false);
 
+  const isExpanded = isNavHovered || isScrolled;
+
   return (
-    <header className={`navbar-wrapper${isNavHovered ? " expanded" : ""}`}>
+    <header 
+      className={`navbar-wrapper${isExpanded ? " expanded" : ""}`}
+      onMouseEnter={() => setIsNavHovered(true)}
+      onMouseLeave={() => setIsNavHovered(false)}
+    >
       {/* ── Main Bar ── */}
       <nav className="navbar">
         {/* Logo */}
         <Logo />
 
         {/* Desktop Nav Links */}
-        <div
-          className="nav-links-wrapper"
-          onMouseEnter={() => setIsNavHovered(true)}
-          onMouseLeave={() => setIsNavHovered(false)}
-        >
+        <div className="nav-links-wrapper">
           <NavLinks onLinkClick={closeMenu} />
         </div>
 
