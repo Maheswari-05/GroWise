@@ -1,4 +1,4 @@
-import React from "react";
+
 import logo from "../../../../assets/logo.png";
 import gradBooksImg from "../../../../assets/grad_book.png";
 import contactRightImg from "../../../../assets/contactright.png";
@@ -13,11 +13,9 @@ import {
   Users,
   BookOpen,
   Award,
-  DollarSign,
   Globe,
   Headphones,
   ExternalLink,
-  MessageCircle,
   Star,
   Heart,
 } from "lucide-react";

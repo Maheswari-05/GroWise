@@ -1,4 +1,4 @@
-import React from "react";
+
 import { ArrowRight, Calendar } from "lucide-react";
 import gradBooksImg from "../../../../assets/grad_book.png";
 import contactRightImg from "../../../../assets/contactright.png";
