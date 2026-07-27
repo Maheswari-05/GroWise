@@ -1,4 +1,4 @@
-// ── Course thumbnails (actual files in assets/courses) ────────────
+
 import mathsImg  from "../../../../assets/courses/mathematics.jpg";
 import englishImg from "../../../../assets/courses/english.jpg";
 import biologyImg from "../../../../assets/courses/biology.jpg";
@@ -9,14 +9,13 @@ import pythonImg  from "../../../../assets/courses/python.jpg";
 import webImg     from "../../../../assets/courses/web-development.jpg";
 import extraImg   from "../../../../assets/courses/124292.jpg";
 
-// ── Teacher avatars – 5 humans reused cyclically ─────────────────
 import h1 from "../../../../assets/courses/human1.jpg";
 import h2 from "../../../../assets/courses/human2.jpg";
 import h3 from "../../../../assets/courses/human3.jpg";
 import h4 from "../../../../assets/courses/human4.jpg";
 import h5 from "../../../../assets/courses/human5.jpg";
 
-// Helpers to cycle images
+
 const imgs    = [mathsImg, englishImg, biologyImg, aptitudeImg, aiImg, javaImg, pythonImg, webImg, extraImg];
 const avatars = [h1, h2, h3, h4, h5];
 const teachers = [
@@ -148,7 +147,7 @@ const COURSE_DEFS = {
   ],
 };
 
-// Build flat courses array with cycled images / avatars / teachers
+
 let idCounter = 1;
 const courses = [];
 
