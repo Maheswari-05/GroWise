@@ -34,24 +34,26 @@ const Teachers = () => {
           <div className="orbit-ring orbit-ring--1">
             <span className="orbit-dot" style={{ top: 0, left: "50%" }} />
             <span className="orbit-dot" style={{ bottom: 0, left: "50%" }} />
+            <div className="sparkle sparkle-1" style={{ top: "20%", left: "80%" }} />
           </div>
           <div className="orbit-ring orbit-ring--2">
             <span className="orbit-dot" style={{ top: "50%", left: 0 }} />
             <span className="orbit-dot" style={{ top: "50%", right: 0 }} />
             <span className="orbit-dot" style={{ top: 0, left: "50%" }} />
+            <div className="sparkle sparkle-2" style={{ top: "85%", left: "15%" }} />
           </div>
           <div className="orbit-ring orbit-ring--3">
             <span className="orbit-dot" style={{ top: "50%", left: 0 }} />
             <span className="orbit-dot" style={{ top: "50%", right: 0 }} />
+            <div className="sparkle sparkle-3" style={{ top: "15%", left: "20%" }} />
+            <div className="sparkle sparkle-4" style={{ top: "80%", left: "70%" }} />
           </div>
-
-          {/* Floating sparkle dots */}
-          <div className="sparkle sparkle-1" />
-          <div className="sparkle sparkle-2" />
-          <div className="sparkle sparkle-3" />
-          <div className="sparkle sparkle-4" />
-          <div className="sparkle sparkle-5" />
-          <div className="sparkle sparkle-6" />
+          <div className="orbit-ring orbit-ring--4">
+            <span className="orbit-dot" style={{ top: 0, left: "50%" }} />
+            <span className="orbit-dot" style={{ bottom: 0, left: "50%" }} />
+            <div className="sparkle sparkle-5" style={{ top: "60%", left: "5%" }} />
+            <div className="sparkle sparkle-6" style={{ top: "10%", left: "90%" }} />
+          </div>
 
           {/* Center logo */}
           <div className="orbital-center">
@@ -69,10 +71,10 @@ const Teachers = () => {
               className={`orbital-node ${selected?.id === t.id ? "orbital-node--active" : ""}`}
               style={{
                 top: [
-                  "4%", "16%", "62%", "72%", "20%"
+                  "28%", "32%", "67%", "78%", "47%"
                 ][i],
                 left: [
-                  "36%", "70%", "74%", "28%", "2%"
+                  "33%", "72%", "79%", "28%", "8%"
                 ][i],
               }}
               onClick={() => setSelected(t)}
