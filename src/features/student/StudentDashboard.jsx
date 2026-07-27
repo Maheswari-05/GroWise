@@ -18,7 +18,8 @@ import {
   Award,
   Download,
   FileCheck,
-  ChevronRight
+  ChevronRight,
+  Search
 } from "lucide-react";
 import logo from "../../assets/logo.png";
 import avatarImg from "../../assets/courses/human4.jpg";
@@ -31,6 +32,60 @@ const StudentDashboard = ({ onNavigate }) => {
   const [downloadProgress, setDownloadProgress] = useState(null);
 
   const [historyFilter, setHistoryFilter] = useState("All Subjects");
+
+  const [assignmentSearch, setAssignmentSearch] = useState("");
+  const [assignmentSubject, setAssignmentSubject] = useState("All Subjects");
+  const [assignmentStatus, setAssignmentStatus] = useState("All Status");
+  const [submittingId, setSubmittingId] = useState(null);
+  const [activeDetailsAssignment, setActiveDetailsAssignment] = useState(null);
+
+  const [assignments, setAssignments] = useState([
+    {
+      id: 1,
+      subject: "Mathematics",
+      status: "Pending",
+      title: "Algebra Worksheet",
+      description: "Solve questions from Chapter 4 and upload your answers in PDF format.",
+      assignedDate: "10 Jun 2026",
+      dueDate: "17 Jun 2026"
+    },
+    {
+      id: 2,
+      subject: "Physics",
+      status: "Evaluated",
+      title: "Quantum Mechanics - Physics Assignment",
+      score: "18 / 20",
+      teacherRemarks: "Well done. Improve numerical calculations."
+    },
+    {
+      id: 3,
+      subject: "Chemistry",
+      status: "Overdue",
+      title: "Organic Chemistry Worksheet",
+      missedDeadline: "15 Jun 2026"
+    }
+  ]);
+
+  const filteredAssignments = assignments.filter((item) => {
+    const matchesSearch = item.title.toLowerCase().includes(assignmentSearch.toLowerCase()) ||
+                          item.subject.toLowerCase().includes(assignmentSearch.toLowerCase());
+    const matchesSubject = assignmentSubject === "All Subjects" || item.subject === assignmentSubject;
+    const matchesStatus = assignmentStatus === "All Status" || item.status === assignmentStatus;
+    return matchesSearch && matchesSubject && matchesStatus;
+  });
+
+  const handleSubmitAssignmentAction = (id, title) => {
+    setSubmittingId(id);
+    setTimeout(() => {
+      setAssignments(prev => prev.map(item => item.id === id ? { ...item, status: "Submitted" } : item));
+      setSubmittingId(null);
+      alert(`Assignment "${title}" submitted successfully!`);
+    }, 1500);
+  };
+
+  const handleViewAssignmentDetails = (asgn) => {
+    setActiveDetailsAssignment(asgn);
+  };
 
   const attendanceHistory = [
     { date: "Oct 06, 2023", subject: "Mathematics", teacher: "Alan Turing", batch: "Morning B1", time: "09:00 - 10:30", status: "Present" },
@@ -757,7 +812,167 @@ const StudentDashboard = ({ onNavigate }) => {
             </div>
           )}
 
-          {activeTab !== "Dashboard" && activeTab !== "Attendance" && activeTab !== "Study Materials" && (
+          {activeTab === "Assignments" && (
+            <div className="assignments-view-container">
+              {/* Header Description */}
+              <section className="assignments-header-section">
+                <h2>Assignments</h2>
+                <p>View, submit, and track assignments for your enrolled subjects.</p>
+              </section>
+
+              {/* Filters Row */}
+              <section className="assignments-filters-row">
+                <div className="assignments-search-wrapper">
+                  <Search size={18} className="search-icon" />
+                  <input
+                    type="text"
+                    placeholder="Search assignments..."
+                    value={assignmentSearch}
+                    onChange={(e) => setAssignmentSearch(e.target.value)}
+                  />
+                </div>
+                <div className="assignments-dropdowns">
+                  <select
+                    value={assignmentSubject}
+                    onChange={(e) => setAssignmentSubject(e.target.value)}
+                    className="assignments-select-dropdown"
+                  >
+                    <option value="All Subjects">All Subjects</option>
+                    <option value="Mathematics">Mathematics</option>
+                    <option value="Physics">Physics</option>
+                    <option value="Chemistry">Chemistry</option>
+                  </select>
+                  <select
+                    value={assignmentStatus}
+                    onChange={(e) => setAssignmentStatus(e.target.value)}
+                    className="assignments-select-dropdown"
+                  >
+                    <option value="All Status">All Status</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Evaluated">Evaluated</option>
+                    <option value="Overdue">Overdue</option>
+                    <option value="Submitted">Submitted</option>
+                  </select>
+                </div>
+              </section>
+
+              {/* Assignments List */}
+              <section className="assignments-list-container">
+                {filteredAssignments.length > 0 ? (
+                  filteredAssignments.map((asgn) => (
+                    <div key={asgn.id} className="assignment-card">
+                      <div className="assignment-card-header">
+                        <div className="assignment-subject-info">
+                          <span className={`status-badge ${asgn.status.toLowerCase()}`}>
+                            {asgn.status}
+                          </span>
+                          <span className="assignment-subject-name">
+                            {asgn.subject.toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="assignment-card-actions">
+                          {asgn.status === "Pending" && (
+                            <>
+                              <button 
+                                className="outline-btn"
+                                onClick={() => handleViewAssignmentDetails(asgn)}
+                              >
+                                View Details
+                              </button>
+                              <button 
+                                className="primary-solid-btn"
+                                onClick={() => handleSubmitAssignmentAction(asgn.id, asgn.title)}
+                                disabled={submittingId === asgn.id}
+                              >
+                                {submittingId === asgn.id ? (
+                                  <span className="btn-spinner"></span>
+                                ) : (
+                                  "Submit Assignment"
+                                )}
+                              </button>
+                            </>
+                          )}
+                          {asgn.status === "Evaluated" && (
+                            <button 
+                              className="outline-btn"
+                              onClick={() => handleViewAssignmentDetails(asgn)}
+                            >
+                              View Submission
+                            </button>
+                          )}
+                          {asgn.status === "Overdue" && (
+                            <button 
+                              className="primary-solid-btn"
+                              onClick={() => handleSubmitAssignmentAction(asgn.id, asgn.title)}
+                              disabled={submittingId === asgn.id}
+                            >
+                              {submittingId === asgn.id ? (
+                                <span className="btn-spinner"></span>
+                              ) : (
+                                "Submit Late"
+                              )}
+                            </button>
+                          )}
+                          {asgn.status === "Submitted" && (
+                            <button className="outline-btn" disabled>
+                              Submitted
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="assignment-card-body">
+                        <div className="assignment-title-row">
+                          <h4>{asgn.title}</h4>
+                          {asgn.score && (
+                            <span className="assignment-score-badge">{asgn.score}</span>
+                          )}
+                        </div>
+                        
+                        {asgn.description && (
+                          <p className="assignment-desc">{asgn.description}</p>
+                        )}
+
+                        {asgn.teacherRemarks && (
+                          <div className="teacher-remarks-box">
+                            <h5>TEACHER REMARKS</h5>
+                            <p>"{asgn.teacherRemarks}"</p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="assignment-card-footer">
+                        {asgn.assignedDate && asgn.dueDate && (
+                          <div className="assignment-dates-wrap">
+                            <span className="date-item">
+                              <CalendarDays size={14} className="date-icon" />
+                              Assigned: {asgn.assignedDate}
+                            </span>
+                            <span className="date-item due">
+                              <CalendarDays size={14} className="date-icon due-icon" />
+                              Due: {asgn.dueDate}
+                            </span>
+                          </div>
+                        )}
+                        {asgn.missedDeadline && (
+                          <span className="deadline-missed-alert">
+                            <AlertTriangle size={14} className="warning-icon" />
+                            Missed Deadline: {asgn.missedDeadline}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="no-assignments-card">
+                    <p>No assignments found matching criteria.</p>
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+
+          {activeTab !== "Dashboard" && activeTab !== "Attendance" && activeTab !== "Study Materials" && activeTab !== "Assignments" && (
             <div className="placeholder-view-card">
               <div className="placeholder-content">
                 <div className="placeholder-icon-wrap">
@@ -780,6 +995,56 @@ const StudentDashboard = ({ onNavigate }) => {
           )}
         </main>
       </div>
+
+      {/* Details Modal Overlay */}
+      {activeDetailsAssignment && (
+        <div className="custom-modal-overlay" onClick={() => setActiveDetailsAssignment(null)}>
+          <div className="custom-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Assignment Details</h3>
+              <button className="modal-close-btn" onClick={() => setActiveDetailsAssignment(null)}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <h4 className="modal-assignment-title">{activeDetailsAssignment.title}</h4>
+              <div className="modal-meta-grid">
+                <div>
+                  <span className="meta-label">Subject</span>
+                  <span className="meta-value">{activeDetailsAssignment.subject}</span>
+                </div>
+                <div>
+                  <span className="meta-label">Status</span>
+                  <span className={`status-badge ${activeDetailsAssignment.status.toLowerCase()}`}>
+                    {activeDetailsAssignment.status}
+                  </span>
+                </div>
+              </div>
+              
+              {activeDetailsAssignment.description && (
+                <div className="modal-info-block">
+                  <span className="meta-label">Description / Instructions</span>
+                  <p className="modal-desc-text">{activeDetailsAssignment.description}</p>
+                </div>
+              )}
+
+              {activeDetailsAssignment.score && (
+                <div className="modal-info-block">
+                  <span className="meta-label">Grade / Score</span>
+                  <span className="modal-score-val">{activeDetailsAssignment.score}</span>
+                </div>
+              )}
+
+              {activeDetailsAssignment.teacherRemarks && (
+                <div className="modal-info-block remarks-block">
+                  <span className="meta-label">Teacher Remarks</span>
+                  <p className="modal-remarks-text">"{activeDetailsAssignment.teacherRemarks}"</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
