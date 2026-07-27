@@ -1,6 +1,6 @@
 import { ArrowRight, CalendarDays } from "lucide-react";
 
-const HeroLeft = () => {
+const HeroLeft = ({ onNavigate }) => {
   return (
     <div className="hero-left">
 
@@ -26,7 +26,7 @@ const HeroLeft = () => {
 
       <div className="hero-buttons">
 
-        <button className="hero-primary-btn">
+        <button className="hero-primary-btn" onClick={() => onNavigate("login")}>
 
           Get Started
 

@@ -7,7 +7,7 @@ import Logo from "./Logo";
 import NavLinks from "./NavLinks";
 import AuthButtons from "./AuthButtons";
 
-const Navbar = () => {
+const Navbar = ({ onNavigate }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isNavHovered, setIsNavHovered] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -43,7 +43,7 @@ const Navbar = () => {
 
         {/* Desktop Auth Buttons */}
         <div className="nav-right">
-          <AuthButtons />
+          <AuthButtons onNavigate={onNavigate} />
         </div>
 
         {/* Hamburger */}
@@ -61,7 +61,7 @@ const Navbar = () => {
       <div className={`mobile-menu${menuOpen ? " open" : ""}`}>
         <NavLinks onLinkClick={closeMenu} />
         <div className="mobile-buttons">
-          <AuthButtons />
+          <AuthButtons onNavigate={onNavigate} />
         </div>
       </div>
     </header>

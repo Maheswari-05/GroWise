@@ -404,10 +404,12 @@
 ============================================================ */
 
 @media (max-width: 768px) {
+  :root {
+    --card-w: 240px;
+  }
   .courses-section { padding: 70px 0 60px; }
   .courses-title   { font-size: 32px; }
   .courses-tabs-wrap,
   .courses-slider-wrap { width: 94%; }
   .swiper-nav { display: none; }
-  --card-w: 240px;
 }
