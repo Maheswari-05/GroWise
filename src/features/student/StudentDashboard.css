@@ -3615,6 +3615,347 @@
   }
 }
 
+/* ============================================================
+   PERFORMANCE VIEW STYLING
+   ============================================================ */
+.performance-view-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.performance-header-section h2 {
+  font-size: 26px;
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  color: #1e2a46;
+  margin-bottom: 6px;
+}
+
+.performance-header-section p {
+  font-size: 14.5px;
+  color: #64748b;
+}
+
+.performance-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.performance-subject-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #ffffff;
+  border-radius: 18px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  padding: 20px 28px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 12px rgba(30, 42, 70, 0.02);
+}
+
+.performance-subject-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(45, 107, 255, 0.04);
+}
+
+.performance-subject-card.active {
+  border-width: 1.5px;
+  box-shadow: 0 10px 24px rgba(45, 107, 255, 0.06);
+}
+
+.performance-subject-card.math.active {
+  border-color: #2D6BFF;
+}
+
+.performance-subject-card.phys.active {
+  border-color: #8b5cf6;
+}
+
+.performance-subject-card.chem.active {
+  border-color: #ea580c;
+}
+
+.card-left-section {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex: 1;
+}
+
+.subject-meta-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  max-width: 450px;
+}
+
+.subject-meta-text h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e2a46;
+}
+
+.progress-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.progress-bar-track {
+  flex: 1;
+  height: 6px;
+  background-color: #f1f5f9;
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+}
+
+.progress-bar-fill.math {
+  background-color: #2D6BFF;
+}
+
+.progress-bar-fill.phys {
+  background-color: #8b5cf6;
+}
+
+.progress-bar-fill.chem {
+  background-color: #ea580c;
+}
+
+.progress-pct-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #64748b;
+  min-width: 80px;
+}
+
+.card-right-section {
+  display: flex;
+  align-items: center;
+  gap: 36px;
+}
+
+.grade-badge-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.grade-label {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #94a3b8;
+  letter-spacing: 0.5px;
+}
+
+.grade-value {
+  font-size: 20px;
+  font-weight: 800;
+  font-family: "Sora", sans-serif;
+}
+
+.grade-value.math {
+  color: #2D6BFF;
+}
+
+.grade-value.phys {
+  color: #8b5cf6;
+}
+
+.grade-value.chem {
+  color: #ea580c;
+}
+
+.expand-indicator {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #94a3b8;
+  padding: 6px 14px;
+  background-color: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #f1f5f9;
+  transition: all 0.2s;
+}
+
+.performance-subject-card.active .expand-indicator {
+  background-color: rgba(45, 107, 255, 0.06);
+  color: #2D6BFF;
+  border-color: rgba(45, 107, 255, 0.1);
+}
+
+.performance-details-panel {
+  background-color: #ffffff;
+  border-radius: 20px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  padding: 24px;
+  box-shadow: 0 4px 16px rgba(30, 42, 70, 0.02);
+  animation: detailsFadeIn 0.25s ease-out;
+}
+
+@keyframes detailsFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.performance-details-panel .panel-header {
+  border-bottom: 1.5px solid #f1f5f9;
+  padding-bottom: 12px;
+  margin-bottom: 20px;
+}
+
+.performance-details-panel .panel-header h3 {
+  font-size: 18px;
+  font-family: "Sora", sans-serif;
+  font-weight: 700;
+  color: #1e2a46;
+}
+
+.details-section-block {
+  margin-bottom: 24px;
+}
+
+.details-section-block:last-child {
+  margin-bottom: 0;
+}
+
+.details-section-block .section-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #64748b;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.topics-list-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.topic-item-badge {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #475569;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 8px 16px;
+  border-radius: 10px;
+}
+
+.details-table-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f8fafc;
+  border: 1px solid #f1f5f9;
+  padding: 12px 18px;
+  border-radius: 12px;
+  transition: all 0.2s;
+}
+
+.detail-item-row:hover {
+  background-color: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.01);
+}
+
+.detail-item-row .item-name {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #1e2a46;
+}
+
+.item-status-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.item-score {
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #1e2a46;
+}
+
+.item-status-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 6px;
+}
+
+.item-status-badge.passed {
+  background-color: #dcfce7;
+  color: #15803d;
+}
+
+.item-status-badge.evaluated {
+  background-color: #eff6ff;
+  color: #2D6BFF;
+}
+
+.item-status-badge.pending {
+  background-color: #fef9c3;
+  color: #a16207;
+}
+
+.item-status-badge.submitted {
+  background-color: #ecfdf5;
+  color: #059669;
+}
+
+.item-status-badge.overdue {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+/* ============================================================
+   RESPONSIVE OVERRIDES FOR PERFORMANCE
+   ============================================================ */
+@media (max-width: 768px) {
+  .performance-subject-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    padding: 20px;
+  }
+
+  .card-right-section {
+    justify-content: space-between;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .detail-item-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .item-status-wrap {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
 
 
 

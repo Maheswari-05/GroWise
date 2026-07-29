@@ -157,6 +157,63 @@ const StudentDashboard = ({ onNavigate }) => {
     return matchesSearch && matchesSubject && matchesStatus;
   });
 
+  const [activePerformanceSubject, setActivePerformanceSubject] = useState("Mathematics");
+
+  const [performanceData, setPerformanceData] = useState([
+    {
+      subject: "Mathematics",
+      progress: 90,
+      grade: "A",
+      topicsCovered: [
+        "Algebraic Equations",
+        "Complex Numbers & Quadratic Formulations",
+        "Matrices & Determinants",
+        "Calculus & Functions"
+      ],
+      tests: [
+        { name: "Maths-Algebra Test", score: "18 / 20 (90%)", status: "Passed", badgeClass: "passed" }
+      ],
+      assignments: [
+        { name: "Algebra Worksheet", score: "18 / 20", status: "Evaluated", badgeClass: "evaluated" },
+        { name: "Calculus Practice", score: "20 / 20", status: "Evaluated", badgeClass: "evaluated" }
+      ]
+    },
+    {
+      subject: "Physics",
+      progress: 80,
+      grade: "A-",
+      topicsCovered: [
+        "Newtonian Mechanics",
+        "Electrostatics",
+        "Thermal Dynamics",
+        "Quantum Physics Fundamentals & Wave Optics"
+      ],
+      tests: [
+        { name: "Physics-Quantum Mechanics Test", score: "16 / 20 (80%)", status: "Passed", badgeClass: "passed" }
+      ],
+      assignments: [
+        { name: "Quantum Mechanics Homework", score: "18 / 20", status: "Evaluated", badgeClass: "evaluated" },
+        { name: "Optics Assignment", score: "--", status: "Pending", badgeClass: "pending" }
+      ]
+    },
+    {
+      subject: "Chemistry",
+      progress: 65,
+      grade: "B",
+      topicsCovered: [
+        "Chemical Bonding & Periodic Properties",
+        "Aldehydes, Ketones & Carboxylic Acids"
+      ],
+      tests: [
+        { name: "Chemistry-Aldehydes Test", score: "Grading In Progress", status: "Result Pending", badgeClass: "pending" }
+      ],
+      assignments: [
+        { name: "Organic Chemistry Revision", score: "Submitted", status: "Grading Pending", badgeClass: "submitted" },
+        { name: "Hydrocarbons Worksheet", score: "Overdue", status: "Overdue", badgeClass: "overdue" }
+      ]
+    }
+  ]);
+
   const [assignments, setAssignments] = useState([
     {
       id: 1,
@@ -1539,7 +1596,127 @@ const StudentDashboard = ({ onNavigate }) => {
             </div>
           )}
 
-          {activeTab !== "Dashboard" && activeTab !== "Attendance" && activeTab !== "Study Materials" && activeTab !== "Assignments" && activeTab !== "Weekly Tests" && activeTab !== "Online Classes" && activeTab !== "Notifications" && activeTab !== "Profile" && (
+          {activeTab === "Performance" && (
+            <div className="performance-view-container">
+              <section className="performance-header-section">
+                <h2>Performance Overview</h2>
+                <p>Track your subject-wise academic achievements, tests, and assignments.</p>
+              </section>
+
+              {/* Three Horizontal Cards */}
+              <section className="performance-cards-list">
+                {performanceData.map((data) => {
+                  let Icon = BookOpen;
+                  let colorClass = "chem";
+                  if (data.subject === "Mathematics") {
+                    Icon = Calculator;
+                    colorClass = "math";
+                  } else if (data.subject === "Physics") {
+                    Icon = FlaskConical;
+                    colorClass = "phys";
+                  }
+
+                  const isSelected = activePerformanceSubject === data.subject;
+
+                  return (
+                    <div
+                      key={data.subject}
+                      className={`performance-subject-card ${colorClass} ${isSelected ? "active" : ""}`}
+                      onClick={() => setActivePerformanceSubject(data.subject)}
+                    >
+                      <div className="card-left-section">
+                        <div className={`subject-icon-circle ${colorClass}`}>
+                          <Icon size={22} />
+                        </div>
+                        <div className="subject-meta-text">
+                          <h3>{data.subject}</h3>
+                          <div className="progress-bar-row">
+                            <div className="progress-bar-track">
+                              <div
+                                className={`progress-bar-fill ${colorClass}`}
+                                style={{ width: `${data.progress}%` }}
+                              ></div>
+                            </div>
+                            <span className="progress-pct-label">{data.progress}% Complete</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="card-right-section">
+                        <span className="expand-indicator">
+                          {isSelected ? "Active View" : "Click to view"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </section>
+
+              {/* Selected Subject Details Panel */}
+              {activePerformanceSubject && (() => {
+                const selectedData = performanceData.find(d => d.subject === activePerformanceSubject);
+                if (!selectedData) return null;
+
+                return (
+                  <div className="performance-details-panel">
+                    <div className="panel-header">
+                      <h3>{selectedData.subject} Detailed Summary</h3>
+                    </div>
+                    <div className="panel-body">
+                      {/* Topics Covered */}
+                      <div className="details-section-block">
+                        <h4 className="section-title">Topics covered:</h4>
+                        <div className="topics-list-wrap">
+                          {selectedData.topicsCovered.map((topic, i) => (
+                            <span key={i} className="topic-item-badge">
+                              {topic}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Tests */}
+                      <div className="details-section-block">
+                        <h4 className="section-title">Tests:</h4>
+                        <div className="details-table-list">
+                          {selectedData.tests.map((test, i) => (
+                            <div key={i} className="detail-item-row">
+                              <span className="item-name">{test.name}</span>
+                              <div className="item-status-wrap">
+                                <span className="item-score">{test.score}</span>
+                                <span className={`item-status-badge ${test.badgeClass}`}>
+                                  {test.status}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Assignments */}
+                      <div className="details-section-block">
+                        <h4 className="section-title">Assignments:</h4>
+                        <div className="details-table-list">
+                          {selectedData.assignments.map((asgn, i) => (
+                            <div key={i} className="detail-item-row">
+                              <span className="item-name">{asgn.name}</span>
+                              <div className="item-status-wrap">
+                                <span className="item-score">{asgn.score}</span>
+                                <span className={`item-status-badge ${asgn.badgeClass}`}>
+                                  {asgn.status}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {activeTab !== "Dashboard" && activeTab !== "Attendance" && activeTab !== "Study Materials" && activeTab !== "Assignments" && activeTab !== "Weekly Tests" && activeTab !== "Online Classes" && activeTab !== "Notifications" && activeTab !== "Profile" && activeTab !== "Performance" && (
             <div className="placeholder-view-card">
               <div className="placeholder-content">
                 <div className="placeholder-icon-wrap">
