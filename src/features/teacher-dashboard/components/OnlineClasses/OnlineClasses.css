@@ -101,7 +101,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--blue);
+  background: var(--gradient);
   color: white;
   border: none;
   border-radius: 12px;
@@ -115,7 +115,7 @@
 }
 
 .oc-create-btn:hover {
-  background: #1d4ed8;
+  opacity: 0.9;
   transform: translateY(-1px);
 }
 
@@ -702,7 +702,7 @@
 }
 
 .oc-btn-primary {
-  background: var(--blue);
+  background: var(--gradient);
   color: white;
   border: none;
   border-radius: 10px;
@@ -715,7 +715,7 @@
 }
 
 .oc-btn-primary:hover {
-  background: #1d4ed8;
+  opacity: 0.9;
 }
 
 /* Empty State */

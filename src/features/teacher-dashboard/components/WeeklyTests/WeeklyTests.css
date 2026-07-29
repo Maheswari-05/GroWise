@@ -101,7 +101,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--blue);
+  background: var(--gradient);
   color: white;
   border: none;
   border-radius: 12px;
@@ -115,7 +115,7 @@
 }
 
 .wt-create-btn:hover {
-  background: #1d4ed8;
+  opacity: 0.9;
   transform: translateY(-1px);
   box-shadow: 0 6px 20px rgba(45, 107, 255, 0.35);
 }
@@ -293,7 +293,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  background: var(--blue);
+  background: var(--gradient);
   color: white;
   border: none;
   border-radius: 10px;
@@ -306,7 +306,7 @@
 }
 
 .wt-btn-primary:hover {
-  background: #1d4ed8;
+  opacity: 0.9;
   transform: translateY(-1px);
 }
 

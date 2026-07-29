@@ -473,7 +473,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  background: var(--blue);
+  background: var(--gradient);
   color: white;
   border: none;
   border-radius: 10px;
@@ -486,7 +486,7 @@
 }
 
 .att-btn-primary:hover {
-  background: #1d4ed8;
+  opacity: 0.9;
 }
 
 /* Responsive */
