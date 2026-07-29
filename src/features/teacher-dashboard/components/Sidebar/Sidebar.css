@@ -9,11 +9,11 @@
   left: 0;
   width: var(--sidebar-w);
   height: 100vh;
-  /* Landing page --dark: #1e2a46 as the sidebar base */
-  background: linear-gradient(180deg, #1b2d52 0%, #1e2a46 50%, #162038 100%);
+  background: #ffffff;
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  padding: 0 0 24px;
+  padding: 0 0 16px;
   z-index: 100;
   overflow-y: auto;
   overflow-x: hidden;
@@ -27,23 +27,22 @@
 .sidebar-logo {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 22px 20px 20px;
+  gap: 8px;
+  padding: 14px 16px 12px;
 }
 
 /* Same logo.png used in the landing page Navbar */
 .sidebar-logo-img {
-  height: 42px;
+  height: 32px;
   width: auto;
   flex-shrink: 0;
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.30));
 }
 
 /* Wordmark: "Gro" in blue, "Wise" in green — mirrors landing page */
 .sidebar-logo-wordmark {
   display: flex;
   font-family: "Manrope", sans-serif;
-  font-size: 21px;
+  font-size: 18px;
   font-weight: 800;
   letter-spacing: -0.5px;
   line-height: 1;
@@ -63,8 +62,8 @@
 
 .sidebar-divider {
   height: 1px;
-  margin: 0 18px;
-  background: rgba(255, 255, 255, 0.08);
+  margin: 0 14px;
+  background: var(--border);
 }
 
 /* ── Navigation ──────────────────────────────────────────── */
@@ -73,7 +72,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 14px 10px;
+  padding: 8px 8px;
   flex: 1;
 }
 
@@ -81,14 +80,14 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 11px 14px;
+  gap: 10px;
+  padding: 8px 12px;
   border-radius: var(--radius-md);
   border: none;
   background: transparent;
-  color: rgba(255, 255, 255, 0.55);
+  color: #475569;
   font-family: "Manrope", sans-serif;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   text-align: left;
@@ -97,19 +96,18 @@
 }
 
 .sidebar-nav-item:hover {
-  background: rgba(255, 255, 255, 0.07);
-  color: rgba(255, 255, 255, 0.90);
+  background: #f1f5f9;
+  color: #0f172a;
 }
 
-/* Active: exact gradient from landing page CTA buttons */
+/* Active: light blue/lavender pill with blue text */
 .sidebar-nav-item.active {
-  background: linear-gradient(135deg, #2D6BFF, #37C871);
-  color: white;
-  box-shadow: 0 6px 20px rgba(45, 107, 255, 0.38);
+  background: #eef2ff;
+  color: #2563eb;
 }
 
 .sidebar-nav-item.active .sidebar-nav-icon {
-  color: white;
+  color: #2563eb;
 }
 
 .sidebar-nav-icon {
@@ -117,6 +115,11 @@
   align-items: center;
   flex-shrink: 0;
   transition: color 0.22s;
+  color: #64748b;
+}
+
+.sidebar-nav-item.active .sidebar-nav-icon {
+  color: #2563eb;
 }
 
 .sidebar-nav-label {
@@ -127,18 +130,26 @@
 }
 
 .sidebar-nav-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #2563eb;
+  flex-shrink: 0;
+}
+
+.sidebar-notification-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.85);
+  background: #ef4444;
+  margin-left: 6px;
   flex-shrink: 0;
 }
 
 /* ── Spacer ──────────────────────────────────────────────── */
 
 .sidebar-spacer {
-  flex: 1;
-  min-height: 12px;
+  height: 8px;
 }
 
 /* ── Logout ──────────────────────────────────────────────── */
@@ -146,37 +157,32 @@
 .sidebar-logout {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin: 12px 10px 0;
-  padding: 11px 14px;
+  justify-content: center;
+  gap: 10px;
+  margin: 4px 8px 0;
+  padding: 8px 12px;
   border-radius: var(--radius-md);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 80, 80, 0.07);
-  color: rgba(255, 130, 130, 0.82);
+  border: none;
+  background: #fef2f2;
+  color: #dc2626;
   font-family: "Manrope", sans-serif;
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.22s ease;
-  text-align: left;
-  width: calc(100% - 20px);
+  text-align: center;
+  width: calc(100% - 16px);
 }
 
 .sidebar-logout:hover {
-  background: rgba(255, 80, 80, 0.16);
-  color: #ff8888;
-  border-color: rgba(255, 80, 80, 0.22);
+  background: #fee2e2;
+  color: #b91c1c;
 }
 
 /* ── Bottom Accent ───────────────────────────────────────── */
 
-/* Same gradient as landing page hero/course buttons */
 .sidebar-bottom-accent {
-  height: 3px;
-  margin: 20px 18px 0;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #2D6BFF, #37C871);
-  opacity: 0.40;
+  display: none;
 }
 
 /* ── Responsive ─────────────────────────────────────────── */

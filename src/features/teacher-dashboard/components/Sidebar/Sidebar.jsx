@@ -27,7 +27,7 @@ const navItems = [
   { id: "profile",       label: "Profile",               icon: UserCircle },
 ];
 
-const Sidebar = ({ activeNav, setActiveNav }) => {
+const Sidebar = ({ activeNav, setActiveNav, hasUnreadNotifications = false }) => {
   return (
     <aside className="sidebar">
       {/* Logo — same logo.png used in the landing page Navbar */}
@@ -54,7 +54,10 @@ const Sidebar = ({ activeNav, setActiveNav }) => {
               <Icon size={18} />
             </span>
             <span className="sidebar-nav-label">{label}</span>
-            {activeNav === id && <span className="sidebar-nav-dot" />}
+            {id === "notifications" && hasUnreadNotifications && (
+              <span className="sidebar-notification-dot" />
+            )}
+            {activeNav === id && id !== "notifications" && <span className="sidebar-nav-dot" />}
           </button>
         ))}
       </nav>
