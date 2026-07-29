@@ -19,10 +19,19 @@ import {
   Download,
   FileCheck,
   ChevronRight,
-  Search
+  Search,
+  Calculator,
+  FlaskConical,
+  Play,
+  Lock,
+  HelpCircle,
+  GraduationCap
 } from "lucide-react";
 import logo from "../../assets/logo.png";
 import avatarImg from "../../assets/courses/human4.jpg";
+import mathClassImg from "../../assets/math_class.png";
+import physicsClassImg from "../../assets/physics_class.png";
+import chemistryClassImg from "../../assets/chemistry_class.png";
 import "./StudentDashboard.css";
 
 const StudentDashboard = ({ onNavigate }) => {
@@ -38,6 +47,115 @@ const StudentDashboard = ({ onNavigate }) => {
   const [assignmentStatus, setAssignmentStatus] = useState("All Status");
   const [submittingId, setSubmittingId] = useState(null);
   const [activeDetailsAssignment, setActiveDetailsAssignment] = useState(null);
+
+  const [testSearch, setTestSearch] = useState("");
+  const [testSubject, setTestSubject] = useState("All Subjects");
+  const [activeTestResult, setActiveTestResult] = useState(null);
+
+  const [weeklyTests, setWeeklyTests] = useState([
+    {
+      id: 1,
+      subject: "Mathematics",
+      title: "Algebra Test",
+      teacher: "Mr. Rajesh",
+      date: "12 Jun 2026",
+      status: "Published",
+      marksObtained: 18,
+      totalMarks: 20,
+      percent: 90,
+      questions: [
+        { q: "Solve for x: 2x + 5 = 15", studentAnswer: "2x = 10 => x = 5", correctAnswer: "x = 5", isCorrect: true, marks: "5/5" },
+        { q: "Find the roots of x^2 - 5x + 6 = 0", studentAnswer: "(x-2)(x-3) = 0 => x = 2, 3", correctAnswer: "x = 2, 3", isCorrect: true, marks: "5/5" },
+        { q: "Solve the inequality: 3x - 4 < 5", studentAnswer: "3x < 9 => x < 3", correctAnswer: "x < 3", isCorrect: true, marks: "5/5" },
+        { q: "Expand and simplify: (x + 3)(x - 3)", studentAnswer: "x^2 - 9", correctAnswer: "x^2 - 9", isCorrect: true, marks: "3/5" }
+      ]
+    },
+    {
+      id: 2,
+      subject: "Physics",
+      title: "Quantum Mechanics Test",
+      teacher: "Mrs. Anita",
+      date: "19 Jun 2026",
+      status: "Published",
+      marksObtained: 16,
+      totalMarks: 20,
+      percent: 80,
+      questions: [
+        { q: "What is the formula for Planck's relation?", studentAnswer: "E = hf", correctAnswer: "E = hν (or E = hf)", isCorrect: true, marks: "5/5" },
+        { q: "State Heisenberg's Uncertainty Principle formula.", studentAnswer: "Δx * Δp >= h / (4π)", correctAnswer: "Δx * Δp >= ℏ / 2 (or h / 4π)", isCorrect: true, marks: "5/5" },
+        { q: "Define the term 'Quantum entanglement'.", studentAnswer: "Spooky action at a distance.", correctAnswer: "A physical phenomenon that occurs when a pair or group of particles are generated, interact, or share spatial proximity in a way such that the quantum state of each particle cannot be described independently of the state of the others.", isCorrect: false, marks: "1/5" },
+        { q: "Calculate the energy of a photon of wavelength 500 nm.", studentAnswer: "E = hc/λ = 3.97e-19 J", correctAnswer: "3.97 x 10^-19 Joules", isCorrect: true, marks: "5/5" }
+      ]
+    },
+    {
+      id: 3,
+      subject: "Chemistry",
+      title: "Aldehydes Test",
+      teacher: "Mr. Kumar",
+      date: "26 Jun 2026",
+      status: "Result Pending",
+      marksObtained: null,
+      totalMarks: 20,
+      percent: null,
+      questions: []
+    }
+  ]);
+
+  const filteredWeeklyTests = weeklyTests.filter((test) => {
+    const matchesSearch = test.title.toLowerCase().includes(testSearch.toLowerCase()) ||
+                          test.subject.toLowerCase().includes(testSearch.toLowerCase());
+    const matchesSubject = testSubject === "All Subjects" || test.subject === testSubject;
+    return matchesSearch && matchesSubject;
+  });
+
+  const [onlineClassSearch, setOnlineClassSearch] = useState("");
+  const [onlineClassSubject, setOnlineClassSubject] = useState("All Subjects");
+  const [onlineClassStatus, setOnlineClassStatus] = useState("All Status");
+
+  const [onlineClasses, setOnlineClasses] = useState([
+    {
+      id: 1,
+      subject: "Mathematics",
+      title: "Mathematics - Algebra Revision",
+      description: "Advanced Problem Solving Techniques",
+      teacher: "Mr. Rajesh",
+      date: "Today",
+      time: "5:00 PM - 6:00 PM",
+      status: "Live Now",
+      image: mathClassImg
+    },
+    {
+      id: 2,
+      subject: "Physics",
+      title: "Physics - Quantum Mechanics",
+      description: "Understanding Quantum Mechanics",
+      teacher: "Mrs. Anita",
+      date: "24 Jun 2026",
+      time: "4:00 PM - 5:00 PM",
+      status: "Upcoming",
+      image: physicsClassImg
+    },
+    {
+      id: 3,
+      subject: "Chemistry",
+      title: "Chemistry - Organic Chemistry",
+      description: "Introduction to Hydrocarbons",
+      teacher: "Mr. Kumar",
+      date: "18 Jun 2026",
+      time: "3:00 PM - 4:00 PM",
+      status: "Completed",
+      image: chemistryClassImg
+    }
+  ]);
+
+  const filteredOnlineClasses = onlineClasses.filter((item) => {
+    const matchesSearch = item.title.toLowerCase().includes(onlineClassSearch.toLowerCase()) ||
+                          item.description.toLowerCase().includes(onlineClassSearch.toLowerCase()) ||
+                          item.subject.toLowerCase().includes(onlineClassSearch.toLowerCase());
+    const matchesSubject = onlineClassSubject === "All Subjects" || item.subject === onlineClassSubject;
+    const matchesStatus = onlineClassStatus === "All Status" || item.status === onlineClassStatus;
+    return matchesSearch && matchesSubject && matchesStatus;
+  });
 
   const [assignments, setAssignments] = useState([
     {
@@ -99,36 +217,55 @@ const StudentDashboard = ({ onNavigate }) => {
     return historyFilter === "All Subjects" || record.subject === historyFilter;
   });
   
+  const [notificationSearch, setNotificationSearch] = useState("");
+  const [notificationFilter, setNotificationFilter] = useState("All");
+
   const [notificationsList, setNotificationsList] = useState([
     {
       id: 1,
-      title: "Physics Notes Uploaded",
-      time: "2 hours ago",
-      detail: "Unit 4: Optics",
-      unread: true,
+      type: "study-material",
+      title: "New Study Material: Physics Notes - Chapter 5",
+      time: "10:30 AM",
+      group: "TODAY",
+      detail: "The comprehensive notes for quantum mechanics are now available for download. Please review them before tomorrow's lecture.",
+      unread: true
     },
     {
       id: 2,
-      title: "Math Assignment Due",
-      time: "5 hours ago",
-      detail: "Probability",
-      unread: true,
+      type: "class-reminder",
+      title: "Online Class Reminder: Physics starts at 4:00 PM",
+      time: "3:30 PM",
+      group: "TODAY",
+      detail: "",
+      unread: true
     },
     {
       id: 3,
-      title: "Weekly Test Result",
-      time: "Yesterday",
-      detail: "Scored 89/100",
-      unread: true,
+      type: "assignment",
+      title: "New Assignment: Mathematics Assignment 6",
+      time: "4:15 PM",
+      group: "YESTERDAY",
+      detail: "Topic: Calculus - Integral Applications. Submission deadline: Friday, 6:00 PM.",
+      unread: true
     },
     {
       id: 4,
-      title: "Online Class Link",
-      time: "1 day ago",
-      detail: "Chemistry revision",
-      unread: true,
-    },
+      type: "test-results",
+      title: "Weekly Test Results: Test 4 Published",
+      time: "2 Days Ago",
+      group: "EARLIER",
+      detail: "Mathematics Unit Test - Calculus I. Your performance report is ready.",
+      unread: false
+    }
   ]);
+
+  const filteredNotifications = notificationsList.filter((notif) => {
+    const matchesSearch = notif.title.toLowerCase().includes(notificationSearch.toLowerCase()) ||
+                          notif.detail.toLowerCase().includes(notificationSearch.toLowerCase());
+    const matchesFilter = notificationFilter === "All" || 
+                          (notificationFilter === "Unread" && notif.unread);
+    return matchesSearch && matchesFilter;
+  });
 
   const handleMarkAllRead = () => {
     setNotificationsList((prev) => prev.map((n) => ({ ...n, unread: false })));
@@ -235,7 +372,7 @@ const StudentDashboard = ({ onNavigate }) => {
             <div className="header-profile" onClick={() => selectTab("Profile")}>
               <div className="profile-details">
                 <span className="profile-name">Sneha</span>
-                <span className="profile-id">Student ID: #TC890</span>
+                <span className="profile-id">Class 12 - PCM</span>
               </div>
               <img src={avatarImg} alt="Sneha's Avatar" className="profile-avatar" />
             </div>
@@ -972,7 +1109,437 @@ const StudentDashboard = ({ onNavigate }) => {
             </div>
           )}
 
-          {activeTab !== "Dashboard" && activeTab !== "Attendance" && activeTab !== "Study Materials" && activeTab !== "Assignments" && (
+          {activeTab === "Weekly Tests" && (
+            <div className="weekly-tests-view-container">
+              <section className="tests-header-section">
+                <h2>Weekly Tests</h2>
+                <p>View your weekly test results and track your academic performance.</p>
+              </section>
+
+              <section className="tests-filters-row">
+                <div className="tests-search-wrapper">
+                  <Search size={18} className="search-icon" />
+                  <input
+                    type="text"
+                    placeholder="Search weekly tests..."
+                    value={testSearch}
+                    onChange={(e) => setTestSearch(e.target.value)}
+                  />
+                </div>
+                <div className="tests-dropdowns">
+                  <span className="filter-label">Filter by Subject:</span>
+                  <select
+                    value={testSubject}
+                    onChange={(e) => setTestSubject(e.target.value)}
+                    className="tests-select-dropdown"
+                  >
+                    <option value="All Subjects">All Subjects</option>
+                    <option value="Mathematics">Mathematics</option>
+                    <option value="Physics">Physics</option>
+                    <option value="Chemistry">Chemistry</option>
+                  </select>
+                </div>
+              </section>
+
+              <section className="tests-list-container">
+                {filteredWeeklyTests.length > 0 ? (
+                  filteredWeeklyTests.map((test) => {
+                    let IconComponent = BookOpen;
+                    let iconClass = "chem-icon";
+                    if (test.subject === "Mathematics") {
+                      IconComponent = Calculator;
+                      iconClass = "math-icon";
+                    } else if (test.subject === "Physics") {
+                      IconComponent = FlaskConical;
+                      iconClass = "phys-icon";
+                    }
+
+                    const isPublished = test.status === "Published";
+
+                    return (
+                      <div key={test.id} className="test-card">
+                        <div className="test-card-left">
+                          <div className={`test-icon-wrap ${iconClass}`}>
+                            <IconComponent size={22} />
+                          </div>
+                          <div className="test-info-wrap">
+                            <div className="test-title-row">
+                              <h4>
+                                {test.subject} - {test.title}
+                              </h4>
+                              <span className={`test-badge ${test.status.replace(/\s+/g, "-").toLowerCase()}`}>
+                                {test.status}
+                              </span>
+                            </div>
+                            <div className="test-metadata">
+                              <span className="meta-item">
+                                <User size={14} className="meta-icon" />
+                                {test.teacher}
+                              </span>
+                              <span className="meta-item">
+                                <CalendarDays size={14} className="meta-icon" />
+                                {test.date}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="test-card-right">
+                          <div className="test-marks-section">
+                            <div className="metrics-column divider-left">
+                              <span className="metrics-label">MARKS</span>
+                              <span className={`metrics-val ${isPublished ? "bold-blue" : "gray"}`}>
+                                {isPublished ? `${test.marksObtained} ` : "-- "}
+                                <span className="slash-total">/ {test.totalMarks}</span>
+                              </span>
+                            </div>
+                            <div className="metrics-column">
+                              <span className="metrics-label">PERCENT</span>
+                              <span className={`metrics-val ${isPublished ? "bold-green" : "gray"}`}>
+                                {isPublished ? `${test.percent}%` : "--%"}
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            className="test-view-result-btn"
+                            disabled={!isPublished}
+                            onClick={() => setActiveTestResult(test)}
+                          >
+                            View Result
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="no-tests-card">
+                    <p>No weekly tests found matching criteria.</p>
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+
+          {activeTab === "Online Classes" && (
+            <div className="online-classes-view-container">
+              <section className="classes-header-section">
+                <h2>Online Classes</h2>
+                <p>Join your scheduled classes on time</p>
+              </section>
+
+              <section className="classes-filters-row">
+                <div className="classes-search-wrapper">
+                  <Search size={18} className="search-icon" />
+                  <input
+                    type="text"
+                    placeholder="Search online classes..."
+                    value={onlineClassSearch}
+                    onChange={(e) => setOnlineClassSearch(e.target.value)}
+                  />
+                </div>
+                <div className="classes-dropdowns">
+                  <select
+                    value={onlineClassSubject}
+                    onChange={(e) => setOnlineClassSubject(e.target.value)}
+                    className="classes-select-dropdown"
+                  >
+                    <option value="All Subjects">All Subjects</option>
+                    <option value="Mathematics">Mathematics</option>
+                    <option value="Physics">Physics</option>
+                    <option value="Chemistry">Chemistry</option>
+                  </select>
+                  <select
+                    value={onlineClassStatus}
+                    onChange={(e) => setOnlineClassStatus(e.target.value)}
+                    className="classes-select-dropdown"
+                  >
+                    <option value="All Status">All Status</option>
+                    <option value="Live Now">Live Now</option>
+                    <option value="Upcoming">Upcoming</option>
+                    <option value="Completed">Completed</option>
+                  </select>
+                </div>
+              </section>
+
+              <section className="classes-list-container">
+                {filteredOnlineClasses.length > 0 ? (
+                  filteredOnlineClasses.map((cls) => {
+                    const isLive = cls.status === "Live Now";
+                    const isUpcoming = cls.status === "Upcoming";
+                    const isCompleted = cls.status === "Completed";
+
+                    return (
+                      <div key={cls.id} className="class-card">
+                        <div className="class-card-left">
+                          <div className="class-image-wrap">
+                            <img src={cls.image} alt={cls.title} className="class-image" />
+                            {isLive && <span className="status-badge-overlay live">LIVE NOW</span>}
+                            {isUpcoming && <span className="status-badge-overlay upcoming">UPCOMING</span>}
+                            {isCompleted && <span className="status-badge-overlay completed">COMPLETED</span>}
+                          </div>
+                          <div className="class-info-wrap">
+                            <h4>{cls.title}</h4>
+                            <p className="class-desc">{cls.description}</p>
+                            <div className="class-teacher-row">
+                              <User size={16} className="teacher-icon" />
+                              <span className="teacher-label">TEACHER</span>
+                              <span className="teacher-name">{cls.teacher}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="class-card-right">
+                          <div className="class-time-info">
+                            <span className="date-val">{cls.date}</span>
+                            <span className="time-val">{cls.time}</span>
+                          </div>
+                          <div className="class-actions">
+                            {isLive && (
+                              <button className="join-class-btn active" onClick={() => alert(`Joining ${cls.title}...`)}>
+                                <Play size={16} className="btn-icon" /> Join Class
+                              </button>
+                            )}
+                            {isUpcoming && (
+                              <>
+                                <button className="outline-btn" onClick={() => alert(`Details for ${cls.title}...`)}>
+                                  View Details
+                                </button>
+                                <button className="join-class-btn locked" disabled>
+                                  <Lock size={16} className="btn-icon" /> Join Class
+                                </button>
+                              </>
+                            )}
+                            {isCompleted && (
+                              <button className="outline-btn" onClick={() => alert(`Details for ${cls.title}...`)}>
+                                View Details
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="no-classes-card">
+                    <p>No online classes found matching criteria.</p>
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+
+          {activeTab === "Notifications" && (
+            <div className="notifications-view-container">
+              <section className="notifications-header-section">
+                <h2>Notifications</h2>
+                <p>Stay updated with your latest academic activities and announcements.</p>
+              </section>
+
+              <section className="notifications-filters-row">
+                <div className="notifications-search-wrapper">
+                  <Search size={18} className="search-icon" />
+                  <input
+                    type="text"
+                    placeholder="Search notifications..."
+                    value={notificationSearch}
+                    onChange={(e) => setNotificationSearch(e.target.value)}
+                  />
+                </div>
+                <div className="notifications-dropdowns">
+                  <select
+                    value={notificationFilter}
+                    onChange={(e) => setNotificationFilter(e.target.value)}
+                    className="notifications-select-dropdown"
+                  >
+                    <option value="All">All</option>
+                    <option value="Unread">Unread</option>
+                  </select>
+                </div>
+              </section>
+
+              <section className="notifications-list-container">
+                {["TODAY", "YESTERDAY", "EARLIER"].map((groupName) => {
+                  const groupItems = filteredNotifications.filter(item => item.group === groupName);
+                  if (groupItems.length === 0) return null;
+
+                  return (
+                    <div key={groupName} className="notification-group-wrap">
+                      <h4 className="group-heading">{groupName}</h4>
+                      <div className="group-items-list">
+                        {groupItems.map((notif) => {
+                          let Icon = Bell;
+                          let iconClass = "general";
+                          if (notif.type === "study-material") {
+                            Icon = BookOpen;
+                            iconClass = "study";
+                          } else if (notif.type === "class-reminder") {
+                            Icon = Video;
+                            iconClass = "class";
+                          } else if (notif.type === "assignment") {
+                            Icon = ClipboardList;
+                            iconClass = "asgn";
+                          } else if (notif.type === "test-results") {
+                            Icon = HelpCircle;
+                            iconClass = "test";
+                          }
+
+                          return (
+                            <div key={notif.id} className={`notification-card-item ${notif.unread ? "unread" : ""}`}>
+                              <div className="card-left">
+                                <div className={`notif-icon-circle ${iconClass}`}>
+                                  <Icon size={20} />
+                                </div>
+                                <div className="notif-content-text">
+                                  <h4 className="notif-title">{notif.title}</h4>
+                                  {notif.detail && <p className="notif-desc">{notif.detail}</p>}
+                                </div>
+                              </div>
+                              <div className="card-right">
+                                <span className="notif-time">{notif.time}</span>
+                                {notif.unread && <span className="unread-blue-dot"></span>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {filteredNotifications.length === 0 && (
+                  <div className="no-notifications-card">
+                    <p>No notifications found matching criteria.</p>
+                  </div>
+                )}
+              </section>
+
+              <footer className="notifications-footer-row">
+                <span className="notif-count-label">
+                  Displaying {filteredNotifications.length} most recent notifications
+                </span>
+                <button className="notif-mark-read-btn" onClick={handleMarkAllRead}>
+                  Mark all as read
+                </button>
+              </footer>
+            </div>
+          )}
+
+          {activeTab === "Profile" && (
+            <div className="profile-view-container">
+              <section className="profile-header-section">
+                <h2>My Profile</h2>
+                <p>View and manage your personal and academic information.</p>
+              </section>
+
+              {/* Upper Profile Summary Card */}
+              <section className="profile-header-card">
+                <div className="profile-header-left">
+                  <div className="profile-avatar-wrap">
+                    <img src={avatarImg} alt="Sneha's Avatar" className="profile-card-avatar" />
+                    <span className="status-dot-overlay active"></span>
+                  </div>
+                  <div className="profile-summary-info">
+                    <div className="name-row">
+                      <h3>Sneha</h3>
+                      <span className="status-badge active">Active</span>
+                    </div>
+                    <p className="student-id-text">ID: STU-2026-089</p>
+                  </div>
+                </div>
+              </section>
+
+              {/* Two Column Layout for details */}
+              <div className="profile-details-grid">
+                {/* Column 1: Personal Information */}
+                <div className="profile-info-card personal-info">
+                  <div className="info-card-header">
+                    <User size={20} className="header-icon" />
+                    <h3>Personal Information</h3>
+                  </div>
+                  <div className="info-card-body">
+                    <div className="info-row-grid">
+                      <div className="info-item">
+                        <span className="info-label">FULL NAME</span>
+                        <span className="info-value">Sneha</span>
+                      </div>
+                      <div className="info-item">
+                        <span className="info-label">STUDENT ID</span>
+                        <span className="info-value">STU-2026-089</span>
+                      </div>
+                      <div className="info-item full-width">
+                        <span className="info-label">EMAIL ADDRESS</span>
+                        <span className="info-value">sneha.edu@example.com</span>
+                      </div>
+                      <div className="info-item">
+                        <span className="info-label">PHONE NUMBER</span>
+                        <span className="info-value">+91 98765 43210</span>
+                      </div>
+                      <div className="info-item">
+                        <span className="info-label">DATE OF BIRTH</span>
+                        <span className="info-value">12 Oct 2008</span>
+                      </div>
+                      <div className="info-item">
+                        <span className="info-label">GENDER</span>
+                        <span className="info-value">Female</span>
+                      </div>
+                      <div className="info-item full-width">
+                        <span className="info-label">HOME ADDRESS</span>
+                        <span className="info-value">123, Academic Street, New Delhi, India</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Column 2: Academic Details */}
+                <div className="profile-info-card academic-details">
+                  <div className="info-card-header">
+                    <GraduationCap size={22} className="header-icon" />
+                    <h3>Academic Details</h3>
+                  </div>
+                  <div className="info-card-body">
+                    <div className="academic-items">
+                      <div className="info-item">
+                        <span className="info-label">ADMISSION DATE</span>
+                        <span className="info-value">15 May 2024</span>
+                      </div>
+
+                      <div className="academic-badges-section">
+                        <span className="info-label">ASSIGNED TEACHERS</span>
+                        <div className="badges-list">
+                          <span className="teacher-badge">
+                            <User size={12} /> Mr. Rajesh
+                          </span>
+                          <span className="teacher-badge">
+                            <User size={12} /> Mrs. Anita
+                          </span>
+                          <span className="teacher-badge">
+                            <User size={12} /> Mr. Kumar
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="academic-badges-section">
+                        <span className="info-label">ENROLLED SUBJECTS</span>
+                        <div className="badges-list subjects">
+                          <span className="subject-badge math">
+                            <Calculator size={14} /> Mathematics
+                          </span>
+                          <span className="subject-badge phys">
+                            <FlaskConical size={14} /> Physics
+                          </span>
+                          <span className="subject-badge chem">
+                            <BookOpen size={14} /> Chemistry
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab !== "Dashboard" && activeTab !== "Attendance" && activeTab !== "Study Materials" && activeTab !== "Assignments" && activeTab !== "Weekly Tests" && activeTab !== "Online Classes" && activeTab !== "Notifications" && activeTab !== "Profile" && (
             <div className="placeholder-view-card">
               <div className="placeholder-content">
                 <div className="placeholder-icon-wrap">
@@ -1041,6 +1608,64 @@ const StudentDashboard = ({ onNavigate }) => {
                   <p className="modal-remarks-text">"{activeDetailsAssignment.teacherRemarks}"</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Test Result Modal */}
+      {activeTestResult && (
+        <div className="custom-modal-overlay" onClick={() => setActiveTestResult(null)}>
+          <div className="custom-modal-content test-result-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Test Performance Report</h3>
+              <button className="modal-close-btn" onClick={() => setActiveTestResult(null)}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <h4 className="modal-test-title">{activeTestResult.subject} - {activeTestResult.title}</h4>
+              <div className="modal-meta-grid">
+                <div>
+                  <span className="meta-label">Teacher</span>
+                  <span className="meta-value">{activeTestResult.teacher}</span>
+                </div>
+                <div>
+                  <span className="meta-label">Date Taken</span>
+                  <span className="meta-value">{activeTestResult.date}</span>
+                </div>
+                <div>
+                  <span className="meta-label">Score</span>
+                  <span className="meta-value score-accent">{activeTestResult.marksObtained} / {activeTestResult.totalMarks} ({activeTestResult.percent}%)</span>
+                </div>
+              </div>
+
+              <div className="test-questions-report">
+                <h5>Question-wise Breakdown</h5>
+                <div className="questions-list">
+                  {activeTestResult.questions.map((q, idx) => (
+                    <div key={idx} className={`question-report-item ${q.isCorrect ? "correct" : "incorrect"}`}>
+                      <div className="q-header">
+                        <span className="q-number">Question {idx + 1}</span>
+                        <span className={`q-status-badge ${q.isCorrect ? "correct" : "partial"}`}>
+                          {q.marks} Marks
+                        </span>
+                      </div>
+                      <p className="q-text">{q.q}</p>
+                      <div className="answers-box">
+                        <div className="answer-row">
+                          <span className="ans-label">Your Answer:</span>
+                          <span className="ans-val student">{q.studentAnswer}</span>
+                        </div>
+                        <div className="answer-row">
+                          <span className="ans-label">Correct Answer:</span>
+                          <span className="ans-val correct-ans">{q.correctAnswer}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
