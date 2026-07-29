@@ -1,0 +1,578 @@
+/* ============================================================
+   MY BATCHES PAGE
+============================================================ */
+
+/* ── Page Layout ─────────────────────────────────────────── */
+
+.mb-page {
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-height: calc(100vh - 80px);
+}
+
+/* ── Page Header ─────────────────────────────────────────── */
+
+.mb-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.mb-page-title {
+  font-family: var(--font-head);
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--dark);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.mb-page-sub {
+  font-family: var(--font-main);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+
+/* ── Controls ────────────────────────────────────────────── */
+
+.mb-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.mb-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.mb-search-icon {
+  position: absolute;
+  left: 13px;
+  color: var(--muted-light);
+  pointer-events: none;
+}
+
+.mb-search-input {
+  height: 40px;
+  padding: 0 16px 0 40px;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: white;
+  font-family: var(--font-main);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--dark);
+  width: 260px;
+  outline: none;
+  transition: all 0.22s;
+  box-shadow: var(--shadow-sm);
+}
+
+.mb-search-input::placeholder { color: var(--muted-light); }
+
+.mb-search-input:focus {
+  border-color: rgba(45, 107, 255, 0.4);
+  box-shadow: 0 0 0 3px rgba(45, 107, 255, 0.10);
+}
+
+/* ── Filter ──────────────────────────────────────────────── */
+
+.mb-filter-wrap {
+  position: relative;
+}
+
+.mb-filter-btn {
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: white;
+  font-family: var(--font-main);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--dark);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.22s;
+}
+
+.mb-filter-btn:hover,
+.mb-filter-btn.open {
+  border-color: rgba(45, 107, 255, 0.3);
+  color: var(--blue);
+  background: var(--blue-light);
+}
+
+.mb-filter-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 8px;
+  z-index: 50;
+  animation: mb-dropdown 0.18s ease;
+}
+
+@keyframes mb-dropdown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.mb-filter-label {
+  font-family: var(--font-main);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 4px 8px 8px;
+  margin: 0;
+}
+
+.mb-filter-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  font-family: var(--font-main);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--dark);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.mb-filter-option:hover   { background: var(--blue-light); color: var(--blue); }
+.mb-filter-option.active  { background: var(--blue-light); color: var(--blue); font-weight: 700; }
+
+/* ── Main Grid ───────────────────────────────────────────── */
+
+.mb-grid {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+/* ── Section Label ───────────────────────────────────────── */
+
+.mb-section-label {
+  font-family: var(--font-main);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted-light);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin: 0 0 10px;
+  padding: 0 2px;
+}
+
+/* ── Batch List ──────────────────────────────────────────── */
+
+.mb-batch-list {
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 88px;
+}
+
+.mb-batch-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 14px 14px;
+  background: white;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.22s ease;
+}
+
+.mb-batch-card:hover {
+  border-color: rgba(45, 107, 255, 0.25);
+  transform: translateX(2px);
+  box-shadow: var(--shadow-md);
+}
+
+.mb-batch-card.active {
+  box-shadow: var(--shadow-md);
+}
+
+.mb-batch-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mb-batch-emoji {
+  font-size: 22px;
+}
+
+.mb-batch-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.mb-batch-name {
+  font-family: var(--font-head);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--dark);
+  margin: 0;
+}
+
+.mb-batch-subject {
+  font-family: var(--font-main);
+  font-size: 12.5px;
+  font-weight: 700;
+  margin: 2px 0;
+}
+
+.mb-batch-grade {
+  font-family: var(--font-main);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  margin: 0;
+}
+
+.mb-batch-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.mb-batch-count {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-main);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* ── Students Panel ──────────────────────────────────────── */
+
+.mb-students-panel {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+/* ── Stats Bar ───────────────────────────────────────────── */
+
+.mb-stats-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, rgba(45,107,255,0.04), rgba(55,200,113,0.04));
+  border-bottom: 1px solid var(--border);
+}
+
+.mb-stats-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mb-stats-batch-name {
+  font-family: var(--font-head);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--dark);
+}
+
+.mb-stats-separator { color: var(--muted-light); }
+
+.mb-stats-subject {
+  font-family: var(--font-main);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--blue);
+}
+
+.mb-stats-schedule {
+  font-family: var(--font-main);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.mb-stats-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mb-stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-main);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 999px;
+}
+
+.mb-stat-pill--green  { background: rgba(55,200,113,0.12); color: #27a55e; }
+.mb-stat-pill--blue   { background: rgba(45,107,255,0.10); color: #2D6BFF; }
+.mb-stat-pill--purple { background: rgba(139,92,246,0.10); color: #7c3aed; }
+
+/* ── Column Headers ──────────────────────────────────────── */
+
+.mb-student-list-header {
+  display: grid;
+  grid-template-columns: 2fr 80px 120px 100px 90px 110px;
+  padding: 12px 20px;
+  background: rgba(248, 250, 255, 0.9);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-main);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  gap: 12px;
+}
+
+/* ── Student List ────────────────────────────────────────── */
+
+.mb-student-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.mb-student-row {
+  display: grid;
+  grid-template-columns: 2fr 80px 120px 100px 90px 110px;
+  align-items: center;
+  padding: 14px 20px;
+  gap: 12px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.45);
+  transition: background 0.18s;
+}
+
+.mb-student-row:last-child { border-bottom: none; }
+
+.mb-student-row:hover { background: rgba(45, 107, 255, 0.025); }
+
+/* ── Cells ───────────────────────────────────────────────── */
+
+.mb-student-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mb-student-name-cell {
+  gap: 12px;
+}
+
+.mb-student-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid white;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+  flex-shrink: 0;
+  background: var(--blue-light);
+}
+
+.mb-student-name {
+  font-family: var(--font-main);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--dark);
+  margin: 0;
+}
+
+.mb-student-joined {
+  font-family: var(--font-main);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--muted-light);
+  margin: 2px 0 0;
+}
+
+.mb-roll-no {
+  font-family: var(--font-main);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* ── Attendance Bar ──────────────────────────────────────── */
+
+.mb-att-cell { flex-direction: column; align-items: flex-start; gap: 4px; }
+
+.mb-att-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+}
+
+.mb-att-bar-bg {
+  flex: 1;
+  height: 5px;
+  background: rgba(226,232,240,0.9);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.mb-att-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s ease;
+}
+
+.mb-att-pct {
+  font-family: var(--font-main);
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 36px;
+}
+
+/* ── Score Badge ─────────────────────────────────────────── */
+
+.mb-score-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-main);
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+/* ── Rank ────────────────────────────────────────────────── */
+
+.mb-rank-badge {
+  font-family: var(--font-head);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(100,116,139,0.08);
+  color: var(--muted);
+}
+
+.mb-rank-badge.gold   { background: rgba(234,179,8,0.12);  color: #b45309; }
+.mb-rank-badge.silver { background: rgba(148,163,184,0.15); color: #475569; }
+.mb-rank-badge.bronze { background: rgba(180,83,9,0.10);   color: #92400e; }
+
+/* ── Status ──────────────────────────────────────────────── */
+
+.mb-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.mb-status-dot--active   { background: #37C871; box-shadow: 0 0 0 3px rgba(55,200,113,0.18); }
+.mb-status-dot--inactive { background: #94a3b8; }
+
+.mb-status-text {
+  font-family: var(--font-main);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* ── View Button ─────────────────────────────────────────── */
+
+.mb-view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-main);
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(45, 107, 255, 0.22);
+  background: white;
+  color: var(--blue);
+  cursor: pointer;
+  transition: all 0.22s ease;
+  white-space: nowrap;
+}
+
+.mb-view-btn:hover {
+  background: var(--blue);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(45, 107, 255, 0.30);
+  transform: translateY(-1px);
+}
+
+/* ── Empty State ─────────────────────────────────────────── */
+
+.mb-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 60px 20px;
+  color: var(--muted-light);
+}
+
+.mb-empty p {
+  font-family: var(--font-main);
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* ── Responsive ─────────────────────────────────────────── */
+
+@media (max-width: 1100px) {
+  .mb-grid { grid-template-columns: 1fr; }
+  .mb-batch-list { flex-direction: row; position: static; }
+  .mb-batch-card { margin-bottom: 0; }
+  .mb-student-list-header,
+  .mb-student-row { grid-template-columns: 2fr 80px 100px 80px 70px; }
+  .mb-student-list-header span:nth-child(6),
+  .mb-student-list-header span:nth-child(7),
+  .mb-student-row > *:nth-child(6),
+  .mb-student-row > *:nth-child(7) { display: none; }
+}

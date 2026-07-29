@@ -1,0 +1,174 @@
+/* ============================================================
+   RECENT SUBMISSIONS TABLE
+============================================================ */
+
+.recent-submissions {
+  overflow: hidden;
+}
+
+/* ── Table Wrapper ───────────────────────────────────────── */
+
+.rs-table-wrap {
+  overflow-x: auto;
+  margin: 0 -2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(45,107,255,0.15) transparent;
+}
+
+.rs-table-wrap::-webkit-scrollbar {
+  height: 4px;
+}
+
+.rs-table-wrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.rs-table-wrap::-webkit-scrollbar-thumb {
+  background: rgba(45,107,255,0.20);
+  border-radius: 999px;
+}
+
+/* ── Table ───────────────────────────────────────────────── */
+
+.rs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-main);
+}
+
+/* ── Head ────────────────────────────────────────────────── */
+
+.rs-table thead tr {
+  border-bottom: 1px solid var(--border);
+}
+
+.rs-table thead th {
+  padding: 0 16px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+/* ── Body ────────────────────────────────────────────────── */
+
+.rs-table tbody tr {
+  border-bottom: 1px solid rgba(226, 232, 240, 0.5);
+  transition: background 0.18s;
+}
+
+.rs-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.rs-table tbody tr:hover {
+  background: rgba(45, 107, 255, 0.025);
+}
+
+.rs-table tbody td {
+  padding: 14px 16px;
+  vertical-align: middle;
+}
+
+/* ── Student ─────────────────────────────────────────────── */
+
+.rs-student {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rs-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid white;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+  flex-shrink: 0;
+  background: var(--blue-light);
+}
+
+.rs-student-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--dark);
+  white-space: nowrap;
+}
+
+/* ── Assignment ──────────────────────────────────────────── */
+
+.rs-assignment-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rs-assignment-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--dark);
+  white-space: nowrap;
+}
+
+.rs-subject-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--blue);
+  background: var(--blue-light);
+  padding: 2px 8px;
+  border-radius: 999px;
+  width: fit-content;
+}
+
+/* ── Time ────────────────────────────────────────────────── */
+
+.rs-time {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* ── Status Badge ────────────────────────────────────────── */
+
+.rs-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* ── Action Button ───────────────────────────────────────── */
+
+.rs-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-main);
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(45, 107, 255, 0.22);
+  background: white;
+  color: var(--blue);
+  cursor: pointer;
+  transition: all 0.22s ease;
+  white-space: nowrap;
+}
+
+.rs-action-btn:hover {
+  background: var(--blue);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(45, 107, 255, 0.28);
+  transform: translateY(-1px);
+}

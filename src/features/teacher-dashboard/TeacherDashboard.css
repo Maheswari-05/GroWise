@@ -1,0 +1,156 @@
+/* ============================================================
+   TEACHER DASHBOARD – GLOBAL LAYOUT
+   Color Palette matches GroWise branding:
+   Primary Blue:  #2D6BFF
+   Primary Green: #37C871
+   Dark:          #1e2a46
+   Muted:         #64748b
+   Background:    #f5f9ff
+============================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&display=swap");
+
+:root {
+  --blue:        #2D6BFF;
+  --blue-light:  rgba(45, 107, 255, 0.10);
+  --blue-mid:    rgba(45, 107, 255, 0.16);
+  --green:       #37C871;
+  --green-light: rgba(55, 200, 113, 0.12);
+  --dark:        #1e2a46;
+  --muted:       #64748b;
+  --muted-light: #94a3b8;
+  --bg:          #f5f9ff;
+  --card-bg:     #ffffff;
+  --border:      rgba(226, 232, 240, 0.7);
+  --shadow-sm:   0 2px 8px rgba(30, 42, 70, 0.06), 0 1px 3px rgba(30, 42, 70, 0.04);
+  --shadow-md:   0 6px 24px rgba(30, 42, 70, 0.10), 0 2px 8px rgba(30, 42, 70, 0.06);
+  --shadow-lg:   0 16px 48px rgba(30, 42, 70, 0.14), 0 4px 16px rgba(30, 42, 70, 0.08);
+  --radius-sm:   10px;
+  --radius-md:   14px;
+  --radius-lg:   20px;
+  --radius-xl:   24px;
+  --sidebar-w:   260px;
+  --gradient:    linear-gradient(135deg, #2D6BFF, #37C871);
+  --font-main:   "Manrope", sans-serif;
+  --font-head:   "Sora", sans-serif;
+}
+
+/* ── Reset ──────────────────────────────────────────────── */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Root Layout ────────────────────────────────────────── */
+
+.td-layout {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg);
+  font-family: var(--font-main);
+}
+
+/* ── Main Area ──────────────────────────────────────────── */
+
+.td-main {
+  flex: 1;
+  margin-left: var(--sidebar-w);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ── Content ────────────────────────────────────────────── */
+
+.td-content {
+  flex: 1;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* Full-page modules manage their own padding */
+.td-content--full {
+  padding: 0;
+  gap: 0;
+}
+
+
+/* ── Row Two (Schedule + Tests) ─────────────────────────── */
+
+.td-row-two {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 24px;
+}
+
+/* ── Row Three (Submissions + Notifications) ────────────── */
+
+.td-row-three {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 24px;
+}
+
+/* ── Shared Card Base ───────────────────────────────────── */
+
+.td-card {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  padding: 24px;
+}
+
+.td-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.td-card-title {
+  font-family: var(--font-head);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--dark);
+}
+
+.td-view-all-btn {
+  font-family: var(--font-main);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--blue);
+  background: var(--blue-light);
+  border: none;
+  border-radius: 999px;
+  padding: 6px 16px;
+  cursor: pointer;
+  transition: all 0.25s;
+}
+
+.td-view-all-btn:hover {
+  background: var(--blue);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(45, 107, 255, 0.30);
+}
+
+/* ── Responsive ─────────────────────────────────────────── */
+
+@media (max-width: 1200px) {
+  .td-row-two,
+  .td-row-three {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  :root { --sidebar-w: 0px; }
+  .td-main { margin-left: 0; }
+  .td-content { padding: 20px 16px; }
+}

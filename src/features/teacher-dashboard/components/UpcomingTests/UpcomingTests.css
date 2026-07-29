@@ -1,0 +1,108 @@
+/* ============================================================
+   UPCOMING TESTS
+============================================================ */
+
+.upcoming-tests {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── List ────────────────────────────────────────────────── */
+
+.upcoming-tests__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+
+/* ── Test Item ───────────────────────────────────────────── */
+
+.upcoming-test-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid;
+  cursor: default;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.upcoming-test-item:hover {
+  transform: translateX(3px);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Icon ────────────────────────────────────────────────── */
+
+.upcoming-test-icon {
+  font-size: 26px;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 10px;
+  backdrop-filter: blur(4px);
+}
+
+/* ── Info ────────────────────────────────────────────────── */
+
+.upcoming-test-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.upcoming-test-subject {
+  font-family: var(--font-head);
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.upcoming-test-grade {
+  font-family: var(--font-main);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 3px 0 0;
+}
+
+/* ── When ────────────────────────────────────────────────── */
+
+.upcoming-test-when {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-main);
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ── Create Button ───────────────────────────────────────── */
+
+.upcoming-test-create-btn {
+  margin-top: 18px;
+  width: 100%;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: 2px dashed rgba(45, 107, 255, 0.25);
+  background: transparent;
+  color: var(--blue);
+  font-family: var(--font-main);
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.upcoming-test-create-btn:hover {
+  background: var(--blue-light);
+  border-color: rgba(45, 107, 255, 0.40);
+  transform: translateY(-1px);
+}
