@@ -1,0 +1,781 @@
+/* ============================================================
+   ONLINE CLASSES MODULE
+============================================================ */
+
+.online-classes-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  padding: 32px;
+}
+
+/* Action Bar */
+
+.oc-action-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: var(--card-bg);
+  padding: 16px 24px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.oc-filters-container {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.oc-search-box {
+  position: relative;
+  min-width: 280px;
+  flex: 1;
+}
+
+.oc-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+}
+
+.oc-search-box input {
+  width: 100%;
+  padding: 11px 16px 11px 40px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  font-family: var(--font-main);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--dark);
+  background: #f8fafc;
+  outline: none;
+  transition: all 0.22s;
+}
+
+.oc-search-box input:focus {
+  background: white;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(45, 107, 255, 0.12);
+}
+
+.oc-filter-dropdowns {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.oc-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0 14px;
+  height: 42px;
+  color: var(--muted);
+}
+
+.oc-filter-item select {
+  border: none;
+  background: transparent;
+  font-family: var(--font-main);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--dark);
+  outline: none;
+  cursor: pointer;
+  padding: 8px 0;
+}
+
+.oc-create-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--blue);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 20px;
+  font-family: var(--font-main);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s;
+  box-shadow: 0 4px 14px rgba(45, 107, 255, 0.25);
+}
+
+.oc-create-btn:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+/* Cards List */
+
+.oc-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.oc-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  transition: all 0.22s;
+  box-shadow: var(--shadow-sm);
+}
+
+.oc-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: rgba(45, 107, 255, 0.15);
+}
+
+/* Card Borders by Status */
+.oc-card-status-live {
+  border-left: 4px solid #ef4444;
+}
+.oc-card-status-upcoming {
+  border-left: 4px solid var(--blue);
+}
+.oc-card-status-completed {
+  border-left: 4px solid #10b981;
+}
+.oc-card-status-cancelled {
+  border-left: 4px solid #64748b;
+  opacity: 0.8;
+}
+
+.oc-card-left {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.oc-card-icon-box {
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.oc-card-status-live .oc-card-icon-box {
+  background: #fef2f2;
+  color: #ef4444;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.oc-card-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.oc-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.oc-card-title {
+  font-family: var(--font-head);
+  font-size: 16.5px;
+  font-weight: 700;
+  color: var(--dark);
+  margin: 0;
+}
+
+.oc-badge {
+  font-family: var(--font-main);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+
+.badge-upcoming { background: #eff6ff; color: var(--blue); }
+.badge-live { background: #fef2f2; color: #ef4444; }
+.badge-completed { background: #ecfdf5; color: #10b981; }
+.badge-cancelled { background: #f1f5f9; color: #64748b; }
+
+.oc-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-family: var(--font-main);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.oc-card-right {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.oc-card-schedule {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-right: 1px solid var(--border);
+  padding-right: 24px;
+}
+
+.oc-schedule-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-main);
+  font-size: 13px;
+  color: var(--dark);
+  font-weight: 600;
+}
+
+.oc-schedule-item svg {
+  color: var(--muted);
+}
+
+.oc-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.oc-btn-start {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 18px;
+  font-family: var(--font-main);
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.22s;
+}
+
+.oc-btn-start:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
+.call-live-btn {
+  background: #ef4444;
+  animation: callPulse 1.5s infinite;
+}
+
+@keyframes callPulse {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+.oc-btn-icon {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.oc-btn-icon:hover {
+  background: #f1f5f9;
+  color: var(--dark);
+}
+
+.btn-cancel:hover {
+  background: #fef2f2;
+  color: #ef4444;
+  border-color: #fee2e2;
+}
+
+.oc-status-text-completed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #10b981;
+  font-family: var(--font-main);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.oc-status-text-cancelled {
+  color: #64748b;
+  font-family: var(--font-main);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+/* ── Live Video Call Mock Interface ──────────────────────── */
+
+.oc-call-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #0f172a;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.oc-call-window {
+  width: 100%;
+  max-width: 1200px;
+  height: 90vh;
+  display: flex;
+  flex-direction: column;
+  background: #1e293b;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.oc-call-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 32px;
+  background: #0f172a;
+  border-bottom: 1px solid #334155;
+  color: white;
+}
+
+.oc-call-header-left h3 {
+  font-family: var(--font-head);
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.oc-live-badge {
+  display: inline-block;
+  background: #ef4444;
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
+}
+
+.oc-call-subtitle {
+  font-family: var(--font-main);
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.oc-call-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-main);
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+.oc-call-arena {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+  padding: 24px;
+  background: #1e293b;
+  overflow: hidden;
+}
+
+.oc-video-feed {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #0f172a;
+  border: 2px solid #334155;
+}
+
+.teacher-feed {
+  height: 100%;
+}
+
+.oc-video-simulation {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.oc-video-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.oc-video-avatar-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: white;
+}
+
+.oc-video-avatar-initials {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: var(--blue);
+  font-size: 36px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(45, 107, 255, 0.3);
+}
+
+.oc-feed-name {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  background: rgba(15, 23, 42, 0.75);
+  color: white;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-family: var(--font-main);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.oc-mic-status {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mic-on { color: #10b981; }
+.mic-off { color: #ef4444; }
+
+.oc-students-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.student-feed {
+  height: 140px;
+  flex-shrink: 0;
+}
+
+.oc-student-call-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+}
+
+.oc-call-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 20px;
+  background: #0f172a;
+  border-top: 1px solid #334155;
+}
+
+.oc-control-btn {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: none;
+  background: #334155;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.oc-control-btn:hover {
+  background: #475569;
+}
+
+.control-disabled {
+  background: #ef4444 !important;
+}
+
+.oc-hangup-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 999px;
+  padding: 0 28px;
+  height: 50px;
+  font-family: var(--font-main);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.oc-hangup-btn:hover {
+  background: #dc2626;
+}
+
+/* Modals */
+
+.oc-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  animation: fadeIn 0.2s ease;
+}
+
+.oc-modal {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  width: 520px;
+  max-width: 90%;
+  box-shadow: var(--shadow-lg);
+  animation: modalScale 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: hidden;
+}
+
+.oc-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.oc-modal-header h3 {
+  font-family: var(--font-head);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--dark);
+  margin: 0;
+}
+
+.oc-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.oc-modal-close:hover {
+  color: var(--blue);
+}
+
+.oc-modal form {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.oc-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.oc-form-group label {
+  font-family: var(--font-main);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dark);
+}
+
+.oc-form-group input,
+.oc-form-group select {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-family: var(--font-main);
+  font-size: 14px;
+  color: var(--dark);
+  outline: none;
+  background: white;
+  transition: border-color 0.2s;
+}
+
+.oc-form-group input:focus,
+.oc-form-group select:focus {
+  border-color: var(--blue);
+}
+
+.oc-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.oc-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding: 20px 24px 0;
+  margin-top: 8px;
+}
+
+.oc-btn-secondary {
+  background: #f1f5f9;
+  color: #475569;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 18px;
+  font-family: var(--font-main);
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.22s;
+}
+
+.oc-btn-secondary:hover {
+  background: #e2e8f0;
+}
+
+.oc-btn-primary {
+  background: var(--blue);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 18px;
+  font-family: var(--font-main);
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.22s;
+}
+
+.oc-btn-primary:hover {
+  background: #1d4ed8;
+}
+
+/* Empty State */
+.oc-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  background: var(--card-bg);
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--muted-light);
+  gap: 12px;
+}
+
+.oc-empty-state p {
+  font-family: var(--font-main);
+  font-size: 14.5px;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* Responsive */
+
+@media (max-width: 900px) {
+  .oc-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 20px;
+  }
+  .oc-card-right {
+    width: 100%;
+    justify-content: space-between;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+  .oc-card-schedule {
+    border-right: none;
+    padding-right: 0;
+  }
+  .oc-call-arena {
+    grid-template-columns: 1fr;
+  }
+  .oc-students-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    height: auto;
+  }
+  .student-feed {
+    height: 100px;
+  }
+}
+@media (max-width: 600px) {
+  .oc-action-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .oc-filter-dropdowns {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

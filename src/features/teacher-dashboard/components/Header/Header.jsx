@@ -14,8 +14,11 @@ const PAGE_TITLES = {
   profile:       { title: "My Profile",                  sub: "Manage your account information." },
 };
 
-const Header = ({ activeNav = "dashboard" }) => {
+const Header = ({ activeNav = "dashboard", unreadCount = 0, profile = {} }) => {
   const page = PAGE_TITLES[activeNav] || PAGE_TITLES.dashboard;
+  const avatarUrl = profile.avatar || "https://api.dicebear.com/9.x/avataaars/svg?seed=Sarah&backgroundColor=b6e3f4";
+  const name = profile.name || "Mrs. Sarah";
+
   return (
     <header className="td-header">
       {/* Left: Greeting / Page Title */}
@@ -29,19 +32,19 @@ const Header = ({ activeNav = "dashboard" }) => {
         {/* Notification Bell */}
         <button className="td-header-bell" aria-label="Notifications">
           <Bell size={20} />
-          <span className="td-header-bell-badge">3</span>
+          {unreadCount > 0 && <span className="td-header-bell-badge">{unreadCount}</span>}
         </button>
 
         {/* Profile */}
         <div className="td-header-profile">
           <div className="td-header-avatar">
             <img
-              src="https://api.dicebear.com/9.x/avataaars/svg?seed=Sarah&backgroundColor=b6e3f4"
-              alt="Mrs. Sarah"
+              src={avatarUrl}
+              alt={name}
             />
           </div>
           <div className="td-header-profile-info">
-            <span className="td-header-name">Mrs. Sarah</span>
+            <span className="td-header-name">{name}</span>
             <span className="td-header-role">Mathematics Teacher</span>
           </div>
           <ChevronDown size={16} className="td-header-chevron" />
