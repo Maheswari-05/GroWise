@@ -28,7 +28,7 @@ import {
   GraduationCap
 } from "lucide-react";
 import logo from "../../assets/logo.png";
-import avatarImg from "../../assets/courses/human4.jpg";
+import avatarImg from "../../assets/avatar.png";
 import mathClassImg from "../../assets/math_class.png";
 import physicsClassImg from "../../assets/physics_class.png";
 import chemistryClassImg from "../../assets/chemistry_class.png";
