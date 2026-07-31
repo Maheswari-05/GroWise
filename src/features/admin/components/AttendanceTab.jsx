@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Search, Calendar, Filter, Check, X, Edit2, CheckCircle, XCircle, Users, Clock, TrendingUp, BarChart3, AlertCircle } from "lucide-react";
-
 const AttendanceTab = ({ 
   attendanceLogs, 
   students, 

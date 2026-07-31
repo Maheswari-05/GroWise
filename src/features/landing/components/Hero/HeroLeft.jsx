@@ -26,7 +26,7 @@ const HeroLeft = ({ onNavigate }) => {
 
       <div className="hero-buttons">
 
-        <button className="hero-primary-btn" onClick={() => onNavigate("login")}>
+        <button className="hero-primary-btn" onClick={() => onNavigate("role-selector")}>
 
           Get Started
 
