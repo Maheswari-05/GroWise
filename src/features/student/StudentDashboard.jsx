@@ -559,47 +559,47 @@ const StudentDashboard = ({ onNavigate }) => {
                       </div>
 
                       {/* Actual bars */}
-                      <div className="bars-wrapper">
+                      <div className="student-bars-wrapper">
                         {/* Physics — 89% */}
-                        <div className="bar-column">
-                          <div className="bar-track">
+                        <div className="student-bar-column">
+                          <div className="student-bar-track">
                             <div 
-                              className="bar-fill blue-bar" 
+                              className="student-bar-fill blue-bar" 
                               style={{ height: "89%" }}
                               title="Physics: 89%"
                             >
-                              <span className="bar-tooltip">89%</span>
+                              <span className="student-bar-tooltip">89%</span>
                             </div>
                           </div>
-                          <span className="bar-label">Physics</span>
+                          <span className="student-bar-label">Physics</span>
                         </div>
 
                         {/* Chemistry — 80% */}
-                        <div className="bar-column">
-                          <div className="bar-track">
+                        <div className="student-bar-column">
+                          <div className="student-bar-track">
                             <div 
-                              className="bar-fill orange-bar" 
+                              className="student-bar-fill orange-bar" 
                               style={{ height: "80%" }}
                               title="Chemistry: 80%"
                             >
-                              <span className="bar-tooltip">80%</span>
+                              <span className="student-bar-tooltip">80%</span>
                             </div>
                           </div>
-                          <span className="bar-label">Chemistry</span>
+                          <span className="student-bar-label">Chemistry</span>
                         </div>
 
                         {/* Mathematics — 90% */}
-                        <div className="bar-column">
-                          <div className="bar-track">
+                        <div className="student-bar-column">
+                          <div className="student-bar-track">
                             <div 
-                              className="bar-fill green-bar" 
+                              className="student-bar-fill green-bar" 
                               style={{ height: "90%" }}
                               title="Mathematics: 90%"
                             >
-                              <span className="bar-tooltip">90%</span>
+                              <span className="student-bar-tooltip">90%</span>
                             </div>
                           </div>
-                          <span className="bar-label">Mathematics</span>
+                          <span className="student-bar-label">Mathematics</span>
                         </div>
                       </div>
                     </div>
