@@ -1,0 +1,404 @@
+/* ── Invite Modal Styles ── */
+
+.invite-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: inviteOverlayIn 0.2s ease-out;
+  padding: 20px;
+}
+
+@keyframes inviteOverlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.invite-modal-card {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(226, 232, 240, 0.5);
+  position: relative;
+  animation: inviteCardIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+@keyframes inviteCardIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.invite-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #64748b;
+  transition: all 0.15s ease;
+  z-index: 2;
+}
+
+.invite-modal-close:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+/* ── Modal Body ── */
+.invite-modal-body {
+  padding: 36px 32px 28px;
+}
+
+.invite-modal-body.center-state {
+  text-align: center;
+}
+
+.invite-modal-body h3 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e2a46;
+  margin: 16px 0 6px;
+  font-family: "Manrope", sans-serif;
+}
+
+.invite-desc {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0 0 20px;
+}
+
+.error-text {
+  color: #dc2626;
+}
+
+/* ── Icon Wrappers ── */
+.invite-icon-wrapper {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 0 4px;
+}
+
+.center-state .invite-icon-wrapper {
+  margin: 0 auto 4px;
+}
+
+.invite-icon-wrapper.confirm {
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  color: #2D6BFF;
+}
+
+.invite-icon-wrapper.sending {
+  background: linear-gradient(135deg, #fefce8, #fef3c7);
+  color: #d97706;
+}
+
+.invite-icon-wrapper.success {
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  color: #37C871;
+}
+
+.invite-icon-wrapper.error {
+  background: linear-gradient(135deg, #fef2f2, #fecaca);
+  color: #dc2626;
+}
+
+/* ── Spin animation ── */
+.spin-icon {
+  animation: inviteSpin 1s linear infinite;
+}
+
+@keyframes inviteSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── User Card ── */
+.invite-user-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  margin-bottom: 20px;
+}
+
+.invite-user-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #2D6BFF, #37C871);
+  color: white;
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.invite-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.invite-user-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e2a46;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.invite-user-email {
+  font-size: 13px;
+  color: #2D6BFF;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.invite-user-role {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── Steps Preview ── */
+.invite-steps-preview {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 24px;
+}
+
+.steps-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 10px;
+}
+
+.invite-steps-list {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.invite-steps-list li {
+  font-size: 13.5px;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.invite-steps-list li strong {
+  color: #1e2a46;
+}
+
+.invite-steps-list.compact {
+  padding-left: 0;
+  list-style: none;
+}
+
+.invite-steps-list.compact li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.invite-steps-list.compact li svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: #37C871;
+}
+
+/* ── Email Highlight ── */
+.invite-email-highlight {
+  display: inline-block;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  color: #2D6BFF;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  font-family: "Manrope", monospace;
+}
+
+/* ── Info Box ── */
+.invite-info-box {
+  text-align: left;
+  padding: 16px 18px;
+  border-radius: 14px;
+  margin-bottom: 24px;
+}
+
+.invite-info-box.success-info {
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
+}
+
+.invite-info-box.error-info {
+  background: #fef2f2;
+  border: 1.5px solid #fecaca;
+}
+
+.invite-info-box p {
+  font-size: 13px;
+  color: #475569;
+  margin: 0 0 10px;
+  font-weight: 600;
+}
+
+.invite-info-box ul {
+  padding-left: 18px;
+  margin: 0;
+}
+
+.invite-info-box ul li {
+  font-size: 12.5px;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+/* ── Action Buttons ── */
+.invite-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.center-state .invite-modal-actions {
+  justify-content: center;
+}
+
+.btn-modal-cancel {
+  padding: 10px 22px;
+  border: 1.5px solid #e2e8f0;
+  background: #ffffff;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: "Manrope", sans-serif;
+}
+
+.btn-modal-cancel:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+.btn-modal-send,
+.btn-modal-retry {
+  padding: 10px 24px;
+  background: linear-gradient(135deg, #2D6BFF, #37C871);
+  border: none;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  font-family: "Manrope", sans-serif;
+  box-shadow: 0 4px 14px rgba(45, 107, 255, 0.3);
+}
+
+.btn-modal-send:hover,
+.btn-modal-retry:hover {
+  box-shadow: 0 6px 20px rgba(45, 107, 255, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-modal-done {
+  padding: 10px 32px;
+  background: linear-gradient(135deg, #37C871, #2D6BFF);
+  border: none;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: "Manrope", sans-serif;
+  box-shadow: 0 4px 14px rgba(55, 200, 113, 0.3);
+}
+
+.btn-modal-done:hover {
+  box-shadow: 0 6px 20px rgba(55, 200, 113, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-modal-retry {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.3);
+}
+
+.btn-modal-retry:hover {
+  box-shadow: 0 6px 20px rgba(220, 38, 38, 0.4);
+}
+
+/* ── Responsive ── */
+@media (max-width: 520px) {
+  .invite-modal-card {
+    max-width: 100%;
+    border-radius: 16px;
+  }
+
+  .invite-modal-body {
+    padding: 28px 20px 22px;
+  }
+
+  .invite-modal-actions {
+    flex-direction: column;
+  }
+
+  .invite-modal-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+}

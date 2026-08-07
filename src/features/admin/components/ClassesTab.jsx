@@ -194,8 +194,8 @@ const ClassesTab = ({
                   <th>Time</th>
                   <th>Subject</th>
                   <th>Batch</th>
-                  <th>Teacher (1:1)</th>
-                  <th>Student (1:1)</th>
+                  <th>Teacher </th>
+                  <th>Student </th>
                   <th>Meeting Link</th>
                   <th>Status</th>
                   <th className="text-center">Actions</th>

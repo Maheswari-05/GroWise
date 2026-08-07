@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Search, Filter, Plus, Eye, Edit2, Trash2, ArrowLeft, Check, X, ShieldAlert, Award, FileText, Calendar, Mail, Phone, BookOpen, Layers, Users } from "lucide-react";
+import { Search, Filter, Plus, Eye, Edit2, Trash2, ArrowLeft, Check, X, ShieldAlert, Award, FileText, Calendar, Mail, Phone, BookOpen, Layers, Users, Send } from "lucide-react";
+import { sendPasswordInviteEmail } from "../../../services/adminService";
+import InviteModal from "./InviteModal";
 
 const TeachersTab = ({ 
   teachers, 
@@ -20,6 +22,7 @@ const TeachersTab = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [filterSubject, setFilterSubject] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -350,40 +353,18 @@ const TeachersTab = ({
               </div>
             </div>
 
-            {/* Credentials block */}
-            <div className="form-credentials-section">
-              <h3>Portal Authentication Access</h3>
-              <div className="form-grid-three">
-                <div className="form-control">
-                  <label htmlFor="tch-username">Portal Username</label>
-                  <input 
-                    id="tch-username" 
-                    type="text" 
-                    placeholder="Username for tutor portal"
-                    value={formData.username}
-                    onChange={(e) => setFormData({...formData, username: e.target.value})}
-                  />
-                </div>
-                <div className="form-control">
-                  <label htmlFor="tch-password">Portal Password</label>
-                  <input 
-                    id="tch-password" 
-                    type="text" 
-                    placeholder="Portal login password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  />
-                </div>
-                <div className="form-control justify-end flex">
-                  <span className="field-helper-block">
-                    These credentials allow the teacher to sign in via the Teacher Portal.
-                  </span>
-                </div>
-              </div>
-            </div>
-
             <div className="form-actions-bar">
               <button type="button" className="btn-secondary" onClick={() => setView("list")}>Cancel</button>
+              {formData.email && (
+                <button 
+                  type="button" 
+                  className="btn-invite-action"
+                  onClick={() => setInviteModalOpen(true)}
+                >
+                  <Send size={16} />
+                  <span>Send Password Setup Email</span>
+                </button>
+              )}
               <button type="submit" className="btn-primary">Save Faculty Record</button>
             </div>
           </form>
@@ -578,6 +559,14 @@ const TeachersTab = ({
           </div>
         </div>
       )}
+      <InviteModal
+        isOpen={inviteModalOpen}
+        onClose={() => setInviteModalOpen(false)}
+        email={formData.email}
+        name={formData.name}
+        role="teacher"
+        onSend={() => sendPasswordInviteEmail(formData.email, 'teacher', formData.name)}
+      />
     </div>
   );
 };

@@ -25,7 +25,6 @@ const DashboardOverview = ({
       {/* Welcome banner */}
       <section className="welcome-section">
         <h2>System Administration Overview</h2>
-        <p>Tuition centre management portal. Oversee classes, teachers, student files, and test performance.</p>
       </section>
 
       {/* Summary Cards Grid */}
@@ -72,6 +71,25 @@ const DashboardOverview = ({
             <p>Total Batches</p>
           </div>
           <ArrowRight className="card-arrow" size={16} />
+        </div>
+      </section>
+
+      {/* Quick Action Buttons Section */}
+      <section className="quick-actions-section">
+        <h3>Quick Actions</h3>
+        <div className="quick-actions-grid">
+          <button className="quick-action-btn" onClick={() => onQuickAction("AddStudent")}>
+            <PlusCircle size={18} />
+            <span>Add Student</span>
+          </button>
+          <button className="quick-action-btn" onClick={() => onQuickAction("AddTeacher")}>
+            <PlusCircle size={18} />
+            <span>Add Teacher</span>
+          </button>
+          <button className="quick-action-btn" onClick={() => onQuickAction("CreateBatch")}>
+            <PlusCircle size={18} />
+            <span>Create Batch</span>
+          </button>
         </div>
       </section>
 
@@ -181,25 +199,6 @@ const DashboardOverview = ({
           </div>
         </section>
       </div>
-
-      {/* Quick Action Buttons Section */}
-      <section className="quick-actions-section">
-        <h3>Quick Action Shortcuts</h3>
-        <div className="quick-actions-grid">
-          <button className="quick-action-btn" onClick={() => onQuickAction("AddStudent")}>
-            <PlusCircle size={18} />
-            <span>Add Student</span>
-          </button>
-          <button className="quick-action-btn" onClick={() => onQuickAction("AddTeacher")}>
-            <PlusCircle size={18} />
-            <span>Add Teacher</span>
-          </button>
-          <button className="quick-action-btn" onClick={() => onQuickAction("CreateBatch")}>
-            <PlusCircle size={18} />
-            <span>Create Batch</span>
-          </button>
-        </div>
-      </section>
     </div>
   );
 };

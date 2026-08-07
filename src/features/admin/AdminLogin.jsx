@@ -1,35 +1,45 @@
 import { useState } from "react";
+import supabase from '../../lib/supabase';
+import { ensureAdminProfile } from '../../services/adminService';
 import { ArrowLeft, ShieldAlert, Lock, Eye, EyeOff, Shield } from "lucide-react";
 import logo from "../../assets/logo.png";
 import "./AdminLogin.css";
 
 const AdminLogin = ({ onNavigate }) => {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    if (!username.trim() || !password.trim()) {
+    if (!email.trim() || !password.trim()) {
       setError("Please fill in all fields.");
       return;
     }
 
     setIsLoading(true);
-
-    // Simulate latency for realistic loading experience
-    setTimeout(() => {
-      if (username === "Maha" && password === "Maha@123") {
-        onNavigate("admin-dashboard");
-      } else {
-        setError("Invalid administrator credentials.");
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: password.trim() });
+      if (error) {
+        setError(error.message || 'Invalid administrator credentials.');
         setIsLoading(false);
+        return;
       }
-    }, 600);
+      // Auto-create admin profile row on first login
+      try {
+        await ensureAdminProfile(data.user.id, data.user.email);
+      } catch (profileErr) {
+        console.warn("Could not create/fetch admin profile:", profileErr);
+      }
+      onNavigate('admin-dashboard');
+    } catch (err) {
+      setError(err.message || 'Login failed. Please try again.');
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -49,7 +59,7 @@ const AdminLogin = ({ onNavigate }) => {
 
         <div className="login-header">
           <h2>Admin Portal</h2>
-          <p>Log in to access your administrative dashboard and oversight controls.</p>
+          <p>Log in with your Supabase administrator account to access dashboard controls.</p>
         </div>
 
         {/* Error message */}
@@ -63,17 +73,17 @@ const AdminLogin = ({ onNavigate }) => {
         {/* Login Form */}
         <form onSubmit={handleSubmit} className="login-form">
           <div className="input-group">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="email">Email</label>
             <div className="input-wrapper">
               <Shield className="input-icon" size={18} />
               <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter admin username"
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter admin email"
                 className={error ? "input-err" : ""}
-                autoComplete="username"
+                autoComplete="email"
               />
             </div>
           </div>
@@ -106,19 +116,6 @@ const AdminLogin = ({ onNavigate }) => {
             {isLoading ? "Signing in..." : "Login"}
           </button>
         </form>
-
-        {/* Credentials hints card */}
-        <div className="credentials-hint">
-          <p className="hint-title">Admin Credentials</p>
-          <div className="hint-row">
-            <span className="hint-label">Username:</span>
-            <code className="hint-val">Maha</code>
-          </div>
-          <div className="hint-row">
-            <span className="hint-label">Password:</span>
-            <code className="hint-val">Maha@123</code>
-          </div>
-        </div>
       </div>
     </div>
   );

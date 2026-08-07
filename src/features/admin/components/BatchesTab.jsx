@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Plus, Edit2, Trash2, ArrowLeft, Layers, Calendar, User, GraduationCap, AlertCircle } from "lucide-react";
+import { Search, Plus, Edit2, Trash2, ArrowLeft } from "lucide-react";
 
 const BatchesTab = ({ 
   batches, 
@@ -124,8 +124,8 @@ const BatchesTab = ({
                   <th>Batch ID</th>
                   <th>Batch Name</th>
                   <th>Subject</th>
-                  <th>Teacher (1:1)</th>
-                  <th>Student (1:1)</th>
+                  <th>Teacher </th>
+                  <th>Student </th>
                   <th>Schedule</th>
                   <th>Status</th>
                   <th className="text-center">Actions</th>
@@ -141,31 +141,19 @@ const BatchesTab = ({
                     <tr key={b.id} className="hover-row">
                       <td className="font-mono font-bold text-primary">{b.id}</td>
                       <td>
-                        <div className="flex align-center gap-10">
-                          <Layers size={16} className="text-muted" />
-                          <span className="font-semibold">{b.name}</span>
-                        </div>
+                        <span className="font-semibold">{b.name}</span>
                       </td>
                       <td>
                         <span className="badge-tag subject">{b.subject}</span>
                       </td>
                       <td>
-                        <div className="flex align-center gap-6">
-                          <GraduationCap size={14} className="text-muted" />
-                          <span>{b.teacher}</span>
-                        </div>
+                        <span>{b.teacher}</span>
                       </td>
                       <td>
-                        <div className="flex align-center gap-6">
-                          <User size={14} className="text-primary" />
-                          <span className="font-semibold">{b.student}</span>
-                        </div>
+                        <span className="font-semibold">{b.student}</span>
                       </td>
                       <td>
-                        <div className="flex align-center gap-6 font-mono text-xs">
-                          <Calendar size={14} className="text-muted" />
-                          <span>{b.schedule}</span>
-                        </div>
+                        <span className="font-mono text-xs">{b.schedule}</span>
                       </td>
                       <td>
                         <span className={`status-badge-pill ${b.status === "Active" ? "active" : "inactive"}`}>
@@ -261,7 +249,7 @@ const BatchesTab = ({
 
               {/* 1:1 Assignments card */}
               <div className="form-card-column">
-                <h3>1-on-1 Assignments (1 Teacher : 1 Student)</h3>
+                <h3>1-on-1 Assignments </h3>
 
                 <div className="form-control">
                   <label htmlFor="bat-teacher">Assign Instructor Faculty *</label>
@@ -304,13 +292,6 @@ const BatchesTab = ({
                     </span>
                   )}
                 </div>
-
-                {formData.subject && (
-                  <div className="info-helper-box text-xs mt-10">
-                    Showing only teachers and students associated with course <strong>{formData.subject}</strong>. 
-                    This guarantees structural integrity in lesson planning and calendar scheduling.
-                  </div>
-                )}
               </div>
             </div>
 

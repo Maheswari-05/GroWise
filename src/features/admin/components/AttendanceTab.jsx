@@ -161,7 +161,6 @@ const AttendanceTab = ({
         <table className="admin-data-table">
           <thead>
             <tr>
-              <th style={{ width: "40px" }}>#</th>
               <th>Class Date</th>
               <th>Course Subject</th>
               <th>Student Name</th>
@@ -174,7 +173,7 @@ const AttendanceTab = ({
           <tbody>
             {filteredLogs.length === 0 ? (
               <tr>
-                <td colSpan="8" style={{ textAlign: "center", padding: "48px 20px" }}>
+                <td colSpan="7" style={{ textAlign: "center", padding: "48px 20px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
                     <div style={{ width: "56px", height: "56px", borderRadius: "50%", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <AlertCircle size={28} color="#94a3b8" />
@@ -189,7 +188,6 @@ const AttendanceTab = ({
                 const isEditing = editingIndex === idx;
                 return (
                   <tr key={idx} className="hover-row">
-                    <td style={{ color: "#94a3b8", fontSize: "12px", fontWeight: 600 }}>{idx + 1}</td>
                     <td className="font-mono text-sm" style={{ fontWeight: 600 }}>{log.date}</td>
                     <td>
                       <span className="badge-tag subject">{log.subject}</span>

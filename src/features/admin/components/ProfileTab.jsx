@@ -5,6 +5,7 @@ import avatarImg from "../../../assets/courses/human2.jpg";
 const ProfileTab = ({ 
   profile, 
   onUpdateProfile, 
+  onChangePassword,
   onLogout 
 }) => {
   // Details form
@@ -32,17 +33,11 @@ const ProfileTab = ({
     setTimeout(() => setStatusMsg(""), 3000);
   };
 
-  const handleChangePassword = (e) => {
+  const handleChangePassword = async (e) => {
     e.preventDefault();
     if (!oldPassword || !newPassword || !confirmPassword) {
       setStatusType("error");
       setStatusMsg("Please fill in all password fields.");
-      return;
-    }
-
-    if (oldPassword !== profile.password) {
-      setStatusType("error");
-      setStatusMsg("Incorrect current password.");
       return;
     }
 
@@ -58,12 +53,17 @@ const ProfileTab = ({
       return;
     }
 
-    onUpdateProfile({ password: newPassword });
-    setStatusType("success");
-    setStatusMsg("Security credentials changed successfully.");
-    setOldPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
+    try {
+      await onChangePassword(oldPassword, newPassword);
+      setStatusType("success");
+      setStatusMsg("Password changed successfully!");
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      setStatusType("error");
+      setStatusMsg(err.message || "Failed to change password.");
+    }
     setTimeout(() => setStatusMsg(""), 3000);
   };
 
@@ -92,7 +92,7 @@ const ProfileTab = ({
             <img src={avatarImg} alt="Admin Avatar" className="admin-profile-avatar-large" />
             <div className="avatar-meta">
               <h4>{profile.name}</h4>
-              <p className="text-xs text-muted">System Level Access: Super Administrator</p>
+              <p className="text-xs text-muted">System Level Access: Admin</p>
             </div>
           </div>
 

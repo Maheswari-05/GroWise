@@ -36,7 +36,7 @@ const Sidebar = ({ activeTab, selectTab, sidebarOpen, setSidebarOpen, onLogout }
         <div className="sidebar-header">
           <div className="logo" onClick={() => selectTab("Dashboard")}>
             <img src={logo} alt="GroWise Logo" />
-            <span className="logo-text">GroWise Admin</span>
+            <span className="logo-text">GroWise</span>
           </div>
           <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}>
             <X size={20} />

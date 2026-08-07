@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { Menu, Bell, Search, Shield, ShieldAlert, LogOut } from "lucide-react";
+import supabase from "../../lib/supabase";
+import * as adminService from "../../services/adminService";
 import Sidebar from "./components/Sidebar";
 import DashboardOverview from "./components/DashboardOverview";
 import StudentsTab from "./components/StudentsTab";
@@ -23,256 +25,378 @@ const AdminDashboard = ({ onNavigate }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(true);
 
-  // --- 1. CORE DATA BASE STATE ---
-  
-  // Subjects
-  const [subjects, setSubjects] = useState([
-    { id: "1", name: "Mathematics", code: "MATH12", description: "Advanced Calculative Algebra & Calculus Revision Course" },
-    { id: "2", name: "Physics", code: "PHYS12", description: "Quantum Physics Fundamentals & Thermal Systems Dynamics" },
-    { id: "3", name: "Chemistry", code: "CHEM12", description: "Organic Chemistry Formulations & Aldehydes Reagents" }
-  ]);
+  // Auth & loading
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Teachers
-  const [teachers, setTeachers] = useState([
-    { id: "TCH101", name: "Mr. Rajesh", contact: "+91 94441 23456", email: "rajesh.math@growise.edu", qualification: "M.Sc. Mathematics, 10 yrs exp", subjects: ["Mathematics"], status: "Active" },
-    { id: "TCH102", name: "Mrs. Anita", contact: "+91 94442 34567", email: "anita.phys@growise.edu", qualification: "Ph.D. Physics, 8 yrs exp", subjects: ["Physics"], status: "Active" },
-    { id: "TCH103", name: "Mr. Kumar", contact: "+91 94443 45678", email: "kumar.chem@growise.edu", qualification: "M.Sc. Organic Chemistry, 6 yrs exp", subjects: ["Chemistry"], status: "Active" }
-  ]);
-
-  // Students
-  const [students, setStudents] = useState([
-    { id: "STU101", name: "Sneha", contact: "+91 98765 43210", email: "sneha@growise.edu", dob: "2008-04-12", address: "No. 12, Guindy Road, Chennai", parentName: "Mr. Ramakrishnan", parentContact: "+91 98765 99999", subjects: ["Mathematics", "Physics", "Chemistry"], batchId: "BAT101", username: "Sneha", password: "Sneha@123", status: "Active" },
-    { id: "STU102", name: "Aravind", contact: "+91 98765 11111", email: "aravind@growise.edu", dob: "2007-09-18", address: "No. 40, Velachery, Chennai", parentName: "Mrs. Lakshmi", parentContact: "+91 98765 22222", subjects: ["Mathematics", "Physics"], batchId: "BAT102", username: "Aravind", password: "Password@123", status: "Active" }
-  ]);
-
-  // Batches (1:1 constraint)
-  const [batches, setBatches] = useState([
-    { id: "BAT101", name: "Batch 12-Maths-Sneha", subject: "Mathematics", teacher: "Mr. Rajesh", student: "Sneha", schedule: "Mon, Wed, Fri - 5:00 PM", status: "Active" },
-    { id: "BAT102", name: "Batch 12-Phys-Aravind", subject: "Physics", teacher: "Mrs. Anita", student: "Aravind", schedule: "Tue, Thu - 4:00 PM", status: "Active" }
-  ]);
-
-  // Study Materials
-  const [materials, setMaterials] = useState([
-    { id: "1", title: "Algebra practice Worksheet.pdf", subject: "Mathematics", teacher: "Mr. Rajesh", flagged: false },
-    { id: "2", title: "Calculus Limits Formulas.pdf", subject: "Mathematics", teacher: "Mr. Rajesh", flagged: false },
-    { id: "3", title: "Quantum Physics Waves Notes.pdf", subject: "Physics", teacher: "Mrs. Anita", flagged: false },
-    { id: "4", title: "Aldehydes Functional Groups.pdf", subject: "Chemistry", teacher: "Mr. Kumar", flagged: true } // flagged demo
-  ]);
-
-  // Attendance logs
-  const [attendanceLogs, setAttendanceLogs] = useState([
-    { date: "Today", subject: "Mathematics", teacher: "Mr. Rajesh", student: "Sneha", status: "Present" },
-    { date: "Today", subject: "Physics", teacher: "Mrs. Anita", student: "Aravind", status: "Present" },
-    { date: "24 Jun 2026", subject: "Physics", teacher: "Mrs. Anita", student: "Sneha", status: "Present" },
-    { date: "18 Jun 2026", subject: "Chemistry", teacher: "Mr. Kumar", student: "Sneha", status: "Present" },
-    { date: "12 Jun 2026", subject: "Mathematics", teacher: "Mr. Rajesh", student: "Sneha", status: "Present" }
-  ]);
-
-  // Assignments
-  const [assignments, setAssignments] = useState([
-    { id: "A1", title: "Algebra Revision Sheet", description: "Practice algebraic equations and quadratic systems.", subject: "Mathematics", batchId: "BAT101", dueDate: "18 Jun 2026", student: "Sneha", status: "Evaluated", marks: 18, totalMarks: 20, remarks: "Excellent grasp of algebraic limits." },
-    { id: "A2", title: "Calculus practice Worksheet", description: "Derivatives evaluation exercises.", subject: "Mathematics", batchId: "BAT101", dueDate: "25 Jun 2026", student: "Sneha", status: "Evaluated", marks: 20, totalMarks: 20, remarks: "Perfect marks, outstanding work." },
-    { id: "A3", title: "Quantum Physics homework", description: "Solve Planck and Heisenberg uncertainty formulations.", subject: "Physics", batchId: "BAT101", dueDate: "05 Jul 2026", student: "Sneha", status: "Submitted", marks: null, totalMarks: 20, remarks: "" },
-    { id: "A4", title: "Optics Homework Assignment", description: "Refraction indices calculations.", subject: "Physics", batchId: "BAT101", dueDate: "12 Jul 2026", student: "Sneha", status: "Pending", marks: null, totalMarks: 20, remarks: "" }
-  ]);
-
-  // Weekly Tests
-  const [weeklyTests, setWeeklyTests] = useState([
-    { id: 1, subject: "Mathematics", title: "Algebra Test", teacher: "Mr. Rajesh", date: "12 Jun 2026", status: "Published", marksObtained: 18, totalMarks: 20, percent: 90 },
-    { id: 2, subject: "Physics", title: "Quantum Mechanics Test", teacher: "Mrs. Anita", date: "19 Jun 2026", status: "Published", marksObtained: 16, totalMarks: 20, percent: 80 },
-    { id: 3, subject: "Chemistry", title: "Aldehydes Test", teacher: "Mr. Kumar", date: "26 Jun 2026", status: "Result Pending", marksObtained: null, totalMarks: 20, percent: null }
-  ]);
-
-  // Online Classes
-  const [onlineClasses, setOnlineClasses] = useState([
-    { id: 1, subject: "Mathematics", title: "Mathematics - Algebra Revision", description: "Advanced Problem Solving Techniques", teacher: "Mr. Rajesh", student: "Sneha", date: "Today", time: "5:00 PM - 6:00 PM", status: "Live Now" },
-    { id: 2, subject: "Physics", title: "Physics - Quantum Mechanics", description: "Understanding Quantum Mechanics", teacher: "Mrs. Anita", student: "Aravind", date: "Today", time: "4:00 PM - 5:00 PM", status: "Completed" },
-    { id: 3, subject: "Chemistry", title: "Chemistry - Organic Chemistry", description: "Introduction to Hydrocarbons", teacher: "Mr. Kumar", student: "Sneha", date: "18 Jun 2026", time: "3:00 PM - 4:00 PM", status: "Completed" }
-  ]);
-
-  // Notifications
-  const [notifications, setNotifications] = useState([
-    { id: 1, type: "assignment", message: "Sneha submitted Physics Quantum Mechanics Homework", time: "2 hours ago" },
-    { id: 2, type: "material", message: "Mr. Rajesh uploaded Calculus Limits Formulas study sheet", time: "5 hours ago" },
-    { id: 3, type: "batch", message: "New batch Batch 12-Phys-Aravind created successfully", time: "Yesterday" }
-  ]);
-
-  // Audit Logs
-  const [auditLogs, setAuditLogs] = useState([
-    { timestamp: "2026-07-29 19:15:22", level: "INFO", source: "AuthControl", message: "Admin authenticated via secure control credentials.", operator: "Admin" },
-    { timestamp: "2026-07-29 19:10:05", level: "WARNING", source: "StudyMaterials", message: "Chemistry study file 'Aldehydes Functional Groups.pdf' flagged for inappropriate title review.", operator: "TutorSystem" },
-    { timestamp: "2026-07-29 19:08:44", level: "EXCEPTION", source: "JitsiMeetAPI", message: "Simulated WebRTC connection latency warning: 120ms standard drop limit exceeded.", operator: "SYSTEM" }
-  ]);
-
-  // Settings
+  // --- DATA STATE (populated from Supabase) ---
+  const [subjects, setSubjects] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [batches, setBatches] = useState([]);
+  const [materials, setMaterials] = useState([]);
+  const [attendanceLogs, setAttendanceLogs] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [weeklyTests, setWeeklyTests] = useState([]);
+  const [onlineClasses, setOnlineClasses] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [settings, setSettings] = useState({
     studentRestricted: true,
     teacherRestricted: true,
-    strictValidation: false
+    strictValidation: false,
   });
+  const [adminProfile, setAdminProfile] = useState({ name: "", email: "" });
 
-  // Admin Profile
-  const [adminProfile, setAdminProfile] = useState({
-    name: "Maha",
-    email: "maha@growise.edu",
-    password: "Maha@123"
-  });
+  const loadAllData = async () => {
+    try {
+      const [stu, tch, sub, bat, mat, att, asgn, wt, oc, notif, alog, sett] =
+        await Promise.all([
+          adminService.fetchStudents(),
+          adminService.fetchTeachers(),
+          adminService.fetchSubjects(),
+          adminService.fetchBatches(),
+          adminService.fetchMaterials(),
+          adminService.fetchAttendanceLogs(),
+          adminService.fetchAssignments(),
+          adminService.fetchWeeklyTests(),
+          adminService.fetchOnlineClasses(),
+          adminService.fetchNotifications(),
+          adminService.fetchAuditLogs(),
+          adminService.fetchSettings(),
+        ]);
 
-  // --- 2. LOG EVENT TRIGGER HELPER ---
-  const addAuditLog = (level, source, message) => {
-    const timestamp = new Date().toISOString().replace("T", " ").slice(0, 19);
-    setAuditLogs(prev => [
-      { timestamp, level, source, message, operator: "Admin" },
-      ...prev
-    ]);
-  };
-
-  // --- 3. CRUD HANDLER ACTIONS ---
-
-  // Students CRUD
-  const handleAddStudent = (newStu) => {
-    setStudents(prev => [...prev, newStu]);
-    // Create audit log
-    addAuditLog("INFO", "StudentManager", `Added new student record: ${newStu.name} (${newStu.id})`);
-    // Add activity notification
-    setNotifications(prev => [
-      { id: Date.now(), type: "batch", message: `New Student ${newStu.name} added to system database.`, time: "Just now" },
-      ...prev
-    ]);
-  };
-
-  const handleUpdateStudent = (updatedStu) => {
-    setStudents(prev => prev.map(s => s.id === updatedStu.id ? updatedStu : s));
-    addAuditLog("INFO", "StudentManager", `Updated student profile information: ${updatedStu.name} (${updatedStu.id})`);
-  };
-
-  const handleDeleteStudent = (stuId) => {
-    const stu = students.find(s => s.id === stuId);
-    setStudents(prev => prev.filter(s => s.id !== stuId));
-    addAuditLog("WARNING", "StudentManager", `Deleted student record from database: ${stu?.name || stuId}`);
-  };
-
-  // Teachers CRUD
-  const handleAddTeacher = (newTch) => {
-    setTeachers(prev => [...prev, newTch]);
-    addAuditLog("INFO", "TeacherManager", `Registered new faculty member: ${newTch.name} (${newTch.id})`);
-  };
-
-  const handleUpdateTeacher = (updatedTch) => {
-    setTeachers(prev => prev.map(t => t.id === updatedTch.id ? updatedTch : t));
-    addAuditLog("INFO", "TeacherManager", `Updated faculty member details: ${updatedTch.name} (${updatedTch.id})`);
-  };
-
-  const handleDeleteTeacher = (tchId) => {
-    const tch = teachers.find(t => t.id === tchId);
-    setTeachers(prev => prev.filter(t => t.id !== tchId));
-    addAuditLog("WARNING", "TeacherManager", `Deleted faculty record from system: ${tch?.name || tchId}`);
-  };
-
-  // Subjects CRUD
-  const handleAddSubject = (newSub) => {
-    setSubjects(prev => [...prev, newSub]);
-    addAuditLog("INFO", "SubjectManager", `Created new syllabus course: ${newSub.name} (${newSub.code})`);
-  };
-
-  const handleUpdateSubject = (updatedSub) => {
-    setSubjects(prev => prev.map(s => s.id === updatedSub.id ? updatedSub : s));
-    addAuditLog("INFO", "SubjectManager", `Modified subject syllabus settings: ${updatedSub.name} (${updatedSub.code})`);
-  };
-
-  const handleDeleteSubject = (subId) => {
-    const sub = subjects.find(s => s.id === subId);
-    setSubjects(prev => prev.filter(s => s.id !== subId));
-    addAuditLog("WARNING", "SubjectManager", `Removed course subject from center directory: ${sub?.name || subId}`);
-  };
-
-  // Batches CRUD
-  const handleAddBatch = (newBat) => {
-    setBatches(prev => [...prev, newBat]);
-    addAuditLog("INFO", "BatchManager", `Scheduled new 1:1 study batch: ${newBat.name} (${newBat.id})`);
-    setNotifications(prev => [
-      { id: Date.now(), type: "batch", message: `New batch ${newBat.name} scheduled for ${newBat.student} with ${newBat.teacher}.`, time: "Just now" },
-      ...prev
-    ]);
-  };
-
-  const handleUpdateBatch = (updatedBat) => {
-    setBatches(prev => prev.map(b => b.id === updatedBat.id ? updatedBat : b));
-    addAuditLog("INFO", "BatchManager", `Modified batch mapping configs: ${updatedBat.name}`);
-  };
-
-  const handleDeleteBatch = (batId) => {
-    const bat = batches.find(b => b.id === batId);
-    setBatches(prev => prev.filter(b => b.id !== batId));
-    addAuditLog("WARNING", "BatchManager", `Deleted batch: ${bat?.name || batId}`);
-  };
-
-  // Materials Oversight
-  const handleFlagMaterial = (id) => {
-    setMaterials(prev => prev.map(m => {
-      if (m.id === id) {
-        const flagVal = !m.flagged;
-        addAuditLog("WARNING", "MaterialsOversight", `Study file '${m.title}' flagged status toggled to: ${flagVal ? "FLAGGED" : "CLEARED"}`);
-        return { ...m, flagged: flagVal };
-      }
-      return m;
-    }));
-  };
-
-  const handleDeleteMaterial = (id) => {
-    const m = materials.find(file => file.id === id);
-    setMaterials(prev => prev.filter(file => file.id !== id));
-    addAuditLog("WARNING", "MaterialsOversight", `Removed study material file from directories: ${m?.title || id}`);
-  };
-
-  // Attendance edit
-  const handleUpdateAttendanceLog = (updatedLog) => {
-    setAttendanceLogs(prev => prev.map(log => 
-      (log.student === updatedLog.student && log.date === updatedLog.date && log.subject === updatedLog.subject) 
-      ? updatedLog 
-      : log
-    ));
-    addAuditLog("INFO", "AttendanceRegistry", `Corrected attendance record for ${updatedLog.student} on ${updatedLog.date} -> ${updatedLog.status}`);
-  };
-
-  // Settings
-  const handleToggleRLS = (policyName) => {
-    setSettings(prev => {
-      const nextVal = !prev[policyName];
-      addAuditLog("INFO", "AccessControlSettings", `Row Level Security (RLS) configuration for policy '${policyName}' toggled to: ${nextVal ? "ON" : "OFF"}`);
-      return { ...prev, [policyName]: nextVal };
-    });
-  };
-
-  const handleToggleUserStatus = (role, id) => {
-    if (role === "student") {
-      setStudents(prev => prev.map(s => {
-        if (s.id === id) {
-          const nextState = s.status === "Active" ? "Inactive" : "Active";
-          addAuditLog("WARNING", "AccessControlSettings", `Student portal access state for ${s.name} set to: ${nextState}`);
-          return { ...s, status: nextState };
-        }
-        return s;
-      }));
-    } else if (role === "teacher") {
-      setTeachers(prev => prev.map(t => {
-        if (t.id === id) {
-          const nextState = t.status === "Active" ? "Inactive" : "Active";
-          addAuditLog("WARNING", "AccessControlSettings", `Teacher login authentication token for ${t.name} set to: ${nextState}`);
-          return { ...t, status: nextState };
-        }
-        return t;
-      }));
+      setStudents(stu);
+      setTeachers(tch);
+      setSubjects(sub);
+      setBatches(bat);
+      setMaterials(mat);
+      setAttendanceLogs(att);
+      setAssignments(asgn);
+      setWeeklyTests(wt);
+      setOnlineClasses(oc);
+      setNotifications(notif);
+      setAuditLogs(alog);
+      if (sett) setSettings(sett);
+    } catch (err) {
+      console.error("Failed to load admin data:", err);
     }
   };
 
-  // Profile details update
-  const handleUpdateProfile = (newDetails) => {
-    setAdminProfile(prev => {
-      const updated = { ...prev, ...newDetails };
-      addAuditLog("INFO", "ProfileManagement", `Admin security credential profile updated successfully.`);
-      return updated;
+  // --- 1. AUTH CHECK & INITIAL DATA FETCH ---
+  useEffect(() => {
+    const init = async () => {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) {
+        onNavigate("admin-login");
+        return;
+      }
+      setUser(authUser);
+      await loadAllData();
+      const profile = await adminService.fetchAdminProfile(authUser.id);
+      if (profile) setAdminProfile(profile);
+      setLoading(false);
+    };
+    init();
+  }, []);
+
+  // --- RE-FETCH DATA ON TAB CHANGE ---
+  useEffect(() => {
+    if (user) {
+      loadAllData();
+    }
+  }, [activeTab]);
+
+  // --- 2. SUPABASE REALTIME SUBSCRIPTIONS ---
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel("admin-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "students" },
+        async () => { try { setStudents(await adminService.fetchStudents()); } catch (e) { /* silent */ } })
+      .on("postgres_changes", { event: "*", schema: "public", table: "teachers" },
+        async () => { try { setTeachers(await adminService.fetchTeachers()); } catch (e) {} })
+      .on("postgres_changes", { event: "*", schema: "public", table: "subjects" },
+        async () => { try { setSubjects(await adminService.fetchSubjects()); } catch (e) {} })
+      .on("postgres_changes", { event: "*", schema: "public", table: "batches" },
+        async () => { try { setBatches(await adminService.fetchBatches()); } catch (e) {} })
+      .on("postgres_changes", { event: "*", schema: "public", table: "materials" },
+        async () => { try { setMaterials(await adminService.fetchMaterials()); } catch (e) {} })
+      .on("postgres_changes", { event: "*", schema: "public", table: "attendance_logs" },
+        async () => { try { setAttendanceLogs(await adminService.fetchAttendanceLogs()); } catch (e) {} })
+      .on("postgres_changes", { event: "*", schema: "public", table: "assignments" },
+        async () => { try { setAssignments(await adminService.fetchAssignments()); } catch (e) {} })
+      .on("postgres_changes", { event: "*", schema: "public", table: "weekly_tests" },
+        async () => { try { setWeeklyTests(await adminService.fetchWeeklyTests()); } catch (e) {} })
+      .on("postgres_changes", { event: "*", schema: "public", table: "online_classes" },
+        async () => { try { setOnlineClasses(await adminService.fetchOnlineClasses()); } catch (e) {} })
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" },
+        async () => { try { setNotifications(await adminService.fetchNotifications()); } catch (e) {} })
+      .on("postgres_changes", { event: "*", schema: "public", table: "audit_logs" },
+        async () => { try { setAuditLogs(await adminService.fetchAuditLogs()); } catch (e) {} })
+      .on("postgres_changes", { event: "*", schema: "public", table: "settings" },
+        async () => { try { const s = await adminService.fetchSettings(); if (s) setSettings(s); } catch (e) {} })
+      .on("postgres_changes", { event: "*", schema: "public", table: "admin_profiles" },
+        async () => { try { const p = await adminService.fetchAdminProfile(user.id); if (p) setAdminProfile(p); } catch (e) {} })
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [user]);
+
+  // --- 3. CRUD HANDLERS (all async → Supabase) ---
+
+  // Students
+  const handleAddStudent = async (newStu) => {
+    try {
+      await adminService.addStudent(newStu);
+      setStudents(await adminService.fetchStudents());
+      await adminService.addNotification({
+        type: "batch",
+        message: `New Student ${newStu.name} added to system database.`,
+        time: "Just now",
+      });
+      setNotifications(await adminService.fetchNotifications());
+    } catch (err) {
+      console.error("Failed to add student:", err);
+    }
+  };
+
+  const handleUpdateStudent = async (updatedStu) => {
+    try {
+      await adminService.updateStudent(updatedStu);
+      setStudents(await adminService.fetchStudents());
+    } catch (err) {
+      console.error("Failed to update student:", err);
+    }
+  };
+
+  const handleDeleteStudent = async (stuId) => {
+    try {
+      await adminService.deleteStudent(stuId);
+      setStudents(await adminService.fetchStudents());
+    } catch (err) {
+      console.error("Failed to delete student:", err);
+    }
+  };
+
+  // Teachers
+  const handleAddTeacher = async (newTch) => {
+    try {
+      await adminService.addTeacher(newTch);
+      setTeachers(await adminService.fetchTeachers());
+    } catch (err) {
+      console.error("Failed to add teacher:", err);
+    }
+  };
+
+  const handleUpdateTeacher = async (updatedTch) => {
+    try {
+      await adminService.updateTeacher(updatedTch);
+      setTeachers(await adminService.fetchTeachers());
+    } catch (err) {
+      console.error("Failed to update teacher:", err);
+    }
+  };
+
+  const handleDeleteTeacher = async (tchId) => {
+    try {
+      await adminService.deleteTeacher(tchId);
+      setTeachers(await adminService.fetchTeachers());
+    } catch (err) {
+      console.error("Failed to delete teacher:", err);
+    }
+  };
+
+  // Subjects
+  const handleAddSubject = async (newSub) => {
+    try {
+      await adminService.addSubject(newSub);
+      setSubjects(await adminService.fetchSubjects());
+    } catch (err) {
+      console.error("Failed to add subject:", err);
+    }
+  };
+
+  const handleUpdateSubject = async (updatedSub) => {
+    try {
+      await adminService.updateSubject(updatedSub);
+      setSubjects(await adminService.fetchSubjects());
+    } catch (err) {
+      console.error("Failed to update subject:", err);
+    }
+  };
+
+  const handleDeleteSubject = async (subId) => {
+    try {
+      await adminService.deleteSubject(subId);
+      setSubjects(await adminService.fetchSubjects());
+    } catch (err) {
+      console.error("Failed to delete subject:", err);
+    }
+  };
+
+  // Batches
+  const handleAddBatch = async (newBat) => {
+    try {
+      await adminService.addBatch(newBat);
+      setBatches(await adminService.fetchBatches());
+      await adminService.addNotification({
+        type: "batch",
+        message: `New batch ${newBat.name} scheduled for ${newBat.student} with ${newBat.teacher}.`,
+        time: "Just now",
+      });
+      setNotifications(await adminService.fetchNotifications());
+    } catch (err) {
+      console.error("Failed to add batch:", err);
+    }
+  };
+
+  const handleUpdateBatch = async (updatedBat) => {
+    try {
+      await adminService.updateBatch(updatedBat);
+      setBatches(await adminService.fetchBatches());
+    } catch (err) {
+      console.error("Failed to update batch:", err);
+    }
+  };
+
+  const handleDeleteBatch = async (batId) => {
+    try {
+      await adminService.deleteBatch(batId);
+      setBatches(await adminService.fetchBatches());
+    } catch (err) {
+      console.error("Failed to delete batch:", err);
+    }
+  };
+
+  // Materials Oversight
+  const handleFlagMaterial = async (id) => {
+    try {
+      const material = materials.find((m) => m.id === id);
+      if (material) {
+        await adminService.flagMaterial(id, !material.flagged);
+        setMaterials(await adminService.fetchMaterials());
+      }
+    } catch (err) {
+      console.error("Failed to flag material:", err);
+    }
+  };
+
+  const handleDeleteMaterial = async (id) => {
+    try {
+      await adminService.deleteMaterial(id);
+      setMaterials(await adminService.fetchMaterials());
+    } catch (err) {
+      console.error("Failed to delete material:", err);
+    }
+  };
+
+  // Attendance
+  const handleUpdateAttendanceLog = async (updatedLog) => {
+    try {
+      await adminService.updateAttendanceLog(updatedLog);
+      setAttendanceLogs(await adminService.fetchAttendanceLogs());
+      await adminService.addAuditLog({
+        timestamp: new Date().toISOString().replace("T", " ").slice(0, 19),
+        level: "INFO",
+        source: "AttendanceRegistry",
+        message: `Corrected attendance record for ${updatedLog.student} on ${updatedLog.date} -> ${updatedLog.status}`,
+        operator: "Admin",
+      });
+      setAuditLogs(await adminService.fetchAuditLogs());
+    } catch (err) {
+      console.error("Failed to update attendance:", err);
+    }
+  };
+
+  // Settings
+  const handleToggleRLS = async (policyName) => {
+    try {
+      const newSettings = { ...settings, [policyName]: !settings[policyName] };
+      await adminService.updateSettings(newSettings);
+      setSettings(newSettings);
+      await adminService.addAuditLog({
+        timestamp: new Date().toISOString().replace("T", " ").slice(0, 19),
+        level: "INFO",
+        source: "AccessControlSettings",
+        message: `RLS policy '${policyName}' toggled to: ${newSettings[policyName] ? "ON" : "OFF"}`,
+        operator: "Admin",
+      });
+      setAuditLogs(await adminService.fetchAuditLogs());
+    } catch (err) {
+      console.error("Failed to toggle RLS:", err);
+    }
+  };
+
+  const handleToggleUserStatus = async (role, id) => {
+    try {
+      if (role === "student") {
+        const student = students.find((s) => s.id === id);
+        if (student) {
+          const newStatus = student.status === "Active" ? "Inactive" : "Active";
+          await adminService.toggleUserStatus("students", id, newStatus);
+          setStudents(await adminService.fetchStudents());
+        }
+      } else if (role === "teacher") {
+        const teacher = teachers.find((t) => t.id === id);
+        if (teacher) {
+          const newStatus = teacher.status === "Active" ? "Inactive" : "Active";
+          await adminService.toggleUserStatus("teachers", id, newStatus);
+          setTeachers(await adminService.fetchTeachers());
+        }
+      }
+    } catch (err) {
+      console.error("Failed to toggle user status:", err);
+    }
+  };
+
+  // Profile
+  const handleUpdateProfile = async (newDetails) => {
+    try {
+      if (user) {
+        await adminService.updateAdminProfile(user.id, {
+          name: newDetails.name,
+          email: newDetails.email,
+        });
+        if (newDetails.email && newDetails.email !== adminProfile.email) {
+          await supabase.auth.updateUser({ email: newDetails.email });
+        }
+        const profile = await adminService.fetchAdminProfile(user.id);
+        if (profile) setAdminProfile(profile);
+        await adminService.addAuditLog({
+          timestamp: new Date().toISOString().replace("T", " ").slice(0, 19),
+          level: "INFO",
+          source: "ProfileManagement",
+          message: "Admin profile updated successfully.",
+          operator: "Admin",
+        });
+        setAuditLogs(await adminService.fetchAuditLogs());
+      }
+    } catch (err) {
+      console.error("Failed to update profile:", err);
+    }
+  };
+
+  const handleChangePassword = async (currentPassword, newPassword) => {
+    // Verify current password by re-authenticating
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: adminProfile.email,
+      password: currentPassword,
     });
+    if (authError) throw new Error("Current password is incorrect.");
+
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw new Error(error.message);
+
+    await adminService.addAuditLog({
+      timestamp: new Date().toISOString().replace("T", " ").slice(0, 19),
+      level: "INFO",
+      source: "ProfileManagement",
+      message: "Admin password changed successfully.",
+      operator: "Admin",
+    });
+    setAuditLogs(await adminService.fetchAuditLogs());
   };
 
   // Quick Action navigation shortcut
@@ -286,21 +410,32 @@ const AdminDashboard = ({ onNavigate }) => {
     }
   };
 
-  // Logouts
-  const handleLogout = () => {
+  // Logout
+  const handleLogout = async () => {
     if (confirm("Are you sure you want to end your administrative session?")) {
-      addAuditLog("INFO", "AuthControl", "Admin session closed via logout trigger.");
+      try {
+        await adminService.addAuditLog({
+          timestamp: new Date().toISOString().replace("T", " ").slice(0, 19),
+          level: "INFO",
+          source: "AuthControl",
+          message: "Admin session closed via logout trigger.",
+          operator: "Admin",
+        });
+      } catch (e) {
+        /* ignore audit failure on logout */
+      }
+      await supabase.auth.signOut();
       onNavigate("landing");
     }
   };
 
-  // Tab Coordinator switch
+  // --- 4. TAB CONTENT RENDERER ---
   const renderTabContent = () => {
     switch (activeTab) {
       case "Students":
         return (
-          <StudentsTab 
-            students={students} 
+          <StudentsTab
+            students={students}
             batches={batches}
             subjects={subjects}
             teachers={teachers}
@@ -314,8 +449,8 @@ const AdminDashboard = ({ onNavigate }) => {
         );
       case "Teachers":
         return (
-          <TeachersTab 
-            teachers={teachers} 
+          <TeachersTab
+            teachers={teachers}
             students={students}
             batches={batches}
             subjects={subjects}
@@ -328,8 +463,8 @@ const AdminDashboard = ({ onNavigate }) => {
         );
       case "Subjects":
         return (
-          <SubjectsTab 
-            subjects={subjects} 
+          <SubjectsTab
+            subjects={subjects}
             teachers={teachers}
             students={students}
             onAddSubject={handleAddSubject}
@@ -339,8 +474,8 @@ const AdminDashboard = ({ onNavigate }) => {
         );
       case "Batches":
         return (
-          <BatchesTab 
-            batches={batches} 
+          <BatchesTab
+            batches={batches}
             subjects={subjects}
             teachers={teachers}
             students={students}
@@ -351,8 +486,8 @@ const AdminDashboard = ({ onNavigate }) => {
         );
       case "Attendance":
         return (
-          <AttendanceTab 
-            attendanceLogs={attendanceLogs} 
+          <AttendanceTab
+            attendanceLogs={attendanceLogs}
             students={students}
             teachers={teachers}
             subjects={subjects}
@@ -361,8 +496,8 @@ const AdminDashboard = ({ onNavigate }) => {
         );
       case "Materials":
         return (
-          <MaterialsTab 
-            materials={materials} 
+          <MaterialsTab
+            materials={materials}
             subjects={subjects}
             teachers={teachers}
             onFlagMaterial={handleFlagMaterial}
@@ -371,7 +506,7 @@ const AdminDashboard = ({ onNavigate }) => {
         );
       case "Assignments":
         return (
-          <AssignmentsTab 
+          <AssignmentsTab
             assignments={assignments}
             subjects={subjects}
             batches={batches}
@@ -380,7 +515,7 @@ const AdminDashboard = ({ onNavigate }) => {
         );
       case "Classes":
         return (
-          <ClassesTab 
+          <ClassesTab
             onlineClasses={onlineClasses}
             subjects={subjects}
             batches={batches}
@@ -389,7 +524,7 @@ const AdminDashboard = ({ onNavigate }) => {
         );
       case "Reports":
         return (
-          <ReportsTab 
+          <ReportsTab
             students={students}
             teachers={teachers}
             subjects={subjects}
@@ -401,7 +536,7 @@ const AdminDashboard = ({ onNavigate }) => {
         );
       case "Settings":
         return (
-          <SettingsTab 
+          <SettingsTab
             students={students}
             teachers={teachers}
             auditLogs={auditLogs}
@@ -412,15 +547,16 @@ const AdminDashboard = ({ onNavigate }) => {
         );
       case "Profile":
         return (
-          <ProfileTab 
+          <ProfileTab
             profile={adminProfile}
             onUpdateProfile={handleUpdateProfile}
+            onChangePassword={handleChangePassword}
             onLogout={handleLogout}
           />
         );
       default:
         return (
-          <DashboardOverview 
+          <DashboardOverview
             students={students}
             teachers={teachers}
             subjects={subjects}
@@ -434,11 +570,44 @@ const AdminDashboard = ({ onNavigate }) => {
     }
   };
 
+  // --- LOADING STATE ---
+  if (loading) {
+    return (
+      <div
+        className="dashboard-container admin-dashboard-root"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "100vh",
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div
+            style={{
+              width: 48,
+              height: 48,
+              border: "4px solid #1e293b",
+              borderTop: "4px solid #6366f1",
+              borderRadius: "50%",
+              animation: "spin 1s linear infinite",
+              margin: "0 auto 16px",
+            }}
+          />
+          <p style={{ color: "#94a3b8", fontSize: 14 }}>
+            Loading admin console...
+          </p>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-container admin-dashboard-root">
-      <Sidebar 
-        activeTab={activeTab} 
-        selectTab={setActiveTab} 
+      <Sidebar
+        activeTab={activeTab}
+        selectTab={setActiveTab}
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
         onLogout={handleLogout}
@@ -448,16 +617,21 @@ const AdminDashboard = ({ onNavigate }) => {
         {/* Top Header */}
         <header className="dashboard-header admin-header">
           <div className="header-left">
-            <button className="sidebar-toggle-btn" onClick={() => setSidebarOpen(true)}>
+            <button
+              className="sidebar-toggle-btn"
+              onClick={() => setSidebarOpen(true)}
+            >
               <Menu size={24} />
             </button>
-            <h1>{activeTab === "Dashboard" ? "Admin Console" : activeTab}</h1>
+            <h1>
+              {activeTab === "Dashboard" ? "Admin Console" : activeTab}
+            </h1>
           </div>
 
           <div className="header-right">
             {/* Notification bell */}
-            <button 
-              className="notification-bell-btn" 
+            <button
+              className="notification-bell-btn"
               onClick={() => {
                 setActiveTab("Dashboard");
                 setUnreadNotifications(false);
@@ -465,16 +639,27 @@ const AdminDashboard = ({ onNavigate }) => {
               aria-label="View notifications overview"
             >
               <Bell size={22} />
-              {unreadNotifications && <span className="bell-badge-dot"></span>}
+              {unreadNotifications && (
+                <span className="bell-badge-dot"></span>
+              )}
             </button>
 
             {/* Profile Dropdown */}
-            <div className="header-profile" onClick={() => setActiveTab("Profile")}>
+            <div
+              className="header-profile"
+              onClick={() => setActiveTab("Profile")}
+            >
               <div className="profile-details">
                 <span className="profile-name">{adminProfile.name}</span>
-                <span className="profile-id text-indigo-light">Super Administrator</span>
+                <span className="profile-id text-indigo-light">
+                  Admin
+                </span>
               </div>
-              <img src={avatarImg} alt="Admin Avatar" className="profile-avatar admin-profile-border" />
+              <img
+                src={avatarImg}
+                alt="Admin Avatar"
+                className="profile-avatar admin-profile-border"
+              />
             </div>
           </div>
         </header>
