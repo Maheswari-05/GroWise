@@ -611,6 +611,7 @@ const AdminDashboard = ({ onNavigate }) => {
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
         onLogout={handleLogout}
+        onNavigate={onNavigate}
       />
 
       <div className="dashboard-main">

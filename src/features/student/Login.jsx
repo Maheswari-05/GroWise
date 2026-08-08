@@ -1,35 +1,58 @@
 import { useState } from "react";
 import { ArrowLeft, User, Lock, Eye, EyeOff } from "lucide-react";
 import logo from "../../assets/logo.png";
+import supabase from "../../lib/supabase";
 import "./Login.css";
 
 const Login = ({ onNavigate }) => {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    if (!username.trim() || !password.trim()) {
+    if (!email.trim() || !password.trim()) {
       setError("Please fill in all fields.");
       return;
     }
 
     setIsLoading(true);
 
-    // Simulate small latency for realistic loading experience
-    setTimeout(() => {
-      if (username === "Sneha" && password === "Sneha@123") {
+    try {
+      const normalizedEmail = email.trim().toLowerCase();
+      console.log("🔐 Student login attempt with email:", normalizedEmail);
+      
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password: password.trim(),
+      });
+
+      if (authError) {
+        console.error("❌ Student login error:", authError.message);
+        console.log("Email tried:", normalizedEmail);
+        console.log("Password length:", password.trim().length);
+        setError("Invalid email or password. Please check and try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      if (data?.user) {
+        console.log("✅ Student login successful for:", data.user.email);
+        console.log("User ID:", data.user.id);
         onNavigate("dashboard");
       } else {
-        setError("Invalid username or password.");
+        setError("Login failed. Please try again.");
         setIsLoading(false);
       }
-    }, 600);
+    } catch (err) {
+      console.error("❌ Unexpected login error:", err);
+      setError("An error occurred. Please try again.");
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -63,17 +86,17 @@ const Login = ({ onNavigate }) => {
         {/* Login Form */}
         <form onSubmit={handleSubmit} className="login-form">
           <div className="input-group">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="email">Email</label>
             <div className="input-wrapper">
               <User className="input-icon" size={18} />
               <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter your username"
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email"
                 className={error ? "input-err" : ""}
-                autoComplete="username"
+                autoComplete="email"
               />
             </div>
           </div>
@@ -107,17 +130,10 @@ const Login = ({ onNavigate }) => {
           </button>
         </form>
 
-        {/* Helper credentials hint card to make testing smooth */}
+        {/* Helper text */}
         <div className="credentials-hint">
-          <p className="hint-title">Demo Credentials</p>
-          <div className="hint-row">
-            <span className="hint-label">Username:</span>
-            <code className="hint-val">Sneha</code>
-          </div>
-          <div className="hint-row">
-            <span className="hint-label">Password:</span>
-            <code className="hint-val">Sneha@123</code>
-          </div>
+          <p className="hint-title">First Time Login?</p>
+          <p>An admin should have sent you a password setup email. Click the link in that email to create your password.</p>
         </div>
       </div>
     </div>

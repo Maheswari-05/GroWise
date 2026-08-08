@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ArrowLeft, User, Lock, Eye, EyeOff } from "lucide-react";
 import logo from "../../assets/logo.png";
+import supabase from "../../lib/supabase";
 import "./TeacherLogin.css";
 
 const TeacherLogin = ({ onNavigate }) => {
@@ -10,7 +11,7 @@ const TeacherLogin = ({ onNavigate }) => {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
@@ -21,15 +22,49 @@ const TeacherLogin = ({ onNavigate }) => {
 
     setIsLoading(true);
 
-    // Simulate small latency for realistic loading experience
-    setTimeout(() => {
-      if (email === "rajesh@growise.edu" && password === "Teacher@123") {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (!email.trim() || !password.trim()) {
+      setError("Please fill in all fields.");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const normalizedEmail = email.trim().toLowerCase();
+      console.log("🔐 Teacher login attempt with email:", normalizedEmail);
+      
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password: password.trim(),
+      });
+
+      if (authError) {
+        console.error("❌ Teacher login error:", authError.message);
+        console.log("Email tried:", normalizedEmail);
+        console.log("Password length:", password.trim().length);
+        setError("Invalid email or password. Please check and try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      if (data?.user) {
+        console.log("✅ Teacher login successful for:", data.user.email);
+        console.log("User ID:", data.user.id);
         onNavigate("teacher-dashboard");
       } else {
-        setError("Invalid email or password.");
+        setError("Login failed. Please try again.");
         setIsLoading(false);
       }
-    }, 600);
+    } catch (err) {
+      console.error("❌ Unexpected login error:", err);
+      setError("An error occurred. Please try again.");
+      setIsLoading(false);
+    }
+  };
   };
 
   return (
@@ -107,17 +142,10 @@ const TeacherLogin = ({ onNavigate }) => {
           </button>
         </form>
 
-        {/* Helper credentials hint card to make testing smooth */}
+        {/* Helper text */}
         <div className="credentials-hint">
-          <p className="hint-title">Demo Credentials</p>
-          <div className="hint-row">
-            <span className="hint-label">Email:</span>
-            <code className="hint-val">rajesh@growise.edu</code>
-          </div>
-          <div className="hint-row">
-            <span className="hint-label">Password:</span>
-            <code className="hint-val">Teacher@123</code>
-          </div>
+          <p className="hint-title">First Time Login?</p>
+          <p>An admin should have sent you a password setup email. Click the link in that email to create your password.</p>
         </div>
       </div>
     </div>

@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import logo from "../../../assets/logo.png";
 
-const Sidebar = ({ activeTab, selectTab, sidebarOpen, setSidebarOpen, onLogout }) => {
+const Sidebar = ({ activeTab, selectTab, sidebarOpen, setSidebarOpen, onLogout, onNavigate }) => {
   const menuItems = [
     { id: "Dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "Students", label: "Students", icon: Users },
@@ -30,11 +30,28 @@ const Sidebar = ({ activeTab, selectTab, sidebarOpen, setSidebarOpen, onLogout }
     { id: "Profile", label: "Profile Settings", icon: User },
   ];
 
+  const handleLogoClick = () => {
+    if (activeTab === "Dashboard" && onNavigate) {
+      onNavigate("landing");
+    } else {
+      selectTab("Dashboard");
+    }
+  };
+
+  const handleNavClick = (itemId) => {
+    if (itemId === "Dashboard" && onNavigate) {
+      onNavigate("landing");
+    } else {
+      selectTab(itemId);
+    }
+    setSidebarOpen(false);
+  };
+
   return (
     <>
       <aside className={`dashboard-sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="sidebar-header">
-          <div className="logo" onClick={() => selectTab("Dashboard")}>
+          <div className="logo" onClick={handleLogoClick}>
             <img src={logo} alt="GroWise Logo" />
             <span className="logo-text">GroWise</span>
           </div>
@@ -52,10 +69,7 @@ const Sidebar = ({ activeTab, selectTab, sidebarOpen, setSidebarOpen, onLogout }
                 <li key={item.id}>
                   <button
                     className={`nav-item ${isActive ? "active" : ""}`}
-                    onClick={() => {
-                      selectTab(item.id);
-                      setSidebarOpen(false);
-                    }}
+                    onClick={() => handleNavClick(item.id)}
                   >
                     <IconComponent size={20} className="nav-icon" />
                     <span>{item.label}</span>

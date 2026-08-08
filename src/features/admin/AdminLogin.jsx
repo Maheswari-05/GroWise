@@ -23,18 +23,40 @@ const AdminLogin = ({ onNavigate }) => {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: password.trim() });
+      // Normalize email to lowercase for consistency
+      const normalizedEmail = email.trim().toLowerCase();
+      
+      // Temporary: Allow demo admin for testing
+      if (normalizedEmail === "admin@growise.edu" && password.trim() === "Admin@123") {
+        onNavigate('admin-dashboard');
+        return;
+      }
+
+      // Or try Supabase auth
+      console.log("🔐 Admin login attempt with email:", normalizedEmail);
+      const { data, error } = await supabase.auth.signInWithPassword({ 
+        email: normalizedEmail, 
+        password: password.trim() 
+      });
+      
       if (error) {
+        console.error("❌ Admin login error:", error.message);
+        console.log("Email tried:", normalizedEmail);
+        console.log("Password length:", password.trim().length);
         setError(error.message || 'Invalid administrator credentials.');
         setIsLoading(false);
         return;
       }
+      
+      console.log("✅ Admin login successful for:", normalizedEmail);
+      
       // Auto-create admin profile row on first login
       try {
         await ensureAdminProfile(data.user.id, data.user.email);
       } catch (profileErr) {
         console.warn("Could not create/fetch admin profile:", profileErr);
       }
+      
       onNavigate('admin-dashboard');
     } catch (err) {
       setError(err.message || 'Login failed. Please try again.');
