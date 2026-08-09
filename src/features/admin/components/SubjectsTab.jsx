@@ -256,7 +256,7 @@ const SubjectsTab = ({
                             </span>
                             <div className="flex flex-col">
                               <span className="font-semibold">{t.name}</span>
-                              <span className="text-xs text-muted font-mono">{t.id} ({t.contact})</span>
+                              <span className="text-xs text-muted font-mono">{t.id}</span>
                             </div>
                           </div>
                         );

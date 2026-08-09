@@ -189,7 +189,7 @@ const ClassesTab = ({
             <table className="admin-data-table">
               <thead>
                 <tr>
-                  <th style={{ width: "40px" }}>#</th>
+                  <th style={{ width: "50px" }}>S.No</th>
                   <th>Date</th>
                   <th>Time</th>
                   <th>Subject</th>

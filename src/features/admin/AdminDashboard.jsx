@@ -47,6 +47,17 @@ const AdminDashboard = ({ onNavigate }) => {
     strictValidation: false,
   });
   const [adminProfile, setAdminProfile] = useState({ name: "", email: "" });
+  const [adminAvatar, setAdminAvatar] = useState(localStorage.getItem("admin_pfp") || avatarImg);
+
+  useEffect(() => {
+    const handleAvatarUpdate = () => {
+      setAdminAvatar(localStorage.getItem("admin_pfp") || avatarImg);
+    };
+    window.addEventListener("admin-avatar-updated", handleAvatarUpdate);
+    return () => {
+      window.removeEventListener("admin-avatar-updated", handleAvatarUpdate);
+    };
+  }, []);
 
   const loadAllData = async () => {
     try {
@@ -657,7 +668,7 @@ const AdminDashboard = ({ onNavigate }) => {
                 </span>
               </div>
               <img
-                src={avatarImg}
+                src={adminAvatar}
                 alt="Admin Avatar"
                 className="profile-avatar admin-profile-border"
               />

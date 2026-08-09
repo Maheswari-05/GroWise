@@ -481,15 +481,15 @@ const StudentsTab = ({
                 <h4>Contact Details</h4>
                 <div className="info-list">
                   <div className="info-item">
-                    <Mail size={16} />
+                    <Mail size={16} className="icon-mail" />
                     <span>{selectedStudent.email || "No Email Registered"}</span>
                   </div>
                   <div className="info-item">
-                    <Phone size={16} />
+                    <Phone size={16} className="icon-phone" />
                     <span>{selectedStudent.contact}</span>
                   </div>
                   <div className="info-item font-mono text-xs">
-                    <MapPin size={16} />
+                    <MapPin size={16} className="icon-address" />
                     <span>{selectedStudent.address || "No Home Address Provided"}</span>
                   </div>
                 </div>
@@ -502,7 +502,7 @@ const StudentsTab = ({
                     <span>{selectedStudent.parentName || "Not Provided"}</span>
                   </div>
                   <div className="info-item text-sm">
-                    <Phone size={14} />
+                    <Phone size={14} className="icon-phone" />
                     <span>Contact: {selectedStudent.parentContact || "Not Provided"}</span>
                   </div>
                 </div>

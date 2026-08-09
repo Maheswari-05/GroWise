@@ -420,11 +420,11 @@ const TeachersTab = ({
                 <h4>Contact Details</h4>
                 <div className="info-list">
                   <div className="info-item">
-                    <Mail size={16} />
+                    <Mail size={16} className="icon-mail" />
                     <span>{selectedTeacher.email || "No Email Registered"}</span>
                   </div>
                   <div className="info-item">
-                    <Phone size={16} />
+                    <Phone size={16} className="icon-phone" />
                     <span>{selectedTeacher.contact}</span>
                   </div>
                 </div>
@@ -440,7 +440,7 @@ const TeachersTab = ({
                       .filter(b => selectedTeacher.subjects.includes(b.subject))
                       .map(b => (
                         <div className="info-item" key={b.id}>
-                          <Layers size={14} className="text-muted" />
+                          <Layers size={14} className="icon-batches" />
                           <span className="font-semibold">{b.name}</span>
                           <span className="text-xs text-muted font-mono">({b.subject})</span>
                         </div>
@@ -453,7 +453,7 @@ const TeachersTab = ({
                 <h4>Students Roster</h4>
                 <div className="info-list">
                   <div className="info-item">
-                    <Users size={16} />
+                    <Users size={16} className="icon-users" />
                     <span className="font-semibold">
                       {students.filter(s => 
                         s.subjects && s.subjects.some(sub => selectedTeacher.subjects.includes(sub))

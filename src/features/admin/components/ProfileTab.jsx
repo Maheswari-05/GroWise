@@ -13,6 +13,24 @@ const ProfileTab = ({
   const [email, setEmail] = useState(profile.email);
   const [statusMsg, setStatusMsg] = useState("");
   const [statusType, setStatusType] = useState("success"); // 'success' | 'error'
+  const [avatar, setAvatar] = useState(localStorage.getItem("admin_pfp") || avatarImg);
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result;
+        setAvatar(base64String);
+        localStorage.setItem("admin_pfp", base64String);
+        window.dispatchEvent(new Event("admin-avatar-updated"));
+        setStatusType("success");
+        setStatusMsg("Profile picture updated successfully.");
+        setTimeout(() => setStatusMsg(""), 3000);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   // Password form
   const [oldPassword, setOldPassword] = useState("");
@@ -89,10 +107,33 @@ const ProfileTab = ({
           </div>
 
           <div className="admin-profile-avatar-row mt-20">
-            <img src={avatarImg} alt="Admin Avatar" className="admin-profile-avatar-large" />
+            <div 
+              className="admin-profile-avatar-wrapper" 
+              onClick={() => document.getElementById("avatar-upload-input").click()}
+            >
+              <img src={avatar} alt="Admin Avatar" className="admin-profile-avatar-large" />
+              <div className="avatar-upload-overlay">
+                Change
+              </div>
+            </div>
+            <input 
+              id="avatar-upload-input" 
+              type="file" 
+              accept="image/*" 
+              style={{ display: "none" }} 
+              onChange={handleAvatarChange}
+            />
             <div className="avatar-meta">
               <h4>{profile.name}</h4>
-              <p className="text-xs text-muted">System Level Access: Admin</p>
+              <p className="text-xs text-muted" style={{ marginBottom: "6px" }}>System Level Access: Admin</p>
+              <button 
+                type="button" 
+                className="btn-secondary" 
+                style={{ padding: "4px 8px", fontSize: "11px" }}
+                onClick={() => document.getElementById("avatar-upload-input").click()}
+              >
+                Upload Photo
+              </button>
             </div>
           </div>
 

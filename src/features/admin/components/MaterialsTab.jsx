@@ -225,7 +225,7 @@ const MaterialsTab = ({
               <table className="admin-data-table">
                 <thead>
                   <tr>
-                    <th style={{ width: "40px" }}>#</th>
+                    <th style={{ width: "50px" }}>S.No</th>
                     <th>File Name</th>
                     <th>Subject</th>
                     <th>Uploaded By</th>
