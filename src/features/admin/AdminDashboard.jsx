@@ -111,12 +111,9 @@ const AdminDashboard = ({ onNavigate }) => {
     init();
   }, []);
 
-  // --- RE-FETCH DATA ON TAB CHANGE ---
-  useEffect(() => {
-    if (user) {
-      loadAllData();
-    }
-  }, [activeTab]);
+  // --- RE-FETCH DATA ON TAB CHANGE removed ---
+  // Realtime subscriptions (below) keep all data fresh automatically.
+  // No need to re-fetch 12 tables every time the user switches tabs.
 
   // --- 2. SUPABASE REALTIME SUBSCRIPTIONS ---
   useEffect(() => {
@@ -418,6 +415,8 @@ const AdminDashboard = ({ onNavigate }) => {
       setActiveTab("Teachers");
     } else if (action === "CreateBatch") {
       setActiveTab("Batches");
+    } else if (action === "AddSubject") {
+      setActiveTab("Subjects");
     }
   };
 

@@ -33,7 +33,7 @@ function toSnakeCase(obj) {
 function handleError(error, context) {
   if (error) {
     console.error(`Supabase error (${context}):`, error.message, error);
-    return true;
+    throw new Error(`${context}: ${error.message}`);
   }
   return false;
 }
@@ -214,6 +214,7 @@ export async function addTeacher(teacher) {
 export async function addSubject(subject) {
   const row = toSnakeCase(subject);
   delete row.created_at;
+  delete row.teacher_ids; // UI-only field; teacher assignments stored on teachers side
   const { error } = await supabase.from('subjects').insert(row);
   handleError(error, 'addSubject');
 }
@@ -250,6 +251,8 @@ export async function updateStudent(student) {
   const id = row.id;
   delete row.id;
   delete row.created_at;
+  delete row.password; // Not stored in table
+  delete row.username; // Not stored in table
   const { error } = await supabase.from('students').update(row).eq('id', id);
   handleError(error, 'updateStudent');
 }
@@ -259,6 +262,8 @@ export async function updateTeacher(teacher) {
   const id = row.id;
   delete row.id;
   delete row.created_at;
+  delete row.password; // Passwords stored in auth, not table
+  delete row.username; // Username not in schema
   const { error } = await supabase.from('teachers').update(row).eq('id', id);
   handleError(error, 'updateTeacher');
 }
@@ -268,6 +273,7 @@ export async function updateSubject(subject) {
   const id = row.id;
   delete row.id;
   delete row.created_at;
+  delete row.teacher_ids; // UI-only field; teacher assignments stored on teachers side
   const { error } = await supabase.from('subjects').update(row).eq('id', id);
   handleError(error, 'updateSubject');
 }
@@ -379,46 +385,30 @@ export async function sendPasswordInviteEmail(email, role = 'student', name = ''
   const { data: { session: adminSession } } = await supabase.auth.getSession();
 
   try {
-    // 2. Check if auth user already exists
-    console.log("📝 Checking if auth user exists for:", trimmedEmail);
+    // 2. Try to create auth account (gracefully handles "already registered")
+    console.log("📝 Creating/verifying auth user for:", trimmedEmail);
     
-    let userExists = false;
-    try {
-      // Try to send password reset to see if user exists
-      const { error: checkError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
-        redirectTo: `${window.location.origin}/#/reset-password`,
-      });
-      
-      if (!checkError) {
-        userExists = true;
-        console.log("ℹ️  Auth user already exists for:", trimmedEmail);
+    const tempPass = 'TempSetup@' + Math.floor(100000 + Math.random() * 900000);
+    
+    const { error: signUpError } = await supabase.auth.signUp({
+      email: trimmedEmail,
+      password: tempPass,
+      options: { 
+        data: { role, name }
       }
-    } catch (e) {
-      // Error checking, will try to create
+    });
+
+    if (signUpError && !signUpError.message?.toLowerCase().includes('already registered')) {
+      throw new Error(`Failed to create auth account: ${signUpError.message}`);
     }
 
-    // 3. If user doesn't exist, create auth account with a temporary password
-    if (!userExists) {
-      console.log("📝 Creating new auth user for:", trimmedEmail);
-      
-      const tempPass = 'TempSetup@' + Math.floor(100000 + Math.random() * 900000);
-      
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: trimmedEmail,
-        password: tempPass,
-        options: { 
-          data: { role, name }
-        }
-      });
-
-      if (signUpError && !signUpError.message?.toLowerCase().includes('already registered')) {
-        throw new Error(`Failed to create auth account: ${signUpError.message}`);
-      }
-
+    if (!signUpError) {
       console.log("✅ Auth user created for:", trimmedEmail);
+    } else {
+      console.log("ℹ️  Auth user already exists for:", trimmedEmail);
     }
 
-    // 4. Restore admin session
+    // 3. Restore admin session
     if (adminSession) {
       await supabase.auth.setSession({
         access_token: adminSession.access_token,
@@ -426,24 +416,25 @@ export async function sendPasswordInviteEmail(email, role = 'student', name = ''
       });
     }
 
-    // 5. Send password reset email
-    const redirectPath = role === 'teacher' ? '#/teacher-reset-password' : '#/reset-password';
-    const baseUrl = window.location.origin;
-    const redirectUrl = `${baseUrl}/${redirectPath}`;
+    // 4. Send ONE password reset email with role-based redirect.
+    // IMPORTANT: Do NOT use hash (#) in redirectTo — Supabase replaces the entire hash
+    // with token params (access_token, refresh_token, type=recovery), losing our route.
+    // Instead, pass role as a query param so it survives the redirect.
+    const baseUrl = window.location.origin + window.location.pathname;
+    const redirectUrl = role === 'teacher'
+      ? `${baseUrl}?role=teacher`
+      : `${baseUrl}?role=student`;
 
     console.log("📧 Sending password reset email to:", trimmedEmail);
-    console.log("🔗 Role detected:", role);
-    console.log("🔗 Redirect path:", redirectPath);
-    console.log("🔗 Full redirect URL:", redirectUrl);
+    console.log("🔗 Role:", role, "→ Redirect URL:", redirectUrl);
 
     const { data: resetData, error: resetError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
       redirectTo: redirectUrl,
     });
 
-    console.log("📧 Reset email response data:", resetData);
-    console.log("📧 Reset email response error:", resetError);
+    console.log("📧 Reset email response:", resetData, resetError);
 
-    // 6. Restore admin session
+    // 5. Restore admin session after reset email call
     if (adminSession) {
       await supabase.auth.setSession({
         access_token: adminSession.access_token,
@@ -457,7 +448,6 @@ export async function sendPasswordInviteEmail(email, role = 'student', name = ''
     }
 
     console.log("✅ Password reset email sent to:", trimmedEmail);
-    console.log("🚨 DEV MODE: If email not received, check Supabase email configuration or use magic link from logs");
     return { success: true };
 
   } catch (error) {

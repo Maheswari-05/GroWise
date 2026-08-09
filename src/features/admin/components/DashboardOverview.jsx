@@ -90,6 +90,10 @@ const DashboardOverview = ({
             <PlusCircle size={18} />
             <span>Create Batch</span>
           </button>
+          <button className="quick-action-btn" onClick={() => onQuickAction("AddSubject")}>
+            <PlusCircle size={18} />
+            <span>Add Subject</span>
+          </button>
         </div>
       </section>
 

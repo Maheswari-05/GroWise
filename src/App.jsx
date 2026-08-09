@@ -28,8 +28,10 @@ function App() {
       // Check for Supabase error redirects (these come with error parameters)
       if (fullHash.includes("error=")) {
         console.log("⚠️  Error URL detected");
-        // Determine which reset page based on route parameter or teacher-reset-password in hash
-        if (fullHash.includes("teacher-reset-password") || fullHash.includes("role=teacher")) {
+        // Check role via query param OR fallback to hash path
+        const errSearchParams = new URLSearchParams(window.location.search);
+        const errRole = errSearchParams.get("role");
+        if (errRole === "teacher" || fullHash.includes("teacher-reset-password") || fullHash.includes("role=teacher")) {
           setCurrentView("teacher-reset-password");
         } else {
           setCurrentView("reset-password");
@@ -40,7 +42,10 @@ function App() {
       // Check for reset password with access token (MUST be before other checks!)
       if (fullHash.includes("access_token")) {
         console.log("🔑 Access token found in URL");
-        if (fullHash.includes("teacher-reset-password")) {
+        // Check role via query param (set in redirectTo) OR hash path fallback
+        const searchParams = new URLSearchParams(window.location.search);
+        const role = searchParams.get("role");
+        if (role === "teacher" || fullHash.includes("teacher-reset-password")) {
           console.log("👨‍🏫 Teacher reset password detected");
           setCurrentView("teacher-reset-password");
         } else {
@@ -108,15 +113,17 @@ function App() {
   
   // Check if URL has access token (reset password link)
   const hasAccessToken = route.includes("access_token");
+  const searchParams = new URLSearchParams(window.location.search);
+  const roleParam = searchParams.get("role");
 
-  // Student Reset Password - Check FIRST if token present
-  if (hasAccessToken && !route.includes("teacher-reset-password")) {
-    return <ResetPassword onNavigate={navigateTo} />;
+  // Teacher Reset Password - Check FIRST if token present and role=teacher
+  if (hasAccessToken && (roleParam === "teacher" || route.includes("teacher-reset-password"))) {
+    return <TeacherResetPassword onNavigate={navigateTo} />;
   }
 
-  // Teacher Reset Password - Check FIRST if token present
-  if (hasAccessToken && route.includes("teacher-reset-password")) {
-    return <TeacherResetPassword onNavigate={navigateTo} />;
+  // Student Reset Password - Check if token present (default)
+  if (hasAccessToken) {
+    return <ResetPassword onNavigate={navigateTo} />;
   }
 
   // Role Selector

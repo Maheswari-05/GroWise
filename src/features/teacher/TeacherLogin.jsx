@@ -22,17 +22,6 @@ const TeacherLogin = ({ onNavigate }) => {
 
     setIsLoading(true);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-
-    if (!email.trim() || !password.trim()) {
-      setError("Please fill in all fields.");
-      return;
-    }
-
-    setIsLoading(true);
-
     try {
       const normalizedEmail = email.trim().toLowerCase();
       console.log("🔐 Teacher login attempt with email:", normalizedEmail);
@@ -44,8 +33,6 @@ const TeacherLogin = ({ onNavigate }) => {
 
       if (authError) {
         console.error("❌ Teacher login error:", authError.message);
-        console.log("Email tried:", normalizedEmail);
-        console.log("Password length:", password.trim().length);
         setError("Invalid email or password. Please check and try again.");
         setIsLoading(false);
         return;
@@ -53,7 +40,6 @@ const TeacherLogin = ({ onNavigate }) => {
 
       if (data?.user) {
         console.log("✅ Teacher login successful for:", data.user.email);
-        console.log("User ID:", data.user.id);
         onNavigate("teacher-dashboard");
       } else {
         setError("Login failed. Please try again.");
@@ -64,7 +50,6 @@ const TeacherLogin = ({ onNavigate }) => {
       setError("An error occurred. Please try again.");
       setIsLoading(false);
     }
-  };
   };
 
   return (
@@ -98,11 +83,11 @@ const TeacherLogin = ({ onNavigate }) => {
         {/* Login Form */}
         <form onSubmit={handleSubmit} className="login-form">
           <div className="input-group">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="teacher-email">Email</label>
             <div className="input-wrapper">
               <User className="input-icon" size={18} />
               <input
-                id="email"
+                id="teacher-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -114,11 +99,11 @@ const TeacherLogin = ({ onNavigate }) => {
           </div>
 
           <div className="input-group">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="teacher-password">Password</label>
             <div className="input-wrapper">
               <Lock className="input-icon" size={18} />
               <input
-                id="password"
+                id="teacher-password"
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
