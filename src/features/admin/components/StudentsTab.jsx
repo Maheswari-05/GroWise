@@ -28,6 +28,11 @@ const StudentsTab = ({
   const [filterStatus, setFilterStatus] = useState("All");
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
 
+  const generateStudentId = () => {
+    const suffix = Date.now().toString().slice(-6);
+    return `STU${suffix}`;
+  };
+
   // Form State
   const [formData, setFormData] = useState({
     id: "",
@@ -66,9 +71,8 @@ const StudentsTab = ({
   };
 
   const handleAddNewClick = () => {
-    const nextId = "STU" + String(students.length + 101);
     setFormData({
-      id: nextId,
+      id: generateStudentId(),
       name: "",
       dob: "",
       contact: "",
