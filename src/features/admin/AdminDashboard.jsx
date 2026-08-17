@@ -158,24 +158,62 @@ const AdminDashboard = ({ onNavigate }) => {
   const handleAddStudent = async (newStu) => {
     try {
       await adminService.addStudent(newStu);
-      setStudents(await adminService.fetchStudents());
+      setStudents((currentStudents) => {
+        const nextStudent = {
+          ...newStu,
+          subjects: Array.isArray(newStu.subjects) ? newStu.subjects : [],
+          status: newStu.status || "Active",
+        };
+
+        const existingIndex = currentStudents.findIndex(
+          (student) => student.id === nextStudent.id || (nextStudent.email && student.email === nextStudent.email)
+        );
+
+        if (existingIndex >= 0) {
+          const updatedStudents = [...currentStudents];
+          updatedStudents[existingIndex] = { ...updatedStudents[existingIndex], ...nextStudent };
+          return updatedStudents;
+        }
+
+        return [...currentStudents, nextStudent];
+      });
+
+      adminService.fetchStudents().then(setStudents).catch((err) => {
+        console.error("Failed to refresh students after add:", err);
+      });
+
       await adminService.addNotification({
         type: "batch",
         message: `New Student ${newStu.name} added to system database.`,
         time: "Just now",
       });
       setNotifications(await adminService.fetchNotifications());
+      return true;
     } catch (err) {
       console.error("Failed to add student:", err);
+      return false;
     }
   };
 
   const handleUpdateStudent = async (updatedStu) => {
     try {
       await adminService.updateStudent(updatedStu);
-      setStudents(await adminService.fetchStudents());
+      setStudents((currentStudents) =>
+        currentStudents.map((student) =>
+          student.id === updatedStu.id || (updatedStu.email && student.email === updatedStu.email)
+            ? { ...student, ...updatedStu }
+            : student
+        )
+      );
+
+      adminService.fetchStudents().then(setStudents).catch((err) => {
+        console.error("Failed to refresh students after update:", err);
+      });
+
+      return true;
     } catch (err) {
       console.error("Failed to update student:", err);
+      return false;
     }
   };
 

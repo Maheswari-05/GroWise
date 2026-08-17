@@ -194,6 +194,27 @@ export async function addStudent(student) {
   delete row.created_at;
   delete row.password; // Passwords stored in auth, not table
   delete row.username; // Username not in schema
+
+  if (row.email) {
+    row.email = String(row.email).trim().toLowerCase();
+  }
+
+  const existingKey = row.id || row.email;
+  if (existingKey) {
+    const query = row.id
+      ? supabase.from('students').select('id').eq('id', row.id)
+      : supabase.from('students').select('id').ilike('email', row.email);
+
+    const { data: existingStudent, error: lookupError } = await query.maybeSingle();
+    handleError(lookupError, 'addStudentLookup');
+
+    if (existingStudent?.id) {
+      const { error: updateError } = await supabase.from('students').update(row).eq('id', existingStudent.id);
+      handleError(updateError, 'addStudentUpdate');
+      return;
+    }
+  }
+
   const { error } = await supabase.from('students').insert(row);
   handleError(error, 'addStudent');
 

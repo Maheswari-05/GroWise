@@ -8,6 +8,10 @@
   overflow: hidden;
 }
 
+.dashboard-container.dashboard-tab-active {
+  background: linear-gradient(135deg, rgba(45, 107, 255, 0.04), rgba(55, 200, 113, 0.04));
+}
+
 /* ── Sidebar ── */
 .dashboard-sidebar {
   width: 280px;
@@ -321,24 +325,36 @@
   background-color: #ffffff;
   border-radius: 20px;
   border: 1px solid rgba(226, 232, 240, 0.8);
-  padding: 24px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 170px;
+  min-height: 130px;
   box-shadow:
-    0 2px 0 rgba(255,255,255,0.9) inset,
-    0 -1px 0 rgba(0,0,0,.04) inset,
+    0 2px 0 rgba(255, 255, 255, 0.9) inset,
+    0 -1px 0 rgba(0, 0, 0, .04) inset,
     0 6px 24px rgba(30, 42, 70, 0.05),
     0 1px 4px rgba(30, 42, 70, 0.03);
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
+.summary-card:not(.live-class-card) {
+  justify-content: flex-start;
+}
+
+.summary-card:not(.live-class-card) .card-middle {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  margin: 0;
+}
+
 .summary-card:hover {
   transform: translateY(-4px);
   box-shadow:
-    0 2px 0 rgba(255,255,255,0.9) inset,
-    0 -1px 0 rgba(0,0,0,.04) inset,
+    0 2px 0 rgba(255, 255, 255, 0.9) inset,
+    0 -1px 0 rgba(0, 0, 0, .04) inset,
     0 16px 32px rgba(30, 42, 70, 0.08),
     0 4px 12px rgba(30, 42, 70, 0.04);
 }
@@ -358,6 +374,7 @@
 
 .card-badge.gray {
   color: #64748b;
+  font-size: 16px;
 }
 
 .badge-icon-wrap {
@@ -436,10 +453,11 @@
 
 /* Special Live Class Blue Card */
 .summary-card.live-class-card {
-  background: linear-gradient(135deg, #2D6BFF, #1e56d4);
+  background: linear-gradient(135deg, #2D6BFF, #37C871);
   color: #ffffff;
   border: none;
   box-shadow: 0 10px 25px rgba(45, 107, 255, 0.25);
+  min-height: 145px;
 }
 
 .summary-card.live-class-card:hover {
@@ -531,9 +549,17 @@
   border-radius: 50%;
 }
 
-.legend-dot.blue { background-color: #2D6BFF; }
-.legend-dot.orange { background-color: #f97316; }
-.legend-dot.green { background-color: #22c55e; }
+.legend-dot.blue {
+  background-color: #2D6BFF;
+}
+
+.legend-dot.orange {
+  background-color: #f97316;
+}
+
+.legend-dot.green {
+  background-color: #22c55e;
+}
 
 .chart-container {
   display: flex;
@@ -636,7 +662,7 @@
   font-size: 11.5px;
   font-weight: 700;
   white-space: nowrap;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
   transition: all 0.2s ease;
   pointer-events: none;
 }
@@ -782,8 +808,9 @@
 }
 
 .view-all-btn:hover {
-  border-color: #2D6BFF;
-  background-color: rgba(45, 107, 255, 0.04);
+  color: white;
+  border-color: transparent;
+  background: linear-gradient(135deg, #2D6BFF, #37C871);
 }
 
 .materials-list {
@@ -890,7 +917,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Placeholder View */
@@ -959,6 +988,7 @@
 /* ── Responsive Styling ── */
 
 @media (max-width: 1024px) {
+
   /* Hide sidebar by default, toggle with drawer */
   .dashboard-sidebar {
     position: fixed;
@@ -1100,8 +1130,8 @@
   justify-content: space-between;
   align-items: center;
   box-shadow:
-    0 2px 0 rgba(255,255,255,0.9) inset,
-    0 -1px 0 rgba(0,0,0,.04) inset,
+    0 2px 0 rgba(255, 255, 255, 0.9) inset,
+    0 -1px 0 rgba(0, 0, 0, .04) inset,
     0 6px 24px rgba(30, 42, 70, 0.05);
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
@@ -1281,9 +1311,17 @@
   font-family: "Sora", sans-serif;
 }
 
-.subject-pct-val.math-pct { color: #2D6BFF; }
-.subject-pct-val.phys-pct { color: #4f46e5; }
-.subject-pct-val.chem-pct { color: #f97316; }
+.subject-pct-val.math-pct {
+  color: #2D6BFF;
+}
+
+.subject-pct-val.phys-pct {
+  color: #4f46e5;
+}
+
+.subject-pct-val.chem-pct {
+  color: #f97316;
+}
 
 .subject-progress-track {
   height: 8px;
@@ -1298,9 +1336,17 @@
   border-radius: 99px;
 }
 
-.subject-progress-fill.math-fill { background-color: #2D6BFF; }
-.subject-progress-fill.phys-fill { background-color: #4f46e5; }
-.subject-progress-fill.chem-fill { background-color: #f97316; }
+.subject-progress-fill.math-fill {
+  background-color: #2D6BFF;
+}
+
+.subject-progress-fill.phys-fill {
+  background-color: #4f46e5;
+}
+
+.subject-progress-fill.chem-fill {
+  background-color: #f97316;
+}
 
 .subject-card-bottom {
   display: flex;
@@ -1558,10 +1604,21 @@
   display: inline-block;
 }
 
-.legend-line.math-line { background-color: #2D6BFF; }
-.legend-line.phys-line { background-color: #4f46e5; }
-.legend-line.chem-line { background-color: #f97316; }
-.legend-line.bio-line { background-color: #22c55e; }
+.legend-line.math-line {
+  background-color: #2D6BFF;
+}
+
+.legend-line.phys-line {
+  background-color: #4f46e5;
+}
+
+.legend-line.chem-line {
+  background-color: #f97316;
+}
+
+.legend-line.bio-line {
+  background-color: #22c55e;
+}
 
 .trend-chart-container {
   flex: 1;
@@ -1588,20 +1645,42 @@
   stroke-linejoin: round;
 }
 
-.trend-path.math-path { stroke: #2D6BFF; }
-.trend-path.phys-path { stroke: #4f46e5; }
-.trend-path.chem-path { stroke: #f97316; }
-.trend-path.bio-path { stroke: #22c55e; }
+.trend-path.math-path {
+  stroke: #2D6BFF;
+}
+
+.trend-path.phys-path {
+  stroke: #4f46e5;
+}
+
+.trend-path.chem-path {
+  stroke: #f97316;
+}
+
+.trend-path.bio-path {
+  stroke: #22c55e;
+}
 
 .trend-dot-pt {
   stroke-width: 2.5;
   stroke: #ffffff;
 }
 
-.trend-dot-pt.math-dot { fill: #2D6BFF; }
-.trend-dot-pt.phys-dot { fill: #4f46e5; }
-.trend-dot-pt.chem-dot { fill: #f97316; }
-.trend-dot-pt.bio-dot { fill: #22c55e; }
+.trend-dot-pt.math-dot {
+  fill: #2D6BFF;
+}
+
+.trend-dot-pt.phys-dot {
+  fill: #4f46e5;
+}
+
+.trend-dot-pt.chem-dot {
+  fill: #f97316;
+}
+
+.trend-dot-pt.bio-dot {
+  fill: #22c55e;
+}
 
 .trend-x-axis {
   display: flex;
@@ -1621,7 +1700,7 @@
   .attendance-summary-cards {
     grid-template-columns: repeat(2, 1fr);
   }
-  
+
   .subject-cards-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -1635,7 +1714,7 @@
   .attendance-summary-cards {
     grid-template-columns: 1fr;
   }
-  
+
   .subject-cards-grid {
     grid-template-columns: 1fr;
   }
@@ -1856,12 +1935,13 @@
 }
 
 .assignment-card-actions .outline-btn:hover:not(:disabled) {
-  border-color: #2D6BFF;
-  color: #2D6BFF;
+  color: white;
+  border-color: transparent;
+  background: linear-gradient(135deg, #2D6BFF, #37C871);
 }
 
 .assignment-card-actions .primary-solid-btn {
-  background-color: #2d6bff;
+  background: linear-gradient(135deg, #2D6BFF, #37C871);
   border: none;
   color: #ffffff;
   display: flex;
@@ -1871,7 +1951,7 @@
 }
 
 .assignment-card-actions .primary-solid-btn:hover:not(:disabled) {
-  background-color: #1a56db;
+  background: linear-gradient(135deg, #1d4ed8, #2db860);
   box-shadow: 0 4px 12px rgba(45, 107, 255, 0.15);
 }
 
@@ -1989,7 +2069,9 @@
 }
 
 @keyframes btnSpinnerRotate {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ============================================================
@@ -2022,8 +2104,15 @@
 }
 
 @keyframes modalOverlayFadeIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .modal-header {
@@ -2435,7 +2524,7 @@
 }
 
 .test-view-result-btn {
-  background-color: #2D6BFF;
+  background: linear-gradient(135deg, #2D6BFF, #37C871);
   color: #ffffff;
   font-family: inherit;
   font-size: 14px;
@@ -2449,7 +2538,7 @@
 }
 
 .test-view-result-btn:hover:not(:disabled) {
-  background-color: #1d4ed8;
+  background: linear-gradient(135deg, #1d4ed8, #2db860);
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(45, 107, 255, 0.2);
 }
@@ -2810,7 +2899,7 @@
 }
 
 .status-badge-overlay.upcoming {
-  background-color: #2D6BFF;
+  background: linear-gradient(135deg, #2D6BFF, #37C871);
 }
 
 .status-badge-overlay.completed {
@@ -2818,9 +2907,17 @@
 }
 
 @keyframes pulseGreen {
-  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-  70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
 }
 
 .class-info-wrap {
@@ -2911,13 +3008,13 @@
 }
 
 .join-class-btn.active {
-  background-color: #2D6BFF;
+  background: linear-gradient(135deg, #2D6BFF, #37C871);
   color: #ffffff;
   box-shadow: 0 4px 12px rgba(45, 107, 255, 0.15);
 }
 
 .join-class-btn.active:hover {
-  background-color: #1d4ed8;
+  background: linear-gradient(135deg, #1d4ed8, #2db860);
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(45, 107, 255, 0.22);
 }
@@ -3236,12 +3333,12 @@
     align-items: stretch;
     gap: 16px;
   }
-  
+
   .class-card-left {
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .class-image-wrap {
     width: 100%;
     height: 180px;
@@ -3262,6 +3359,7 @@
 }
 
 @media (max-width: 640px) {
+
   .classes-filters-row,
   .notifications-filters-row {
     flex-direction: column;
@@ -3578,7 +3676,7 @@
   .profile-header-card {
     padding: 20px;
   }
-  
+
   .profile-header-left {
     gap: 16px;
   }
@@ -3592,23 +3690,15 @@
     font-size: 18px;
   }
 
-  .info-row-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .info-item.full-width {
-    grid-column: span 1;
-  }
-  
   .badges-list {
     gap: 8px;
   }
-  
+
   .teacher-badge {
     padding: 5px 12px;
     font-size: 12px;
   }
-  
+
   .subject-badge {
     padding: 6px 12px;
     font-size: 12.5px;
@@ -3802,8 +3892,15 @@
 }
 
 @keyframes detailsFadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .performance-details-panel .panel-header {
@@ -3955,7 +4052,3 @@
     justify-content: space-between;
   }
 }
-
-
-
-

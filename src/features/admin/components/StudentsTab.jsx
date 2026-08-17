@@ -102,18 +102,22 @@ const StudentsTab = ({
     });
   };
 
-  const handleSaveForm = (e) => {
+  const handleSaveForm = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.contact || formData.subjects.length === 0) {
       alert("Please enter a Name, Contact, and enroll in at least one Subject.");
       return;
     }
 
-    if (editMode) {
-      onUpdateStudent(formData);
-    } else {
-      onAddStudent(formData);
+    const saveResult = editMode
+      ? await onUpdateStudent(formData)
+      : await onAddStudent(formData);
+
+    if (saveResult === false) {
+      alert("Failed to save student details. Please check the data and try again.");
+      return;
     }
+
     setView("list");
   };
 

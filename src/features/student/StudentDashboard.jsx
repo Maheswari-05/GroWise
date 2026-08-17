@@ -32,6 +32,7 @@ import avatarImg from "../../assets/avatar.png";
 import mathClassImg from "../../assets/math_class.png";
 import physicsClassImg from "../../assets/physics_class.png";
 import chemistryClassImg from "../../assets/chemistry_class.png";
+import supabase from "../../lib/supabase";
 import "./StudentDashboard.css";
 
 const StudentDashboard = ({ onNavigate }) => {
@@ -39,6 +40,118 @@ const StudentDashboard = ({ onNavigate }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(true);
   const [downloadProgress, setDownloadProgress] = useState(null);
+
+  const [studentProfile, setStudentProfile] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [profileError, setProfileError] = useState("");
+
+  const getDisplayValue = (value, fallback = "—") => {
+    if (value === null || value === undefined) return fallback;
+    const text = typeof value === "string" ? value.trim() : String(value).trim();
+    return text ? value : fallback;
+  };
+
+  const normalizeStudentProfile = (student, batchName, assignedTeachers) => ({
+    ...student,
+    name: student?.name || "",
+    email: student?.email || "",
+    contact: student?.contact || "",
+    dob: student?.dob || "",
+    address: student?.address || "",
+    batchName,
+    assignedTeachers,
+    admissionDate: student?.created_at || "",
+  });
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "—";
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      const day = d.getDate();
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const month = months[d.getMonth()];
+      const year = d.getFullYear();
+      return `${day} ${month} ${year}`;
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  useEffect(() => {
+    let active = true;
+
+    const fetchStudentProfile = async () => {
+      try {
+        setLoadingProfile(true);
+        setProfileError("");
+
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+          console.error("No authenticated user found:", authError);
+          if (active) {
+            onNavigate("login");
+          }
+          return;
+        }
+
+        const normalizedEmail = user.email?.trim().toLowerCase();
+
+        console.log("Authenticated user found in dashboard:", normalizedEmail);
+
+        const { data: student, error: studentError } = await supabase
+          .from("students")
+          .select("*")
+          .ilike("email", normalizedEmail)
+          .maybeSingle();
+
+        if (studentError) {
+          throw studentError;
+        }
+
+        if (!student) {
+          console.error("Student profile not found for email:", normalizedEmail);
+          if (active) {
+            setProfileError("Student profile not found in database.");
+            setLoadingProfile(false);
+          }
+          return;
+        }
+
+        let batchName = "Not Assigned";
+
+        if (student.batch_id) {
+          const { data: batchData, error: batchError } = await supabase
+            .from("batches")
+            .select("*")
+            .eq("id", student.batch_id)
+            .maybeSingle();
+
+          if (!batchError && batchData) {
+            batchName = batchData.name;
+          }
+        }
+
+        if (active) {
+          setStudentProfile(normalizeStudentProfile(student, batchName, []));
+          setLoadingProfile(false);
+        }
+      } catch (err) {
+        console.error("Error fetching student profile:", err);
+        if (active) {
+          setProfileError(err.message || "Failed to load student profile.");
+          setLoadingProfile(false);
+        }
+      }
+    };
+
+    fetchStudentProfile();
+
+    return () => {
+      active = false;
+    };
+  }, [onNavigate]);
 
   const [historyFilter, setHistoryFilter] = useState("All Subjects");
 
@@ -103,7 +216,7 @@ const StudentDashboard = ({ onNavigate }) => {
 
   const filteredWeeklyTests = weeklyTests.filter((test) => {
     const matchesSearch = test.title.toLowerCase().includes(testSearch.toLowerCase()) ||
-                          test.subject.toLowerCase().includes(testSearch.toLowerCase());
+      test.subject.toLowerCase().includes(testSearch.toLowerCase());
     const matchesSubject = testSubject === "All Subjects" || test.subject === testSubject;
     return matchesSearch && matchesSubject;
   });
@@ -150,8 +263,8 @@ const StudentDashboard = ({ onNavigate }) => {
 
   const filteredOnlineClasses = onlineClasses.filter((item) => {
     const matchesSearch = item.title.toLowerCase().includes(onlineClassSearch.toLowerCase()) ||
-                          item.description.toLowerCase().includes(onlineClassSearch.toLowerCase()) ||
-                          item.subject.toLowerCase().includes(onlineClassSearch.toLowerCase());
+      item.description.toLowerCase().includes(onlineClassSearch.toLowerCase()) ||
+      item.subject.toLowerCase().includes(onlineClassSearch.toLowerCase());
     const matchesSubject = onlineClassSubject === "All Subjects" || item.subject === onlineClassSubject;
     const matchesStatus = onlineClassStatus === "All Status" || item.status === onlineClassStatus;
     return matchesSearch && matchesSubject && matchesStatus;
@@ -243,7 +356,7 @@ const StudentDashboard = ({ onNavigate }) => {
 
   const filteredAssignments = assignments.filter((item) => {
     const matchesSearch = item.title.toLowerCase().includes(assignmentSearch.toLowerCase()) ||
-                          item.subject.toLowerCase().includes(assignmentSearch.toLowerCase());
+      item.subject.toLowerCase().includes(assignmentSearch.toLowerCase());
     const matchesSubject = assignmentSubject === "All Subjects" || item.subject === assignmentSubject;
     const matchesStatus = assignmentStatus === "All Status" || item.status === assignmentStatus;
     return matchesSearch && matchesSubject && matchesStatus;
@@ -273,7 +386,7 @@ const StudentDashboard = ({ onNavigate }) => {
   const filteredHistory = attendanceHistory.filter((record) => {
     return historyFilter === "All Subjects" || record.subject === historyFilter;
   });
-  
+
   const [notificationSearch, setNotificationSearch] = useState("");
   const [notificationFilter, setNotificationFilter] = useState("All");
 
@@ -312,15 +425,15 @@ const StudentDashboard = ({ onNavigate }) => {
       time: "2 Days Ago",
       group: "EARLIER",
       detail: "Mathematics Unit Test - Calculus I. Your performance report is ready.",
-      unread: false
+      unread: true
     }
   ]);
 
   const filteredNotifications = notificationsList.filter((notif) => {
     const matchesSearch = notif.title.toLowerCase().includes(notificationSearch.toLowerCase()) ||
-                          notif.detail.toLowerCase().includes(notificationSearch.toLowerCase());
-    const matchesFilter = notificationFilter === "All" || 
-                          (notificationFilter === "Unread" && notif.unread);
+      notif.detail.toLowerCase().includes(notificationSearch.toLowerCase());
+    const matchesFilter = notificationFilter === "All" ||
+      (notificationFilter === "Unread" && notif.unread);
     return matchesSearch && matchesFilter;
   });
 
@@ -355,8 +468,73 @@ const StudentDashboard = ({ onNavigate }) => {
     { name: "Profile", icon: User },
   ];
 
+  if (loadingProfile) {
+    return (
+      <div className="dashboard-loading-container" style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100vh",
+        background: "var(--bg-primary, #0f172a)",
+        color: "var(--text-primary, #f8fafc)",
+        fontFamily: "'Inter', sans-serif"
+      }}>
+        <div className="loading-spinner" style={{
+          width: "50px",
+          height: "50px",
+          border: "5px solid rgba(255,255,255,0.1)",
+          borderRadius: "50%",
+          borderTopColor: "#3b82f6",
+          animation: "spin 1s ease-in-out infinite",
+          marginBottom: "20px"
+        }}></div>
+        <p style={{ fontSize: "1.1rem", fontWeight: "500" }}>Loading your profile...</p>
+        <style>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  if (profileError) {
+    return (
+      <div className="dashboard-error-container" style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100vh",
+        background: "var(--bg-primary, #0f172a)",
+        color: "var(--text-primary, #f8fafc)",
+        padding: "20px",
+        fontFamily: "'Inter', sans-serif"
+      }}>
+        <div style={{ color: "#ef4444", fontSize: "3rem", marginBottom: "15px" }}>⚠️</div>
+        <h2 style={{ marginBottom: "10px" }}>Profile Load Error</h2>
+        <p style={{ color: "#94a3b8", marginBottom: "20px", textAlign: "center", maxWidth: "400px" }}>{profileError}</p>
+        <button 
+          onClick={() => onNavigate("login")} 
+          style={{
+            padding: "10px 20px",
+            background: "#3b82f6",
+            border: "none",
+            borderRadius: "6px",
+            color: "#fff",
+            cursor: "pointer",
+            fontWeight: "500"
+          }}
+        >
+          Return to Login
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="dashboard-container">
+    <div className={`dashboard-container ${activeTab === "Dashboard" ? "dashboard-tab-active" : ""}`}>
       {/* ── Sidebar ── */}
       <aside className={`dashboard-sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="sidebar-header">
@@ -393,7 +571,14 @@ const StudentDashboard = ({ onNavigate }) => {
         </nav>
 
         <div className="sidebar-footer">
-          <button className="logout-btn" onClick={() => onNavigate("landing")}>
+          <button className="logout-btn" onClick={async () => {
+            try {
+              await supabase.auth.signOut();
+            } catch (e) {
+              console.error("Sign out error:", e);
+            }
+            onNavigate("landing");
+          }}>
             <LogOut size={20} />
             <span>Logout</span>
           </button>
@@ -416,8 +601,8 @@ const StudentDashboard = ({ onNavigate }) => {
 
           <div className="header-right">
             {/* Notification Bell */}
-            <button 
-              className="notification-bell-btn" 
+            <button
+              className="notification-bell-btn"
               onClick={() => selectTab("Notifications")}
               aria-label="View notifications"
             >
@@ -428,10 +613,9 @@ const StudentDashboard = ({ onNavigate }) => {
             {/* Profile Info */}
             <div className="header-profile" onClick={() => selectTab("Profile")}>
               <div className="profile-details">
-                <span className="profile-name">Sneha</span>
-                <span className="profile-id">Class 12 - PCM</span>
+                <span className="profile-name">{studentProfile?.name}</span>
+                <span className="profile-id">{studentProfile?.batchName || "No Batch"}</span>
               </div>
-              <img src={avatarImg} alt="Sneha's Avatar" className="profile-avatar" />
             </div>
           </div>
         </header>
@@ -442,7 +626,7 @@ const StudentDashboard = ({ onNavigate }) => {
             <div className="dashboard-dashboard-view">
               {/* Welcome Section */}
               <section className="welcome-section">
-                <h2>Good Morning, Sneha 👋</h2>
+                <h2>Good Morning, {studentProfile?.name} 👋</h2>
                 <p>Welcome back! Here's your academic progress today.</p>
               </section>
 
@@ -563,8 +747,8 @@ const StudentDashboard = ({ onNavigate }) => {
                         {/* Physics — 89% */}
                         <div className="student-bar-column">
                           <div className="student-bar-track">
-                            <div 
-                              className="student-bar-fill blue-bar" 
+                            <div
+                              className="student-bar-fill blue-bar"
                               style={{ height: "89%" }}
                               title="Physics: 89%"
                             >
@@ -577,8 +761,8 @@ const StudentDashboard = ({ onNavigate }) => {
                         {/* Chemistry — 80% */}
                         <div className="student-bar-column">
                           <div className="student-bar-track">
-                            <div 
-                              className="student-bar-fill orange-bar" 
+                            <div
+                              className="student-bar-fill orange-bar"
                               style={{ height: "80%" }}
                               title="Chemistry: 80%"
                             >
@@ -591,8 +775,8 @@ const StudentDashboard = ({ onNavigate }) => {
                         {/* Mathematics — 90% */}
                         <div className="student-bar-column">
                           <div className="student-bar-track">
-                            <div 
-                              className="student-bar-fill green-bar" 
+                            <div
+                              className="student-bar-fill green-bar"
                               style={{ height: "90%" }}
                               title="Mathematics: 90%"
                             >
@@ -621,9 +805,6 @@ const StudentDashboard = ({ onNavigate }) => {
                         {notif.unread && <span className="unread-marker"></span>}
                         <div className="notification-content">
                           <p className="notification-title">{notif.title}</p>
-                          <p className="notification-details">
-                            {notif.time} &bull; {notif.detail}
-                          </p>
                         </div>
                       </div>
                     ))}
@@ -652,8 +833,8 @@ const StudentDashboard = ({ onNavigate }) => {
                         <p>Added: Oct 24, 2023 &bull; 4.2 MB</p>
                       </div>
                     </div>
-                    <button 
-                      className="download-icon-btn" 
+                    <button
+                      className="download-icon-btn"
                       onClick={() => handleDownloadFile("Physics Notes Unit 4.pdf")}
                       disabled={downloadProgress !== null}
                       aria-label="Download Physics Notes Unit 4.pdf"
@@ -677,8 +858,8 @@ const StudentDashboard = ({ onNavigate }) => {
                         <p>Added: Oct 22, 2023 &bull; 1.8 MB</p>
                       </div>
                     </div>
-                    <button 
-                      className="download-icon-btn" 
+                    <button
+                      className="download-icon-btn"
                       onClick={() => handleDownloadFile("Mathematics Practice Sheet.pdf")}
                       disabled={downloadProgress !== null}
                       aria-label="Download Mathematics Practice Sheet.pdf"
@@ -702,8 +883,8 @@ const StudentDashboard = ({ onNavigate }) => {
                         <p>Added: Oct 20, 2023 &bull; 5.1 MB</p>
                       </div>
                     </div>
-                    <button 
-                      className="download-icon-btn" 
+                    <button
+                      className="download-icon-btn"
                       onClick={() => handleDownloadFile("Chemistry Revision.pdf")}
                       disabled={downloadProgress !== null}
                       aria-label="Download Chemistry Revision.pdf"
@@ -938,8 +1119,8 @@ const StudentDashboard = ({ onNavigate }) => {
                         <p>Added: Oct 24, 2023 &bull; 4.2 MB</p>
                       </div>
                     </div>
-                    <button 
-                      className="download-icon-btn" 
+                    <button
+                      className="download-icon-btn"
                       onClick={() => handleDownloadFile("Physics Notes Unit 4.pdf")}
                       disabled={downloadProgress !== null}
                       aria-label="Download Physics Notes Unit 4.pdf"
@@ -963,8 +1144,8 @@ const StudentDashboard = ({ onNavigate }) => {
                         <p>Added: Oct 22, 2023 &bull; 1.8 MB</p>
                       </div>
                     </div>
-                    <button 
-                      className="download-icon-btn" 
+                    <button
+                      className="download-icon-btn"
                       onClick={() => handleDownloadFile("Mathematics Practice Sheet.pdf")}
                       disabled={downloadProgress !== null}
                       aria-label="Download Mathematics Practice Sheet.pdf"
@@ -988,8 +1169,8 @@ const StudentDashboard = ({ onNavigate }) => {
                         <p>Added: Oct 20, 2023 &bull; 5.1 MB</p>
                       </div>
                     </div>
-                    <button 
-                      className="download-icon-btn" 
+                    <button
+                      className="download-icon-btn"
                       onClick={() => handleDownloadFile("Chemistry Revision.pdf")}
                       disabled={downloadProgress !== null}
                       aria-label="Download Chemistry Revision.pdf"
@@ -1067,13 +1248,13 @@ const StudentDashboard = ({ onNavigate }) => {
                         <div className="assignment-card-actions">
                           {asgn.status === "Pending" && (
                             <>
-                              <button 
+                              <button
                                 className="outline-btn"
                                 onClick={() => handleViewAssignmentDetails(asgn)}
                               >
                                 View Details
                               </button>
-                              <button 
+                              <button
                                 className="primary-solid-btn"
                                 onClick={() => handleSubmitAssignmentAction(asgn.id, asgn.title)}
                                 disabled={submittingId === asgn.id}
@@ -1087,7 +1268,7 @@ const StudentDashboard = ({ onNavigate }) => {
                             </>
                           )}
                           {asgn.status === "Evaluated" && (
-                            <button 
+                            <button
                               className="outline-btn"
                               onClick={() => handleViewAssignmentDetails(asgn)}
                             >
@@ -1095,7 +1276,7 @@ const StudentDashboard = ({ onNavigate }) => {
                             </button>
                           )}
                           {asgn.status === "Overdue" && (
-                            <button 
+                            <button
                               className="primary-solid-btn"
                               onClick={() => handleSubmitAssignmentAction(asgn.id, asgn.title)}
                               disabled={submittingId === asgn.id}
@@ -1122,7 +1303,7 @@ const StudentDashboard = ({ onNavigate }) => {
                             <span className="assignment-score-badge">{asgn.score}</span>
                           )}
                         </div>
-                        
+
                         {asgn.description && (
                           <p className="assignment-desc">{asgn.description}</p>
                         )}
@@ -1491,16 +1672,10 @@ const StudentDashboard = ({ onNavigate }) => {
               {/* Upper Profile Summary Card */}
               <section className="profile-header-card">
                 <div className="profile-header-left">
-                  <div className="profile-avatar-wrap">
-                    <img src={avatarImg} alt="Sneha's Avatar" className="profile-card-avatar" />
-                    <span className="status-dot-overlay active"></span>
-                  </div>
                   <div className="profile-summary-info">
                     <div className="name-row">
-                      <h3>Sneha</h3>
-                      <span className="status-badge active">Active</span>
+                      <h3>{getDisplayValue(studentProfile?.name)}</h3>
                     </div>
-                    <p className="student-id-text">ID: STU-2026-089</p>
                   </div>
                 </div>
               </section>
@@ -1517,31 +1692,23 @@ const StudentDashboard = ({ onNavigate }) => {
                     <div className="info-row-grid">
                       <div className="info-item">
                         <span className="info-label">FULL NAME</span>
-                        <span className="info-value">Sneha</span>
+                        <span className="info-value">{getDisplayValue(studentProfile?.name)}</span>
                       </div>
                       <div className="info-item">
-                        <span className="info-label">STUDENT ID</span>
-                        <span className="info-value">STU-2026-089</span>
-                      </div>
-                      <div className="info-item full-width">
                         <span className="info-label">EMAIL ADDRESS</span>
-                        <span className="info-value">sneha.edu@example.com</span>
+                        <span className="info-value">{getDisplayValue(studentProfile?.email)}</span>
                       </div>
                       <div className="info-item">
                         <span className="info-label">PHONE NUMBER</span>
-                        <span className="info-value">+91 98765 43210</span>
+                        <span className="info-value">{getDisplayValue(studentProfile?.contact)}</span>
                       </div>
                       <div className="info-item">
                         <span className="info-label">DATE OF BIRTH</span>
-                        <span className="info-value">12 Oct 2008</span>
-                      </div>
-                      <div className="info-item">
-                        <span className="info-label">GENDER</span>
-                        <span className="info-value">Female</span>
+                        <span className="info-value">{formatDate(studentProfile?.dob)}</span>
                       </div>
                       <div className="info-item full-width">
                         <span className="info-label">HOME ADDRESS</span>
-                        <span className="info-value">123, Academic Street, New Delhi, India</span>
+                        <span className="info-value">{getDisplayValue(studentProfile?.address)}</span>
                       </div>
                     </div>
                   </div>
@@ -1556,37 +1723,36 @@ const StudentDashboard = ({ onNavigate }) => {
                   <div className="info-card-body">
                     <div className="academic-items">
                       <div className="info-item">
-                        <span className="info-label">ADMISSION DATE</span>
-                        <span className="info-value">15 May 2024</span>
-                      </div>
-
-                      <div className="academic-badges-section">
-                        <span className="info-label">ASSIGNED TEACHERS</span>
-                        <div className="badges-list">
-                          <span className="teacher-badge">
-                            <User size={12} /> Mr. Rajesh
-                          </span>
-                          <span className="teacher-badge">
-                            <User size={12} /> Mrs. Anita
-                          </span>
-                          <span className="teacher-badge">
-                            <User size={12} /> Mr. Kumar
-                          </span>
-                        </div>
+                        <span className="info-label">BATCH</span>
+                        <span className="info-value">{getDisplayValue(studentProfile?.batchName, "Not Assigned")}</span>
                       </div>
 
                       <div className="academic-badges-section">
                         <span className="info-label">ENROLLED SUBJECTS</span>
                         <div className="badges-list subjects">
-                          <span className="subject-badge math">
-                            <Calculator size={14} /> Mathematics
-                          </span>
-                          <span className="subject-badge phys">
-                            <FlaskConical size={14} /> Physics
-                          </span>
-                          <span className="subject-badge chem">
-                            <BookOpen size={14} /> Chemistry
-                          </span>
+                          {studentProfile?.subjects && studentProfile.subjects.length > 0 ? (
+                            studentProfile.subjects.map((sub, index) => {
+                              const lowerSub = sub.toLowerCase();
+                              let badgeClass = "subject-badge math";
+                              let Icon = Calculator;
+                              
+                              if (lowerSub.includes("phys")) {
+                                badgeClass = "subject-badge phys";
+                                Icon = FlaskConical;
+                              } else if (lowerSub.includes("chem")) {
+                                badgeClass = "subject-badge chem";
+                                Icon = BookOpen;
+                              }
+                              
+                              return (
+                                <span className={badgeClass} key={index}>
+                                  <Icon size={14} /> {sub}
+                                </span>
+                              );
+                            })
+                          ) : (
+                            <span className="text-xs text-muted">No enrolled subjects</span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1764,7 +1930,7 @@ const StudentDashboard = ({ onNavigate }) => {
                   </span>
                 </div>
               </div>
-              
+
               {activeDetailsAssignment.description && (
                 <div className="modal-info-block">
                   <span className="meta-label">Description / Instructions</span>
