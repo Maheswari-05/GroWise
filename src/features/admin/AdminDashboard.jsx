@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Menu, Bell, Search, Shield, ShieldAlert, LogOut } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Menu, Bell, Search, Shield, ShieldAlert, LogOut, CheckCheck, Info, Users, BookOpen, X } from "lucide-react";
 import supabase from "../../lib/supabase";
 import * as adminService from "../../services/adminService";
 import Sidebar from "./components/Sidebar";
@@ -24,6 +24,8 @@ const AdminDashboard = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(true);
+  const [notifPanelOpen, setNotifPanelOpen] = useState(false);
+  const notifPanelRef = useRef(null);
 
   // Auth & loading
   const [user, setUser] = useState(null);
@@ -58,6 +60,19 @@ const AdminDashboard = ({ onNavigate }) => {
       window.removeEventListener("admin-avatar-updated", handleAvatarUpdate);
     };
   }, []);
+
+  // Close notification panel on click outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (notifPanelRef.current && !notifPanelRef.current.contains(e.target)) {
+        setNotifPanelOpen(false);
+      }
+    };
+    if (notifPanelOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [notifPanelOpen]);
 
   const loadAllData = async () => {
     try {
@@ -477,6 +492,25 @@ const AdminDashboard = ({ onNavigate }) => {
     }
   };
 
+  // --- Notification icon by type ---
+  const getNotifIcon = (type) => {
+    switch (type) {
+      case "batch": return <Users size={16} />;
+      case "subject": return <BookOpen size={16} />;
+      case "alert": return <ShieldAlert size={16} />;
+      default: return <Info size={16} />;
+    }
+  };
+
+  const getNotifColor = (type) => {
+    switch (type) {
+      case "batch": return "#6366f1";
+      case "subject": return "#10b981";
+      case "alert": return "#ef4444";
+      default: return "#3b82f6";
+    }
+  };
+
   // --- 4. TAB CONTENT RENDERER ---
   const renderTabContent = () => {
     switch (activeTab) {
@@ -678,20 +712,77 @@ const AdminDashboard = ({ onNavigate }) => {
           </div>
 
           <div className="header-right">
-            {/* Notification bell */}
-            <button
-              className="notification-bell-btn"
-              onClick={() => {
-                setActiveTab("Dashboard");
-                setUnreadNotifications(false);
-              }}
-              aria-label="View notifications overview"
-            >
-              <Bell size={22} />
-              {unreadNotifications && (
-                <span className="bell-badge-dot"></span>
+            {/* Notification bell + dropdown */}
+            <div className="notif-panel-wrapper" ref={notifPanelRef}>
+              <button
+                className={`notification-bell-btn${notifPanelOpen ? " notif-bell-active" : ""}`}
+                onClick={() => {
+                  setNotifPanelOpen((prev) => !prev);
+                  setUnreadNotifications(false);
+                }}
+                aria-label="View notifications"
+              >
+                <Bell size={22} />
+                {unreadNotifications && (
+                  <span className="bell-badge-dot"></span>
+                )}
+              </button>
+
+              {notifPanelOpen && (
+                <div className="notif-dropdown-panel">
+                  <div className="notif-dropdown-header">
+                    <h3>Notifications</h3>
+                    <button
+                      className="notif-close-btn"
+                      onClick={() => setNotifPanelOpen(false)}
+                      aria-label="Close notifications"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  <div className="notif-dropdown-list">
+                    {notifications.length === 0 ? (
+                      <div className="notif-empty">
+                        <Bell size={32} className="notif-empty-icon" />
+                        <p>No notifications yet</p>
+                      </div>
+                    ) : (
+                      notifications.slice().reverse().map((n) => (
+                        <div className="notif-dropdown-item" key={n.id}>
+                          <div
+                            className="notif-item-icon"
+                            style={{ backgroundColor: `${getNotifColor(n.type)}15`, color: getNotifColor(n.type) }}
+                          >
+                            {getNotifIcon(n.type)}
+                          </div>
+                          <div className="notif-item-content">
+                            <p className="notif-item-msg">{n.message}</p>
+                            <span className="notif-item-time">{n.time}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {notifications.length > 0 && (
+                    <div className="notif-dropdown-footer">
+                      <button
+                        className="notif-view-all-btn"
+                        onClick={() => {
+                          setActiveTab("Dashboard");
+                          setNotifPanelOpen(false);
+                        }}
+                      >
+                        <CheckCheck size={14} />
+                        View all activity
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
-            </button>
+
+            </div>
 
             {/* Profile Dropdown */}
             <div

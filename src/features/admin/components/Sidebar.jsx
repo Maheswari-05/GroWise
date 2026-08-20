@@ -31,19 +31,12 @@ const Sidebar = ({ activeTab, selectTab, sidebarOpen, setSidebarOpen, onLogout, 
   ];
 
   const handleLogoClick = () => {
-    if (activeTab === "Dashboard" && onNavigate) {
-      onNavigate("landing");
-    } else {
-      selectTab("Dashboard");
-    }
+    selectTab("Dashboard");
+    setSidebarOpen(false);
   };
 
   const handleNavClick = (itemId) => {
-    if (itemId === "Dashboard" && onNavigate) {
-      onNavigate("landing");
-    } else {
-      selectTab(itemId);
-    }
+    selectTab(itemId);
     setSidebarOpen(false);
   };
 
