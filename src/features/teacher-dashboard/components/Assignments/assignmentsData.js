@@ -70,8 +70,8 @@ export const initialAssignments = [
 
 /* ── Helpers ─────────────────────────────────────────────── */
 export const SUBJECTS = [
-  { id: "mathematics", label: "Mathematics", batch: "Batch A", batchId: "b1", grade: "Grade 10", color: "blue",  icon: "📐" },
-  { id: "science",     label: "Science",     batch: "Batch C", batchId: "b2", grade: "Grade 9",  color: "green", icon: "🔬" },
+  { id: "mathematics", label: "Mathematics", batch: "Batch A", batchId: "b1", grade: "Grade 10", color: "blue" },
+  { id: "science",     label: "Science",     batch: "Batch C", batchId: "b2", grade: "Grade 9",  color: "green" },
 ];
 
 /* Students per batch (for creating new assignment submissions skeleton) */

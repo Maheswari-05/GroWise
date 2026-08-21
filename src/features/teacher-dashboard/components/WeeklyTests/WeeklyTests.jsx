@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Plus, Filter, BookOpen, User, Calendar, CheckCircle2, AlertCircle, TrendingUp, BarChart2, Check, X, ArrowLeft } from "lucide-react";
+import { Search, Plus, Filter, BookOpen, FlaskConical, User, Calendar, CheckCircle2, AlertCircle, TrendingUp, BarChart2, Check, X, ArrowLeft } from "lucide-react";
 import "./WeeklyTests.css";
 
 const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
@@ -25,23 +25,26 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
   const analysisTest = weeklyTests.find((t) => t.id === viewAnalysisTestId);
 
   // Filter tests
-  const filteredTests = weeklyTests.filter((test) => {
-    const matchesSearch = test.title.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredTests = (weeklyTests || []).filter((test) => {
+    if (!test) return false;
+    const title = test.title || test.name || "";
+    const matchesSearch = title.toLowerCase().includes((searchQuery || "").toLowerCase());
     const matchesBatch = selectedBatch === "all" || test.batchId === selectedBatch;
     const matchesSubject = selectedSubject === "all" || test.subject === selectedSubject;
     return matchesSearch && matchesBatch && matchesSubject;
   });
 
   const handleOpenMarksEntry = (test) => {
+    if (!test) return;
     setActiveTestId(test.id);
     setViewAnalysisTestId(null);
     // Initialize temporary marks editing state
     const initialMarks = {};
     const initialRemarks = {};
-    const batchStudents = students.filter((s) => s.batchId === test.batchId);
+    const batchStudents = (students || []).filter((s) => s && s.batchId === test.batchId);
     batchStudents.forEach((student) => {
-      initialMarks[student.id] = test.studentMarks[student.id]?.score ?? "";
-      initialRemarks[student.id] = test.studentMarks[student.id]?.remarks ?? "";
+      initialMarks[student.id] = test.studentMarks?.[student.id]?.score ?? "";
+      initialRemarks[student.id] = test.studentMarks?.[student.id]?.remarks ?? "";
     });
     setTempMarks(initialMarks);
     setTempRemarks(initialRemarks);
@@ -50,18 +53,18 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
   const handleSaveMarks = (publish = false) => {
     if (!activeTest) return;
 
-    const updatedMarks = { ...activeTest.studentMarks };
-    const batchStudents = students.filter((s) => s.batchId === activeTest.batchId);
+    const updatedMarks = { ...(activeTest.studentMarks || {}) };
+    const batchStudents = (students || []).filter((s) => s && s.batchId === activeTest.batchId);
 
     batchStudents.forEach((student) => {
       const scoreVal = tempMarks[student.id];
       updatedMarks[student.id] = {
-        score: scoreVal === "" ? null : Number(scoreVal),
+        score: scoreVal === "" || scoreVal === null || scoreVal === undefined ? null : Number(scoreVal),
         remarks: tempRemarks[student.id] || ""
       };
     });
 
-    const updatedTests = weeklyTests.map((t) => {
+    const updatedTests = (weeklyTests || []).map((t) => {
       if (t.id === activeTest.id) {
         return {
           ...t,
@@ -81,42 +84,43 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
     if (!newTestTitle.trim()) return;
 
     const newTest = {
-      id: "t" + (weeklyTests.length + 1),
+      id: "t" + ((weeklyTests || []).length + 1),
       title: newTestTitle,
       subject: newTestSubject,
       batchId: newTestBatch,
       date: newTestDate,
-      maxScore: Number(newTestMaxScore),
+      maxScore: Number(newTestMaxScore) || 20,
       status: "Result Pending",
       studentMarks: {}
     };
 
     // Initialize empty marks for students in the batch
-    const batchStudents = students.filter((s) => s.batchId === newTestBatch);
+    const batchStudents = (students || []).filter((s) => s && s.batchId === newTestBatch);
     batchStudents.forEach((student) => {
       newTest.studentMarks[student.id] = { score: null, remarks: "" };
     });
 
-    setWeeklyTests([newTest, ...weeklyTests]);
+    setWeeklyTests([newTest, ...(weeklyTests || [])]);
     setShowCreateModal(false);
     setNewTestTitle("");
   };
 
   // Get test stats for analysis
   const getTestStats = (test) => {
-    if (!test) return { avgScore: 0, highestScore: 0, passRate: 0, totalGraded: 0 };
-    const marksArray = Object.values(test.studentMarks)
-      .map((m) => m.score)
-      .filter((s) => s !== null && s !== "");
+    if (!test || !test.studentMarks) return { avgScore: 0, highestScore: 0, passRate: 0, totalGraded: 0 };
+    const marksArray = Object.values(test.studentMarks || {})
+      .map((m) => m?.score)
+      .filter((s) => s !== null && s !== undefined && s !== "" && !isNaN(s));
 
     if (marksArray.length === 0) return { avgScore: 0, highestScore: 0, passRate: 0, totalGraded: 0 };
 
-    const total = marksArray.reduce((acc, curr) => acc + curr, 0);
+    const maxScore = test.maxScore || 20;
+    const total = marksArray.reduce((acc, curr) => acc + Number(curr), 0);
     const avgScore = (total / marksArray.length).toFixed(1);
-    const highestScore = Math.max(...marksArray);
+    const highestScore = Math.max(...marksArray.map(Number));
     
     // Pass mark is 50%
-    const passed = marksArray.filter((s) => s >= test.maxScore * 0.5).length;
+    const passed = marksArray.filter((s) => Number(s) >= maxScore * 0.5).length;
     const passRate = ((passed / marksArray.length) * 100).toFixed(0);
 
     return {
@@ -361,7 +365,7 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
                     {/* Left: Icon & Info */}
                     <div className="wt-card-left">
                       <div className="wt-card-icon-box">
-                        <span className="wt-card-icon">{test.subject === "Mathematics" ? "📐" : "🔬"}</span>
+                        <span className="wt-card-icon">{test.subject === "Mathematics" ? <BookOpen size={18} /> : <FlaskConical size={18} />}</span>
                       </div>
                       <div className="wt-card-details">
                         <div className="wt-card-title-row">
@@ -371,8 +375,8 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
                           </span>
                         </div>
                         <div className="wt-card-meta">
-                          <span><User size={14} /> {batch?.name} ({batch?.grade})</span>
-                          <span><Calendar size={14} /> {new Date(test.date).toLocaleDateString("en-US", { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                          <span><User size={14} /> {batch?.name || "Batch"} ({batch?.grade || "All Grades"})</span>
+                          <span><Calendar size={14} /> {test.date ? (isNaN(new Date(test.date).getTime()) ? test.date : new Date(test.date).toLocaleDateString("en-US", { day: 'numeric', month: 'short', year: 'numeric' })) : "Upcoming"}</span>
                         </div>
                       </div>
                     </div>

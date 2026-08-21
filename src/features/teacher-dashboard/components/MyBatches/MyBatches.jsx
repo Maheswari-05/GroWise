@@ -9,8 +9,9 @@ import {
   Award,
   CalendarCheck,
   Eye,
+  GraduationCap,
 } from "lucide-react";
-import { batches, students } from "./batchesData";
+import { batches as fallbackBatches, students as fallbackStudents } from "./batchesData";
 import StudentProfile from "./StudentProfile";
 import AvatarPlaceholder from "./AvatarPlaceholder";
 import "./MyBatches.css";
@@ -18,21 +19,25 @@ import "./MyBatches.css";
 const subjectFilters = ["All Subjects", "Mathematics", "Science"];
 
 const batchColorMap = {
-  blue:  { bg: "rgba(45,107,255,0.08)",  border: "rgba(45,107,255,0.18)", text: "#2D6BFF",  activeBg: "rgba(45,107,255,0.13)"  },
-  green: { bg: "rgba(55,200,113,0.08)",  border: "rgba(55,200,113,0.20)", text: "#27a55e",  activeBg: "rgba(55,200,113,0.14)"  },
+  blue:   { bg: "rgba(45,107,255,0.08)",  border: "rgba(45,107,255,0.18)", text: "#2D6BFF",  activeBg: "rgba(45,107,255,0.13)"  },
+  green:  { bg: "rgba(55,200,113,0.08)",  border: "rgba(55,200,113,0.20)", text: "#27a55e",  activeBg: "rgba(55,200,113,0.14)"  },
+  purple: { bg: "rgba(139,92,246,0.08)",  border: "rgba(139,92,246,0.18)", text: "#7c3aed",  activeBg: "rgba(139,92,246,0.13)"  },
 };
 
 const attendanceColor = (pct) =>
   pct >= 90 ? "#27a55e" : pct >= 75 ? "#2D6BFF" : "#ea580c";
 
-const MyBatches = () => {
-  const [selectedBatchId, setSelectedBatchId] = useState(batches[0].id);
+const MyBatches = ({ batches: propBatches, students: propStudents }) => {
+  const batches = propBatches && propBatches.length > 0 ? propBatches : fallbackBatches;
+  const students = propStudents && propStudents.length > 0 ? propStudents : fallbackStudents;
+
+  const [selectedBatchId, setSelectedBatchId] = useState(batches[0]?.id || "b1");
   const [selectedStudent, setSelectedStudent]  = useState(null);
   const [search,          setSearch]           = useState("");
   const [subjectFilter,   setSubjectFilter]    = useState("All Subjects");
   const [filterOpen,      setFilterOpen]       = useState(false);
 
-  const selectedBatch = batches.find((b) => b.id === selectedBatchId);
+  const selectedBatch = batches.find((b) => b.id === selectedBatchId || b.name === selectedBatchId);
 
   /* Filtered students */
   const filteredStudents = useMemo(() => {
@@ -112,9 +117,9 @@ const MyBatches = () => {
         <aside className="mb-batch-list">
           <p className="mb-section-label">Batches</p>
           {batches.map((batch) => {
-            const c      = batchColorMap[batch.color];
+            const c      = batchColorMap[batch.color] || batchColorMap.blue;
             const active = batch.id === selectedBatchId;
-            const count  = students.filter((s) => s.batchId === batch.id).length;
+            const count  = students.filter((s) => s.batchId === batch.id || s.batch === batch.name).length;
             return (
               <button
                 key={batch.id}
@@ -123,7 +128,7 @@ const MyBatches = () => {
                 onClick={() => { setSelectedBatchId(batch.id); setSearch(""); }}
               >
                 <div className="mb-batch-icon" style={{ background: c.bg, color: c.text }}>
-                  <span className="mb-batch-emoji">{batch.icon}</span>
+                  <GraduationCap size={18} />
                 </div>
                 <div className="mb-batch-info">
                   <p className="mb-batch-name">{batch.name}</p>

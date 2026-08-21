@@ -1,8 +1,10 @@
-import { useState } from "react";
-import { Search, Plus, Filter, BookOpen, Calendar, Clock, Video, X, Edit, Trash2, Check, Play, RefreshCw, AlertTriangle, Users, Mic, MicOff, VideoOff, PhoneOff } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Search, Plus, Filter, BookOpen, Calendar, Clock, Video, X, Edit, Trash2, Check, Play, RefreshCw, AlertTriangle, Users, Mic, MicOff, VideoOff, PhoneOff, Monitor } from "lucide-react";
 import "./OnlineClasses.css";
 
-const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, setAttendanceRecords, students, batches }) => {
+const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, setAttendanceRecords, students, batches, teacherProfile = {} }) => {
+  const teacherName = teacherProfile?.name || "Teacher";
+  const teacherInitial = teacherName.charAt(0).toUpperCase() || "T";
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [selectedSubject, setSelectedSubject] = useState("all");
@@ -20,6 +22,121 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
   // Call options state
   const [micActive, setMicActive] = useState(true);
   const [videoActive, setVideoActive] = useState(true);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [cameraError, setCameraError] = useState(null);
+
+  // WebRTC / MediaStream references
+  const videoRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+
+  // WebRTC & Audio Analyser Effect
+  useEffect(() => {
+    if (!activeCallClassId) {
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+      }
+      setCameraError(null);
+      return;
+    }
+
+    let animationFrameId;
+
+    const startMedia = async () => {
+      try {
+        if (mediaStreamRef.current) {
+          mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+          mediaStreamRef.current = null;
+        }
+
+        if (!videoActive && !micActive) {
+          if (videoRef.current) videoRef.current.srcObject = null;
+          setCameraError(null);
+          return;
+        }
+
+        const constraints = {
+          video: videoActive ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false,
+          audio: micActive ? true : false,
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        mediaStreamRef.current = stream;
+        setCameraError(null);
+
+        if (videoRef.current && videoActive) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch((err) => console.warn("Video playback error:", err));
+        }
+
+        // Web Audio volume level analyser
+        const audioTrack = stream.getAudioTracks()[0];
+        if (audioTrack && micActive) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioContextClass) {
+            const audioCtx = new AudioContextClass();
+            audioContextRef.current = audioCtx;
+            const analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 64;
+            analyserRef.current = analyser;
+            const source = audioCtx.createMediaStreamSource(stream);
+            source.connect(analyser);
+
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            const updateVolume = () => {
+              analyser.getByteFrequencyData(dataArray);
+              const sum = dataArray.reduce((a, b) => a + b, 0);
+              const avg = sum / dataArray.length;
+              setAudioLevel(Math.min(100, Math.round((avg / 128) * 100)));
+              animationFrameId = requestAnimationFrame(updateVolume);
+            };
+            updateVolume();
+          }
+        }
+      } catch (err) {
+        console.warn("Camera/Mic access error:", err);
+        setCameraError("Camera or Microphone permission blocked or device unavailable.");
+      }
+    };
+
+    startMedia();
+
+    return () => {
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+        audioContextRef.current.close().catch(() => {});
+      }
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+        mediaStreamRef.current = null;
+      }
+    };
+  }, [activeCallClassId, videoActive, micActive]);
+
+  const handleToggleScreenShare = async () => {
+    if (isScreenSharing) {
+      setIsScreenSharing(false);
+      setVideoActive(true);
+      return;
+    }
+
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      if (videoRef.current) {
+        videoRef.current.srcObject = screenStream;
+        videoRef.current.play().catch(() => {});
+      }
+      setIsScreenSharing(true);
+      screenStream.getVideoTracks()[0].onended = () => {
+        setIsScreenSharing(false);
+      };
+    } catch (err) {
+      console.warn("Screen share cancelled/failed:", err);
+    }
+  };
 
   // Filter classes
   const filteredClasses = onlineClasses.filter((c) => {
@@ -49,27 +166,26 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
   };
 
   const handleStartClass = (classId) => {
-    // Update class status to live
     const updated = onlineClasses.map((c) => {
       if (c.id === classId) return { ...c, status: "live" };
       return c;
     });
     setOnlineClasses(updated);
     setActiveCallClassId(classId);
+    setVideoActive(true);
+    setMicActive(true);
   };
 
   const handleEndClass = () => {
     const liveClass = onlineClasses.find((c) => c.id === activeCallClassId);
     if (!liveClass) return;
 
-    // 1. Update class status to completed
     const updatedClasses = onlineClasses.map((c) => {
       if (c.id === activeCallClassId) return { ...c, status: "completed" };
       return c;
     });
     setOnlineClasses(updatedClasses);
 
-    // 2. Automatically record attendance for students in this batch (simulation)
     const batchStudents = students.filter((s) => s.batchId === liveClass.batchId);
     const newAttendanceRecord = {
       id: "a" + (attendanceRecords.length + 1),
@@ -82,7 +198,6 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
       remarks: {}
     };
 
-    // Auto mark present (90% chance present for demo, 10% absent)
     batchStudents.forEach((student) => {
       const isPresent = Math.random() > 0.1;
       newAttendanceRecord.records[student.id] = isPresent ? "present" : "absent";
@@ -93,8 +208,9 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
 
     setAttendanceRecords([newAttendanceRecord, ...attendanceRecords]);
     setActiveCallClassId(null);
+    setIsScreenSharing(false);
 
-    alert(`Class ended! Attendance has been auto-recorded for ${batchStudents.length} students in ${batches.find(b => b.id === liveClass.batchId)?.name || 'Batch'}.`);
+    alert(`Class ended! Attendance auto-recorded for ${batchStudents.length} students.`);
   };
 
   const handleCancelClass = (classId) => {
@@ -146,39 +262,80 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
 
             {/* Main Video Arena */}
             <div className="oc-call-arena">
-              {/* Main feed (Teacher - Sarah) */}
+              {/* Main feed (Teacher) */}
               <div className="oc-video-feed teacher-feed">
                 {videoActive ? (
                   <div className="oc-video-simulation">
-                    <img 
-                      src="https://images.unsplash.com/photo-1544717305-2782549b5136?w=600&auto=format&fit=crop&q=60" 
-                      alt="Teacher video feed" 
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
                       className="oc-video-img"
+                      style={{ display: cameraError ? "none" : "block" }}
                     />
-                    <div className="oc-feed-name">Mrs. Sarah (You)</div>
+                    {cameraError && (
+                      <div className="oc-video-avatar-placeholder">
+                        {teacherProfile?.avatar ? (
+                          <img src={teacherProfile.avatar} alt="Teacher avatar" className="oc-video-img" />
+                        ) : (
+                          <div className="oc-video-avatar-initials">{teacherInitial}</div>
+                        )}
+                        <p style={{ color: "#ef4444", fontSize: "12px", marginTop: "8px" }}>
+                          {cameraError}
+                        </p>
+                      </div>
+                    )}
+                    <div className="oc-feed-name">
+                      {teacherName} {isScreenSharing ? "(Screen Sharing)" : "(You)"}
+                    </div>
                   </div>
                 ) : (
                   <div className="oc-video-avatar-placeholder">
-                    <div className="oc-video-avatar-initials">S</div>
-                    <div className="oc-feed-name">Mrs. Sarah (Camera Off)</div>
+                    {teacherProfile?.avatar ? (
+                      <img src={teacherProfile.avatar} alt="Teacher avatar" style={{ width: "90px", height: "90px", borderRadius: "50%", objectFit: "cover" }} />
+                    ) : (
+                      <div className="oc-video-avatar-initials">{teacherInitial}</div>
+                    )}
+                    <div className="oc-feed-name">{teacherName} (Camera Off)</div>
                   </div>
                 )}
-                <div className="oc-mic-status">
-                  {micActive ? <Mic size={14} className="mic-on" /> : <MicOff size={14} className="mic-off" />}
+                
+                {/* Audio Status & Level Indicator */}
+                <div className={`oc-mic-status ${micActive ? "oc-mic-status--active" : ""}`}>
+                  {micActive ? (
+                    <>
+                      <Mic size={14} className="mic-on" />
+                      {audioLevel > 5 && (
+                        <div className="oc-audio-waveform">
+                          <span style={{ height: `${Math.max(20, audioLevel)}%` }} />
+                          <span style={{ height: `${Math.max(40, audioLevel * 1.3)}%` }} />
+                          <span style={{ height: `${Math.max(25, audioLevel * 0.9)}%` }} />
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <MicOff size={14} className="mic-off" />
+                  )}
                 </div>
               </div>
 
               {/* Student Feeds grid */}
               <div className="oc-students-grid">
-                {activeCallBatchStudents.map((student, i) => (
+                {activeCallBatchStudents.map((student) => (
                   <div key={student.id} className="oc-video-feed student-feed">
                     <div className="oc-video-simulation">
-                      {/* Simulating random video feeds */}
-                      <img 
-                        src={`https://api.dicebear.com/9.x/avataaars/svg?seed=${student.name}&backgroundColor=c0aede`} 
-                        alt="Student avatar" 
-                        className="oc-student-call-avatar"
-                      />
+                      {student.avatar ? (
+                        <img 
+                          src={student.avatar} 
+                          alt={student.name} 
+                          className="oc-student-call-avatar"
+                        />
+                      ) : (
+                        <div className="oc-student-call-initials">
+                          {student.name ? student.name.charAt(0).toUpperCase() : "S"}
+                        </div>
+                      )}
                       <div className="oc-feed-name">{student.name}</div>
                     </div>
                     <div className="oc-mic-status">
@@ -194,6 +351,7 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
               <button 
                 className={`oc-control-btn ${!micActive ? "control-disabled" : ""}`}
                 onClick={() => setMicActive(!micActive)}
+                title={micActive ? "Mute Microphone" : "Unmute Microphone"}
               >
                 {micActive ? <Mic size={20} /> : <MicOff size={20} />}
               </button>
@@ -201,8 +359,17 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
               <button 
                 className={`oc-control-btn ${!videoActive ? "control-disabled" : ""}`}
                 onClick={() => setVideoActive(!videoActive)}
+                title={videoActive ? "Turn Off Camera" : "Turn On Camera"}
               >
                 {videoActive ? <Video size={20} /> : <VideoOff size={20} />}
+              </button>
+
+              <button
+                className={`oc-control-btn ${isScreenSharing ? "control-active" : ""}`}
+                onClick={handleToggleScreenShare}
+                title={isScreenSharing ? "Stop Screen Share" : "Share Screen"}
+              >
+                <Monitor size={20} />
               </button>
 
               <button className="oc-hangup-btn" onClick={handleEndClass}>

@@ -11,6 +11,7 @@ const Profile = ({ teacherProfile, setTeacherProfile }) => {
   const [editEmail, setEditEmail] = useState(teacherProfile.email);
   const [editPhone, setEditPhone] = useState(teacherProfile.phone);
   const [editQualification, setEditQualification] = useState(teacherProfile.qualification);
+  const [editAvatar, setEditAvatar] = useState(teacherProfile.avatar || "");
 
   // Password fields state
   const [currPassword, setCurrPassword] = useState("");
@@ -19,13 +20,31 @@ const Profile = ({ teacherProfile, setTeacherProfile }) => {
 
   const handleEditSubmit = (e) => {
     e.preventDefault();
-    setTeacherProfile({
+    const updated = {
       ...teacherProfile,
       name: editName,
       email: editEmail,
       phone: editPhone,
-      qualification: editQualification
-    });
+      qualification: editQualification,
+      avatar: editAvatar,
+    };
+    setTeacherProfile(updated);
+
+    try {
+      localStorage.setItem("gw_logged_teacher", JSON.stringify(updated));
+      const teachersRaw = localStorage.getItem("gw_teachers_v2");
+      if (teachersRaw) {
+        const teachers = JSON.parse(teachersRaw);
+        const idx = teachers.findIndex((t) => t.id === updated.id || t.email === updated.email);
+        if (idx !== -1) {
+          teachers[idx] = { ...teachers[idx], name: editName, email: editEmail, contact: editPhone, phone: editPhone, avatar: editAvatar };
+          localStorage.setItem("gw_teachers_v2", JSON.stringify(teachers));
+        }
+      }
+    } catch (err) {
+      console.error("Error saving profile to localStorage:", err);
+    }
+
     setShowEditModal(false);
     alert("Profile details updated successfully!");
   };
@@ -49,7 +68,13 @@ const Profile = ({ teacherProfile, setTeacherProfile }) => {
         {/* Left Side: Summary Card */}
         <div className="profile-card profile-summary-card">
           <div className="profile-avatar-wrapper">
-            <img src={teacherProfile.avatar} alt={teacherProfile.name} className="profile-avatar-img" />
+            {teacherProfile.avatar ? (
+              <img src={teacherProfile.avatar} alt={teacherProfile.name} className="profile-avatar-img" />
+            ) : (
+              <div className="profile-avatar-blank">
+                {teacherProfile.name ? teacherProfile.name.charAt(0).toUpperCase() : "T"}
+              </div>
+            )}
           </div>
 
           <h2 className="profile-summary-name">{teacherProfile.name}</h2>
@@ -148,7 +173,7 @@ const Profile = ({ teacherProfile, setTeacherProfile }) => {
                 <div className="workload-tags">
                   {teacherProfile.batches.map((batch, i) => (
                     <span key={i} className="workload-tag batch-tag">
-                      📐 {batch}
+                      <GraduationCap size={13} /> {batch}
                     </span>
                   ))}
                 </div>
@@ -169,6 +194,83 @@ const Profile = ({ teacherProfile, setTeacherProfile }) => {
               </button>
             </div>
             <form onSubmit={handleEditSubmit}>
+              <div className="profile-form-group">
+                <label>Profile Photo</label>
+                <div style={{ display: "flex", alignItems: "center", gap: "16px", marginTop: "4px" }}>
+                  {editAvatar ? (
+                    <img
+                      src={editAvatar}
+                      alt="Profile preview"
+                      style={{ width: "52px", height: "52px", borderRadius: "50%", objectFit: "cover", border: "2px solid #cbd5e1" }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: "52px",
+                        height: "52px",
+                        borderRadius: "50%",
+                        background: "#e2e8f0",
+                        color: "#475569",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontWeight: 700,
+                        fontSize: "18px",
+                      }}
+                    >
+                      {editName ? editName.charAt(0).toUpperCase() : "T"}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <label
+                      style={{
+                        cursor: "pointer",
+                        padding: "7px 14px",
+                        fontSize: "12.5px",
+                        fontWeight: 600,
+                        background: "#f1f5f9",
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "8px",
+                        color: "#334155",
+                        display: "inline-block",
+                      }}
+                    >
+                      Browse Photo
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (ev) => setEditAvatar(ev.target.result);
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                    {editAvatar && (
+                      <button
+                        type="button"
+                        onClick={() => setEditAvatar("")}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "#ef4444",
+                          fontSize: "12.5px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          padding: "6px",
+                        }}
+                      >
+                        Remove Photo
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="profile-form-group">
                 <label>Full Name</label>
                 <input

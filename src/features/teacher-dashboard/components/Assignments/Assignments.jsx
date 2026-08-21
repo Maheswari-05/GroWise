@@ -65,10 +65,11 @@ const Toast = ({ toast }) => {
 
 /* ── Submission summary counts ─────────────────────────────── */
 const submissionCounts = (asgn) => {
-  const submitted = asgn.submissions.filter(s => s.status === "submitted").length;
-  const reviewed  = asgn.submissions.filter(s => s.status === "reviewed").length;
-  const missing   = asgn.submissions.filter(s => s.status === "missing").length;
-  const total     = asgn.submissions.length;
+  const subs = Array.isArray(asgn?.submissions) ? asgn.submissions : [];
+  const submitted = subs.filter(s => s && s.status === "submitted").length;
+  const reviewed  = subs.filter(s => s && s.status === "reviewed").length;
+  const missing   = subs.filter(s => s && s.status === "missing").length;
+  const total     = subs.length;
   return { submitted, reviewed, missing, total, done: submitted + reviewed };
 };
 
@@ -331,7 +332,7 @@ const EMPTY_FORM = {
   attachmentName: null,
 };
 
-const AssignmentModal = ({ mode, initial, onClose, onSave }) => {
+const AssignmentModal = ({ mode, initial, onClose, onSave, batches = [], students = [] }) => {
   const [form, setForm] = useState(
     initial
       ? { ...initial }
@@ -341,16 +342,6 @@ const AssignmentModal = ({ mode, initial, onClose, onSave }) => {
   const fileRef = useRef();
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  const handleSubject = (subject) => {
-    const sub = SUBJECTS.find(s => s.label === subject);
-    setForm(f => ({
-      ...f, subject,
-      batch:   sub ? sub.batch   : f.batch,
-      batchId: sub ? sub.batchId : f.batchId,
-      grade:   sub ? sub.grade   : f.grade,
-    }));
-  };
 
   const validate = () => {
     const e = {};
@@ -365,12 +356,25 @@ const AssignmentModal = ({ mode, initial, onClose, onSave }) => {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
 
-    const skeleton = BATCH_STUDENTS[form.batchId] || [];
+    const matchedStudents = students.length > 0
+      ? students.filter(s => s.batchId === form.batchId || s.batch === form.batch)
+      : BATCH_STUDENTS[form.batchId] || [];
+
+    const skeleton = matchedStudents.length > 0 ? matchedStudents : (students.length > 0 ? students : BATCH_STUDENTS["b1"] || []);
     const existingSubs = initial?.submissions || [];
 
     const submissions = skeleton.map(st => {
-      const existing = existingSubs.find(s => s.studentId === st.studentId);
-      return existing || { ...st, submittedOn: null, score: null, status: "pending" };
+      const stId = st.id || st.studentId;
+      const existing = existingSubs.find(s => (s.studentId || s.id) === stId);
+      return existing || {
+        studentId: stId,
+        name: st.name,
+        rollNo: st.rollNo || "RN-001",
+        avatar: st.avatar || null,
+        submittedOn: null,
+        score: null,
+        status: "pending"
+      };
     });
 
     onSave({
@@ -415,20 +419,30 @@ const AssignmentModal = ({ mode, initial, onClose, onSave }) => {
           <div className="as-field-row">
             <div className="as-field">
               <label className="as-label">Subject *</label>
-              <div className="as-select-wrap">
-                <select className="as-select" value={form.subject} onChange={e => handleSubject(e.target.value)}>
-                  {SUBJECTS.map(s => <option key={s.id} value={s.label}>{s.label}</option>)}
-                </select>
-                <ChevronDown size={13} className="as-select-arrow" />
-              </div>
+              <input
+                className="as-input"
+                placeholder="e.g. Mathematics"
+                value={form.subject}
+                onChange={e => set("subject", e.target.value)}
+              />
             </div>
             <div className="as-field">
               <label className="as-label">Batch</label>
-              <input className="as-input as-input--readonly" value={form.batch} readOnly />
+              <input
+                className="as-input"
+                placeholder="e.g. Batch A"
+                value={form.batch}
+                onChange={e => set("batch", e.target.value)}
+              />
             </div>
             <div className="as-field">
               <label className="as-label">Grade</label>
-              <input className="as-input as-input--readonly" value={form.grade} readOnly />
+              <input
+                className="as-input"
+                placeholder="e.g. Grade 10"
+                value={form.grade}
+                onChange={e => set("grade", e.target.value)}
+              />
             </div>
           </div>
 
@@ -543,8 +557,31 @@ const DeleteModal = ({ asgn, onClose, onConfirm }) => (
 );
 
 /* ══ Main Component ════════════════════════════════════════ */
-const Assignments = () => {
-  const [assignments, setAssignments]   = useState(initialAssignments);
+const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssignments, batches = [], students = [] }) => {
+  const [localAssignments, setLocalAssignments] = useState(() => {
+    try {
+      const stored = localStorage.getItem("gw_assignments_v2");
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.error(e);
+    }
+    return initialAssignments;
+  });
+
+  const assignments = propAssignments || localAssignments;
+  const setAssignments = (updater) => {
+    const next = typeof updater === "function" ? updater(assignments) : updater;
+    if (propSetAssignments) {
+      propSetAssignments(next);
+    }
+    setLocalAssignments(next);
+    try {
+      localStorage.setItem("gw_assignments_v2", JSON.stringify(next));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const [searchQ,     setSearchQ]       = useState("");
   const [filterSubject, setFilterSub]  = useState("All");
   const [filterBatch,   setFilterBatch]= useState("All");
@@ -625,7 +662,7 @@ const Assignments = () => {
           <h1 className="as-page-title">Assignments</h1>
           <p className="as-page-sub">
             {assignments.length} assignments · {totalSubmissions} submissions · {pendingReview} pending review
-            {overdue > 0 && <span className="as-overdue-badge"> · ⚠️ {overdue} overdue</span>}
+            {overdue > 0 && <span className="as-overdue-badge"> · {overdue} overdue</span>}
           </p>
         </div>
         <button className="as-create-btn" onClick={() => setModal("create")}>
@@ -711,7 +748,7 @@ const Assignments = () => {
               <div key={subject} className="as-subject-section">
                 <div className="as-subject-header">
                   <div className="as-subject-icon" style={{ background: sc.bg, color: sc.text }}>
-                    {subInfo?.icon ?? "📚"}
+                    <BookOpen size={18} />
                   </div>
                   <div>
                     <h2 className="as-subject-name" style={{ color: sc.text }}>{subject}</h2>
@@ -740,10 +777,10 @@ const Assignments = () => {
 
       {/* ── Modals ───────────────────────────────────────── */}
       {modal === "create" && (
-        <AssignmentModal mode="create" initial={null} onClose={() => setModal(null)} onSave={handleSave} />
+        <AssignmentModal mode="create" initial={null} onClose={() => setModal(null)} onSave={handleSave} batches={batches} students={students} />
       )}
       {modal?.mode === "edit" && (
-        <AssignmentModal mode="edit" initial={modal.asgn} onClose={() => setModal(null)} onSave={handleSave} />
+        <AssignmentModal mode="edit" initial={modal.asgn} onClose={() => setModal(null)} onSave={handleSave} batches={batches} students={students} />
       )}
       {viewAsgn && (
         <SubmissionsPanel asgn={viewAsgn} onClose={() => setViewAsgn(null)} onSave={handleSubmissionSave} />

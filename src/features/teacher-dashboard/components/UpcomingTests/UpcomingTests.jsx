@@ -1,29 +1,5 @@
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, BookOpen, FlaskConical, Atom, FileText } from "lucide-react";
 import "./UpcomingTests.css";
-
-const tests = [
-  {
-    subject: "Mathematics",
-    when: "Tomorrow",
-    grade: "Grade 10",
-    color: "blue",
-    icon: "📐",
-  },
-  {
-    subject: "Science",
-    when: "Friday",
-    grade: "Grade 9",
-    color: "green",
-    icon: "🔬",
-  },
-  {
-    subject: "Physics",
-    when: "Monday",
-    grade: "Grade 11",
-    color: "purple",
-    icon: "⚛️",
-  },
-];
 
 const colorMap = {
   blue:   { bg: "rgba(45,107,255,0.08)",   badge: "rgba(45,107,255,0.12)",   text: "#2D6BFF",  border: "rgba(45,107,255,0.15)"  },
@@ -31,12 +7,39 @@ const colorMap = {
   purple: { bg: "rgba(139,92,246,0.08)",   badge: "rgba(139,92,246,0.12)",   text: "#7c3aed",  border: "rgba(139,92,246,0.16)"  },
 };
 
-const UpcomingTests = () => {
+const renderSubjectIcon = (subject, colorText) => {
+  const s = String(subject || "").toLowerCase();
+  if (s.includes("math")) return <BookOpen size={18} style={{ color: colorText }} />;
+  if (s.includes("science") || s.includes("chem")) return <FlaskConical size={18} style={{ color: colorText }} />;
+  if (s.includes("phys")) return <Atom size={18} style={{ color: colorText }} />;
+  return <FileText size={18} style={{ color: colorText }} />;
+};
+
+const UpcomingTests = ({ weeklyTests = [], batches = [], setActiveNav }) => {
+  const getBatch = (bId) => batches.find((b) => b.id === bId || b.name === bId);
+  const colors = ["blue", "green", "purple"];
+
+  const tests = weeklyTests.length > 0
+    ? weeklyTests.slice(0, 3).map((t, i) => {
+        const batchObj = getBatch(t.batchId);
+        return {
+          subject: t.subject || t.title || "Test",
+          when: t.date || "Upcoming",
+          grade: batchObj?.grade || batchObj?.name || "All Grades",
+          color: colors[i % colors.length],
+        };
+      })
+    : [
+        { subject: "Mathematics", when: "Tomorrow", grade: "Grade 10", color: "blue" },
+        { subject: "Science", when: "Friday", grade: "Grade 9", color: "green" },
+      ];
   return (
     <div className="td-card upcoming-tests">
       <div className="td-card-header">
         <h2 className="td-card-title">Upcoming Tests</h2>
-        <button className="td-view-all-btn">View All</button>
+        <button className="td-view-all-btn" onClick={() => setActiveNav && setActiveNav("tests")}>
+          View All
+        </button>
       </div>
 
       <div className="upcoming-tests__list">
@@ -51,7 +54,7 @@ const UpcomingTests = () => {
                 borderColor: c.border,
               }}
             >
-              <div className="upcoming-test-icon">{test.icon}</div>
+              <div className="upcoming-test-icon">{renderSubjectIcon(test.subject, c.text)}</div>
               <div className="upcoming-test-info">
                 <p className="upcoming-test-subject" style={{ color: c.text }}>
                   {test.subject}
@@ -68,7 +71,7 @@ const UpcomingTests = () => {
       </div>
 
       {/* Create test CTA */}
-      <button className="upcoming-test-create-btn">
+      <button className="upcoming-test-create-btn" onClick={() => setActiveNav && setActiveNav("tests")}>
         + Schedule New Test
       </button>
     </div>

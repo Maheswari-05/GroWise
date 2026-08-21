@@ -12,7 +12,6 @@ export const batches = [
     totalStudents: 2,
     schedule: "Mon, Wed, Fri · 9:00 AM",
     color: "blue",
-    icon: "📐",
   },
   {
     id: "b2",
@@ -22,7 +21,6 @@ export const batches = [
     totalStudents: 2,
     schedule: "Tue, Thu · 11:00 AM",
     color: "green",
-    icon: "🔬",
   },
 ];
 
@@ -45,10 +43,10 @@ export const students = [
     rank: 1,
     status: "active",
     attendance: [
-      { week: "Week 1 (Jul 1–5)",   present: 3, total: 3, classes: ["Mon ✓", "Wed ✓", "Fri ✓"] },
-      { week: "Week 2 (Jul 8–12)",  present: 3, total: 3, classes: ["Mon ✓", "Wed ✓", "Fri ✓"] },
-      { week: "Week 3 (Jul 15–19)", present: 3, total: 3, classes: ["Mon ✓", "Wed ✓", "Fri ✓"] },
-      { week: "Week 4 (Jul 22–26)", present: 3, total: 3, classes: ["Mon ✓", "Wed ✓", "Fri ✓"] },
+      { week: "Week 1 (Jul 1–5)",   present: 3, total: 3, classes: ["Mon (P)", "Wed (P)", "Fri (P)"] },
+      { week: "Week 2 (Jul 8–12)",  present: 3, total: 3, classes: ["Mon (P)", "Wed (P)", "Fri (P)"] },
+      { week: "Week 3 (Jul 15–19)", present: 3, total: 3, classes: ["Mon (P)", "Wed (P)", "Fri (P)"] },
+      { week: "Week 4 (Jul 22–26)", present: 3, total: 3, classes: ["Mon (P)", "Wed (P)", "Fri (P)"] },
     ],
     assignments: [
       { title: "Chapter 3 Worksheet",  submitted: "Jul 4",  score: 20, maxScore: 20, status: "reviewed"  },
@@ -80,10 +78,10 @@ export const students = [
     rank: 2,
     status: "active",
     attendance: [
-      { week: "Week 1 (Jul 1–5)",   present: 2, total: 3, classes: ["Mon ✓", "Wed ✗", "Fri ✓"] },
-      { week: "Week 2 (Jul 8–12)",  present: 2, total: 3, classes: ["Mon ✓", "Wed ✓", "Fri ✗"] },
-      { week: "Week 3 (Jul 15–19)", present: 1, total: 3, classes: ["Mon ✗", "Wed ✗", "Fri ✓"] },
-      { week: "Week 4 (Jul 22–26)", present: 2, total: 3, classes: ["Mon ✓", "Wed ✓", "Fri ✗"] },
+      { week: "Week 1 (Jul 1–5)",   present: 2, total: 3, classes: ["Mon (P)", "Wed (A)", "Fri (P)"] },
+      { week: "Week 2 (Jul 8–12)",  present: 2, total: 3, classes: ["Mon (P)", "Wed (P)", "Fri (A)"] },
+      { week: "Week 3 (Jul 15–19)", present: 1, total: 3, classes: ["Mon (A)", "Wed (A)", "Fri (P)"] },
+      { week: "Week 4 (Jul 22–26)", present: 2, total: 3, classes: ["Mon (P)", "Wed (P)", "Fri (A)"] },
     ],
     assignments: [
       { title: "Chapter 3 Worksheet",  submitted: "Jul 7",  score: 12, maxScore: 20, status: "reviewed" },
@@ -117,10 +115,10 @@ export const students = [
     rank: 1,
     status: "active",
     attendance: [
-      { week: "Week 1 (Jul 1–5)",   present: 2, total: 2, classes: ["Tue ✓", "Thu ✓"] },
-      { week: "Week 2 (Jul 8–12)",  present: 2, total: 2, classes: ["Tue ✓", "Thu ✓"] },
-      { week: "Week 3 (Jul 15–19)", present: 2, total: 2, classes: ["Tue ✓", "Thu ✓"] },
-      { week: "Week 4 (Jul 22–26)", present: 2, total: 2, classes: ["Tue ✓", "Thu ✓"] },
+      { week: "Week 1 (Jul 1–5)",   present: 2, total: 2, classes: ["Tue (P)", "Thu (P)"] },
+      { week: "Week 2 (Jul 8–12)",  present: 2, total: 2, classes: ["Tue (P)", "Thu (P)"] },
+      { week: "Week 3 (Jul 15–19)", present: 2, total: 2, classes: ["Tue (P)", "Thu (P)"] },
+      { week: "Week 4 (Jul 22–26)", present: 2, total: 2, classes: ["Tue (P)", "Thu (P)"] },
     ],
     assignments: [
       { title: "Lab Report 1",       submitted: "Jul 5",  score: 20, maxScore: 20, status: "reviewed" },
@@ -151,10 +149,10 @@ export const students = [
     rank: 2,
     status: "active",
     attendance: [
-      { week: "Week 1 (Jul 1–5)",   present: 1, total: 2, classes: ["Tue ✗", "Thu ✓"] },
-      { week: "Week 2 (Jul 8–12)",  present: 2, total: 2, classes: ["Tue ✓", "Thu ✓"] },
-      { week: "Week 3 (Jul 15–19)", present: 1, total: 2, classes: ["Tue ✓", "Thu ✗"] },
-      { week: "Week 4 (Jul 22–26)", present: 2, total: 2, classes: ["Tue ✓", "Thu ✓"] },
+      { week: "Week 1 (Jul 1–5)",   present: 1, total: 2, classes: ["Tue (A)", "Thu (P)"] },
+      { week: "Week 2 (Jul 8–12)",  present: 2, total: 2, classes: ["Tue (P)", "Thu (P)"] },
+      { week: "Week 3 (Jul 15–19)", present: 1, total: 2, classes: ["Tue (P)", "Thu (A)"] },
+      { week: "Week 4 (Jul 22–26)", present: 2, total: 2, classes: ["Tue (P)", "Thu (P)"] },
     ],
     assignments: [
       { title: "Lab Report 1",       submitted: "Jul 8",  score: 13, maxScore: 20, status: "reviewed" },

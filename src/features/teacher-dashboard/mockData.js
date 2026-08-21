@@ -9,7 +9,6 @@ export const initialBatches = [
     totalStudents: 2,
     schedule: "Mon, Wed, Fri · 9:00 AM",
     color: "blue",
-    icon: "📐",
   },
   {
     id: "b2",
@@ -19,7 +18,6 @@ export const initialBatches = [
     totalStudents: 2,
     schedule: "Tue, Thu · 11:00 AM",
     color: "green",
-    icon: "🔬",
   },
 ];
 
@@ -239,7 +237,7 @@ export const initialNotifications = [
 
 export const initialTeacherProfile = {
   name: "Mrs. Sarah",
-  avatar: "https://api.dicebear.com/9.x/avataaars/svg?seed=Sarah&backgroundColor=b6e3f4",
+  avatar: "",
   id: "T1001",
   email: "sarah.maths@growise.com",
   phone: "+91 98765 43210",

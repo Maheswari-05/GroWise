@@ -37,7 +37,7 @@ const colorMap = {
   orange: { bg: "rgba(234,88,12,0.10)",  color: "#ea580c"  },
 };
 
-const NotificationsCard = () => {
+const NotificationsCard = ({ setActiveNav }) => {
   return (
     <div className="td-card notifications-card">
       <div className="td-card-header">
@@ -70,7 +70,9 @@ const NotificationsCard = () => {
         })}
       </div>
 
-      <button className="notif-view-all-btn">View All Notifications</button>
+      <button className="notif-view-all-btn" onClick={() => setActiveNav && setActiveNav("notifications")}>
+        View All Notifications
+      </button>
     </div>
   );
 };

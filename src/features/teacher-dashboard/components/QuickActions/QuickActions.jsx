@@ -56,7 +56,16 @@ const colorMap = {
   indigo: { icon: "#4f46e5", iconBg: "rgba(79,70,229,0.10)",   gradient: "linear-gradient(135deg,#6366f1,#4f46e5)" },
 };
 
-const QuickActions = () => {
+const actionNavMap = {
+  "Upload Study Material": "materials",
+  "Create Assignment": "assignments",
+  "Schedule Online Class": "classes",
+  "Take Attendance": "attendance",
+  "Create Weekly Test": "tests",
+  "View Reports": "reports",
+};
+
+const QuickActions = ({ setActiveNav }) => {
   return (
     <div className="quick-actions-section">
       <div className="quick-actions-header">
@@ -67,8 +76,14 @@ const QuickActions = () => {
         {actions.map((action, idx) => {
           const c = colorMap[action.color];
           const Icon = action.icon;
+          const targetNav = actionNavMap[action.title];
           return (
-            <button key={idx} className="quick-action-card" style={{ "--action-gradient": c.gradient }}>
+            <button
+              key={idx}
+              className="quick-action-card"
+              style={{ "--action-gradient": c.gradient }}
+              onClick={() => setActiveNav && targetNav && setActiveNav(targetNav)}
+            >
               <div
                 className="quick-action-icon"
                 style={{ background: c.iconBg, color: c.icon }}

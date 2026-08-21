@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Calendar, Search, Filter, BookOpen, Users, CheckCircle, XCircle, AlertCircle, Edit, Save, Plus, ArrowLeft, History } from "lucide-react";
+import { Calendar, Search, Filter, BookOpen, Users, CheckCircle, XCircle, AlertCircle, Edit, Save, Plus, ArrowLeft, History, Globe } from "lucide-react";
 import "./Attendance.css";
 
 const Attendance = ({ attendanceRecords, setAttendanceRecords, students, batches }) => {
@@ -209,7 +209,7 @@ const Attendance = ({ attendanceRecords, setAttendanceRecords, students, batches
                   </span>
                   {onlineClassFlag && (
                     <span className="att-online-badge">
-                      🌐 ONLINE SESSION
+                      <Globe size={13} /> ONLINE SESSION
                     </span>
                   )}
                 </div>
@@ -387,7 +387,7 @@ const Attendance = ({ attendanceRecords, setAttendanceRecords, students, batches
                         <td><strong>{new Date(record.date).toLocaleDateString("en-US", { day: 'numeric', month: 'short', year: 'numeric' })}</strong></td>
                         <td>{batch?.name || "Unknown Batch"} ({batch?.grade || ""})</td>
                         <td>{record.subject}</td>
-                        <td>{record.onlineClass ? "🌐 Yes" : "❌ No"}</td>
+                        <td>{record.onlineClass ? "Yes" : "No"}</td>
                         <td><strong>{rate}</strong></td>
                         <td>
                           <span className="att-status-badge badge-submitted">

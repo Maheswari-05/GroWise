@@ -490,17 +490,41 @@
   position: absolute;
   top: 16px;
   right: 16px;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(15, 23, 42, 0.75);
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.85);
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 6px;
+}
+
+.oc-mic-status--active {
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.oc-audio-waveform {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 14px;
+}
+
+.oc-audio-waveform span {
+  width: 3px;
+  background: #10b981;
+  border-radius: 2px;
+  transition: height 0.08s ease;
+  min-height: 4px;
 }
 
 .mic-on { color: #10b981; }
 .mic-off { color: #ef4444; }
+
+.control-active {
+  background: #2563eb !important;
+  color: white !important;
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.5);
+}
 
 .oc-students-grid {
   display: flex;
@@ -518,6 +542,21 @@
   width: 60px;
   height: 60px;
   border-radius: 50%;
+  object-fit: cover;
+}
+
+.oc-student-call-initials {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--blue, #2D6BFF);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-head);
+  font-size: 22px;
+  font-weight: 800;
 }
 
 .oc-call-controls {

@@ -4,6 +4,17 @@ import logo from "../../assets/logo.png";
 import supabase from "../../lib/supabase";
 import "./TeacherLogin.css";
 
+// Read teachers from the same localStorage store the admin panel uses
+const getStoredTeachers = () => {
+  try {
+    const stored = localStorage.getItem("gw_teachers_v2");
+    if (stored) return JSON.parse(stored);
+  } catch {
+    // ignore
+  }
+  return [];
+};
+
 const TeacherLogin = ({ onNavigate }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -11,7 +22,7 @@ const TeacherLogin = ({ onNavigate }) => {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     setError("");
 
@@ -22,35 +33,40 @@ const TeacherLogin = ({ onNavigate }) => {
 
     setIsLoading(true);
 
-    try {
-      const normalizedEmail = email.trim().toLowerCase();
-      console.log("🔐 Teacher login attempt with email:", normalizedEmail);
-      
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password: password.trim(),
-      });
+    setTimeout(() => {
+      try {
+        const teachers = getStoredTeachers();
+        const matched = teachers.find(
+          (t) =>
+            t.email?.toLowerCase().trim() === email.toLowerCase().trim() &&
+            t.password === password
+        );
 
-      if (authError) {
-        console.error("❌ Teacher login error:", authError.message);
-        setError("Invalid email or password. Please check and try again.");
+        if (matched || (email.toLowerCase().trim() === "rajesh@growise.edu" && password === "Teacher@123")) {
+          const loggedTeacher = matched || {
+            id: "TCH101",
+            name: "Mr. Rajesh",
+            email: "rajesh@growise.edu",
+            subjects: ["Mathematics"],
+            status: "Active"
+          };
+          localStorage.setItem("gw_logged_teacher_id", loggedTeacher.id);
+          localStorage.setItem("gw_logged_teacher", JSON.stringify(loggedTeacher));
+          onNavigate("teacher-dashboard");
+        } else {
+          setError("Invalid email or password.");
+          setIsLoading(false);
+        }
+      } catch (err) {
+        console.error("❌ Unexpected login error:", err);
+        setError("An error occurred. Please try again.");
         setIsLoading(false);
-        return;
       }
-
-      if (data?.user) {
-        console.log("✅ Teacher login successful for:", data.user.email);
-        onNavigate("teacher-dashboard");
-      } else {
-        setError("Login failed. Please try again.");
-        setIsLoading(false);
-      }
-    } catch (err) {
-      console.error("❌ Unexpected login error:", err);
-      setError("An error occurred. Please try again.");
-      setIsLoading(false);
-    }
+    }, 600);
   };
+
+  // Build hint list from stored teachers so admins/testers know what to use
+  const storedTeachers = getStoredTeachers();
 
   return (
     <div className="login-container teacher-login-container">
@@ -127,10 +143,17 @@ const TeacherLogin = ({ onNavigate }) => {
           </button>
         </form>
 
-        {/* Helper text */}
+        {/* Helper credentials hint card to make testing smooth */}
         <div className="credentials-hint">
-          <p className="hint-title">First Time Login?</p>
-          <p>An admin should have sent you a password setup email. Click the link in that email to create your password.</p>
+          <p className="hint-title">Demo Credentials</p>
+          <div className="hint-row">
+            <span className="hint-label">Email:</span>
+            <code className="hint-val">rajesh@growise.edu</code>
+          </div>
+          <div className="hint-row">
+            <span className="hint-label">Password:</span>
+            <code className="hint-val">Teacher@123</code>
+          </div>
         </div>
       </div>
     </div>

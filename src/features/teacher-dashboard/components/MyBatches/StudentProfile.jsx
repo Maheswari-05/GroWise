@@ -149,7 +149,7 @@ const AttendanceTab = ({ student }) => {
                   {w.classes.map((c, j) => (
                     <span
                       key={j}
-                      className={`sp-class-chip ${c.includes("✓") ? "present" : "absent"}`}
+                      className={`sp-class-chip ${c.includes("(P)") ? "present" : "absent"}`}
                     >
                       {c}
                     </span>

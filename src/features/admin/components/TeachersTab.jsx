@@ -3,20 +3,26 @@ import { Search, Filter, Plus, Eye, Edit2, Trash2, ArrowLeft, Check, X, ShieldAl
 import { sendPasswordInviteEmail } from "../../../services/adminService";
 import InviteModal from "./InviteModal";
 
-const TeachersTab = ({ 
-  teachers, 
-  students, 
-  batches, 
-  subjects, 
-  attendanceLogs, 
-  assignments, 
-  onAddTeacher, 
-  onUpdateTeacher, 
-  onDeleteTeacher 
+const TeachersTab = ({
+  teachers,
+  students,
+  batches,
+  subjects,
+  attendanceLogs,
+  assignments,
+  onAddTeacher,
+  onUpdateTeacher,
+  onDeleteTeacher
 }) => {
   const [view, setView] = useState("list"); // 'list' | 'form' | 'profile'
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [editMode, setEditMode] = useState(false);
+
+  // Delete confirmation modal
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+  // Form validation error
+  const [formError, setFormError] = useState("");
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -88,8 +94,9 @@ const TeachersTab = ({
 
   const handleSaveForm = (e) => {
     e.preventDefault();
+    setFormError("");
     if (!formData.name || !formData.contact || formData.subjects.length === 0) {
-      alert("Please fill in Name, Contact, and select at least one Subject.");
+      setFormError("Please fill in Name, Contact, and select at least one Subject.");
       return;
     }
 
@@ -102,20 +109,29 @@ const TeachersTab = ({
   };
 
   const handleDeleteClick = (id) => {
-    if (confirm("Are you sure you want to delete this teacher record?")) {
-      onDeleteTeacher(id);
+    setConfirmDeleteId(id);
+  };
+
+  const handleConfirmDelete = () => {
+    if (confirmDeleteId) {
+      onDeleteTeacher(confirmDeleteId);
       if (view === "profile") {
         setView("list");
       }
+      setConfirmDeleteId(null);
     }
+  };
+
+  const handleCancelDelete = () => {
+    setConfirmDeleteId(null);
   };
 
   // Filtering
   const filteredTeachers = teachers.filter(t => {
-    const matchesSearch = 
+    const matchesSearch =
       t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.id.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const matchesSubject = filterSubject === "All" || (t.subjects && t.subjects.includes(filterSubject));
     const matchesStatus = filterStatus === "All" || t.status === filterStatus;
 
@@ -138,14 +154,14 @@ const TeachersTab = ({
           <div className="filters-panel">
             <div className="search-bar-wrapper">
               <Search className="search-icon" size={18} />
-              <input 
-                type="text" 
-                placeholder="Search by Teacher Name or ID..." 
+              <input
+                type="text"
+                placeholder="Search by Teacher Name or ID..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            
+
             <div className="filter-dropdowns">
               <div className="filter-group">
                 <Filter size={14} className="filter-icon" />
@@ -189,7 +205,7 @@ const TeachersTab = ({
                 ) : (
                   filteredTeachers.map(t => {
                     // Count students handled
-                    const handledCount = students.filter(s => 
+                    const handledCount = students.filter(s =>
                       s.subjects && s.subjects.some(sub => t.subjects.includes(sub))
                     ).length;
 
@@ -256,37 +272,37 @@ const TeachersTab = ({
               {/* Personal Details */}
               <div className="form-card-column">
                 <h3>Personal Information</h3>
-                
+
                 <div className="form-control">
                   <label htmlFor="tch-name">Full Name *</label>
-                  <input 
-                    id="tch-name" 
-                    type="text" 
-                    required 
+                  <input
+                    id="tch-name"
+                    type="text"
+                    required
                     placeholder="Enter teacher's full name"
                     value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   />
                 </div>
 
                 <div className="form-control-row">
                   <div className="form-control">
                     <label htmlFor="tch-contact">Contact Number *</label>
-                    <input 
-                      id="tch-contact" 
-                      type="text" 
-                      required 
+                    <input
+                      id="tch-contact"
+                      type="text"
+                      required
                       placeholder="e.g. +91 9876543210"
                       value={formData.contact}
-                      onChange={(e) => setFormData({...formData, contact: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
                     />
                   </div>
                   <div className="form-control">
                     <label htmlFor="tch-status">Status</label>
-                    <select 
+                    <select
                       id="tch-status"
                       value={formData.status}
-                      onChange={(e) => setFormData({...formData, status: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                     >
                       <option value="Active">Active</option>
                       <option value="Inactive">Inactive</option>
@@ -296,23 +312,23 @@ const TeachersTab = ({
 
                 <div className="form-control">
                   <label htmlFor="tch-email">Email Address</label>
-                  <input 
-                    id="tch-email" 
-                    type="email" 
+                  <input
+                    id="tch-email"
+                    type="email"
                     placeholder="e.g. teacher@growise.edu"
                     value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   />
                 </div>
 
                 <div className="form-control">
                   <label htmlFor="tch-qual">Professional Qualification</label>
-                  <input 
-                    id="tch-qual" 
-                    type="text" 
+                  <input
+                    id="tch-qual"
+                    type="text"
                     placeholder="e.g. M.Sc. in Physics, 8 yrs exp"
                     value={formData.qualification}
-                    onChange={(e) => setFormData({...formData, qualification: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, qualification: e.target.value })}
                   />
                 </div>
               </div>
@@ -328,8 +344,8 @@ const TeachersTab = ({
                     {subjects.map(s => {
                       const isSelected = formData.subjects.includes(s.name);
                       return (
-                        <div 
-                          key={s.id} 
+                        <div
+                          key={s.id}
                           className={`checkbox-item ${isSelected ? "checked" : ""}`}
                           onClick={() => handleToggleSubject(s.name)}
                         >
@@ -353,11 +369,43 @@ const TeachersTab = ({
               </div>
             </div>
 
+            {/* Credentials block */}
+            <div className="form-credentials-section">
+              <h3>Portal Authentication Access</h3>
+              <div className="form-grid-three">
+                <div className="form-control">
+                  <label htmlFor="tch-username">Portal Username</label>
+                  <input
+                    id="tch-username"
+                    type="text"
+                    placeholder="Username for tutor portal"
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  />
+                </div>
+                <div className="form-control">
+                  <label htmlFor="tch-password">Portal Password</label>
+                  <input
+                    id="tch-password"
+                    type="text"
+                    placeholder="Portal login password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  />
+                </div>
+                <div className="form-control justify-end flex">
+                  <span className="field-helper-block">
+                    These credentials allow the teacher to sign in via the Teacher Portal.
+                  </span>
+                </div>
+              </div>
+            </div>
+
             <div className="form-actions-bar">
               <button type="button" className="btn-secondary" onClick={() => setView("list")}>Cancel</button>
               {formData.email && (
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="btn-invite-action"
                   onClick={() => setInviteModalOpen(true)}
                 >
@@ -455,7 +503,7 @@ const TeachersTab = ({
                   <div className="info-item">
                     <Users size={16} className="icon-users" />
                     <span className="font-semibold">
-                      {students.filter(s => 
+                      {students.filter(s =>
                         s.subjects && s.subjects.some(sub => selectedTeacher.subjects.includes(sub))
                       ).length} Enrolled Students
                     </span>
@@ -559,14 +607,6 @@ const TeachersTab = ({
           </div>
         </div>
       )}
-      <InviteModal
-        isOpen={inviteModalOpen}
-        onClose={() => setInviteModalOpen(false)}
-        email={formData.email}
-        name={formData.name}
-        role="teacher"
-        onSend={() => sendPasswordInviteEmail(formData.email, 'teacher', formData.name)}
-      />
     </div>
   );
 };

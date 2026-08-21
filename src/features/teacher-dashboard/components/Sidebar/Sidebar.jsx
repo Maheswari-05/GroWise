@@ -27,58 +27,77 @@ const navItems = [
   { id: "profile",       label: "Profile",               icon: UserCircle },
 ];
 
-const Sidebar = ({ activeNav, setActiveNav, hasUnreadNotifications = false }) => {
+const Sidebar = ({
+  activeNav,
+  setActiveNav,
+  hasUnreadNotifications = false,
+  onLogout,
+  isOpenMobile = false,
+  onCloseMobile,
+}) => {
+  const handleNavClick = (id) => {
+    setActiveNav(id);
+    if (onCloseMobile) onCloseMobile();
+  };
+
   return (
-    <aside className="sidebar">
-      {/* Logo — same logo.png used in the landing page Navbar */}
-      <div className="sidebar-logo">
-        <img src={logo} alt="GroWise Logo" className="sidebar-logo-img" />
-        <div className="sidebar-logo-wordmark">
-          <span className="sidebar-logo-gro">Gro</span>
-          <span className="sidebar-logo-wise">Wise</span>
+    <>
+      {isOpenMobile && <div className="sidebar-backdrop" onClick={onCloseMobile} />}
+      <aside className={`sidebar ${isOpenMobile ? "sidebar--mobile-open" : ""}`}>
+        {/* Logo */}
+        <div
+          className="sidebar-logo"
+          onClick={() => handleNavClick("dashboard")}
+          style={{ cursor: "pointer" }}
+        >
+          <img src={logo} alt="GroWise Logo" className="sidebar-logo-img" />
+          <div className="sidebar-logo-wordmark">
+            <span className="sidebar-logo-gro">Gro</span>
+            <span className="sidebar-logo-wise">Wise</span>
+          </div>
         </div>
-      </div>
 
-      {/* Divider */}
-      <div className="sidebar-divider" />
+        {/* Divider */}
+        <div className="sidebar-divider" />
 
-      {/* Navigation */}
-      <nav className="sidebar-nav">
-        {navItems.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            className={`sidebar-nav-item ${activeNav === id ? "active" : ""}`}
-            onClick={() => setActiveNav(id)}
-          >
-            <span className="sidebar-nav-icon">
-              <Icon size={18} />
-            </span>
-            <span className="sidebar-nav-label">{label}</span>
-            {id === "notifications" && hasUnreadNotifications && (
-              <span className="sidebar-notification-dot" />
-            )}
-            {activeNav === id && id !== "notifications" && <span className="sidebar-nav-dot" />}
-          </button>
-        ))}
-      </nav>
+        {/* Navigation */}
+        <nav className="sidebar-nav">
+          {navItems.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              className={`sidebar-nav-item ${activeNav === id ? "active" : ""}`}
+              onClick={() => handleNavClick(id)}
+            >
+              <span className="sidebar-nav-icon">
+                <Icon size={18} />
+              </span>
+              <span className="sidebar-nav-label">{label}</span>
+              {id === "notifications" && hasUnreadNotifications && (
+                <span className="sidebar-notification-dot" />
+              )}
+              {activeNav === id && id !== "notifications" && <span className="sidebar-nav-dot" />}
+            </button>
+          ))}
+        </nav>
 
-      {/* Spacer */}
-      <div className="sidebar-spacer" />
+        {/* Spacer */}
+        <div className="sidebar-spacer" />
 
-      {/* Divider */}
-      <div className="sidebar-divider" />
+        {/* Divider */}
+        <div className="sidebar-divider" />
 
-      {/* Logout */}
-      <button className="sidebar-logout">
-        <span className="sidebar-nav-icon">
-          <LogOut size={18} />
-        </span>
-        <span className="sidebar-nav-label">Logout</span>
-      </button>
+        {/* Logout */}
+        <button className="sidebar-logout" onClick={onLogout}>
+          <span className="sidebar-nav-icon">
+            <LogOut size={18} />
+          </span>
+          <span className="sidebar-nav-label">Logout</span>
+        </button>
 
-      {/* Bottom gradient accent */}
-      <div className="sidebar-bottom-accent" />
-    </aside>
+        {/* Bottom gradient accent */}
+        <div className="sidebar-bottom-accent" />
+      </aside>
+    </>
   );
 };
 

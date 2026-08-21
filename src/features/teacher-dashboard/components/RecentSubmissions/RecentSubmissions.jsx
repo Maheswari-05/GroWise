@@ -2,45 +2,43 @@ import { Eye, CheckCircle2, Clock3, AlertCircle } from "lucide-react";
 import AvatarPlaceholder from "../MyBatches/AvatarPlaceholder";
 import "./RecentSubmissions.css";
 
-const submissions = [
-  {
-    student: "Emma Watson",
-    avatar: null,
-    assignment: "Chapter 5 Worksheet",
-    subject: "Mathematics",
-    time: "10 min ago",
-    status: "submitted",
-  },
-  {
-    student: "James Smith",
-    avatar: null,
-    assignment: "Algebra Quiz",
-    subject: "Mathematics",
-    time: "35 min ago",
-    status: "reviewed",
-  },
-  {
-    student: "Sophia Lee",
-    avatar: null,
-    assignment: "Physics Assignment",
-    subject: "Physics",
-    time: "1 hour ago",
-    status: "pending",
-  },
-];
-
 const statusConfig = {
   submitted: { label: "Submitted",  icon: CheckCircle2, color: "#2D6BFF", bg: "rgba(45,107,255,0.10)" },
   reviewed:  { label: "Reviewed",   icon: CheckCircle2, color: "#27a55e", bg: "rgba(55,200,113,0.12)" },
   pending:   { label: "Pending",    icon: Clock3,       color: "#ea580c", bg: "rgba(234,88,12,0.10)"  },
 };
 
-const RecentSubmissions = () => {
+const RecentSubmissions = ({ assignments = [], students = [], setActiveNav }) => {
+  const derivedSubmissions = [];
+  assignments.forEach((asgn) => {
+    if (asgn.submissions && Array.isArray(asgn.submissions)) {
+      asgn.submissions.forEach((sub) => {
+        derivedSubmissions.push({
+          student: sub.name || "Student",
+          avatar: sub.avatar || null,
+          assignment: asgn.title || "Assignment",
+          subject: asgn.subject || "General",
+          time: sub.submittedOn ? `Submitted ${sub.submittedOn}` : "Recently",
+          status: sub.status === "reviewed" ? "reviewed" : sub.status === "submitted" ? "submitted" : "pending",
+        });
+      });
+    }
+  });
+
+  const submissions = derivedSubmissions.length > 0
+    ? derivedSubmissions.slice(0, 5)
+    : [
+        { student: "Priya Sharma", avatar: null, assignment: "Geometry Problems", subject: "Mathematics", time: "10 min ago", status: "submitted" },
+        { student: "Aryan Patel", avatar: null, assignment: "Algebra Practice", subject: "Mathematics", time: "35 min ago", status: "reviewed" },
+        { student: "Rohan Gupta", avatar: null, assignment: "Physics Assignment", subject: "Science", time: "1 hour ago", status: "pending" },
+      ];
   return (
     <div className="td-card recent-submissions">
       <div className="td-card-header">
         <h2 className="td-card-title">Recent Student Submissions</h2>
-        <button className="td-view-all-btn">View All</button>
+        <button className="td-view-all-btn" onClick={() => setActiveNav && setActiveNav("assignments")}>
+          View All
+        </button>
       </div>
 
       <div className="rs-table-wrap">
@@ -85,7 +83,7 @@ const RecentSubmissions = () => {
                     </span>
                   </td>
                   <td>
-                    <button className="rs-action-btn">
+                    <button className="rs-action-btn" onClick={() => setActiveNav && setActiveNav("assignments")}>
                       <Eye size={15} />
                       Review
                     </button>

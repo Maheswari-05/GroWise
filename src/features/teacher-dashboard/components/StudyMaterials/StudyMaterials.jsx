@@ -16,6 +16,8 @@ import {
   AlertTriangle,
   Plus,
   FolderOpen,
+  Calendar,
+  HardDrive,
 } from "lucide-react";
 import { initialMaterials, SUBJECTS, generateId } from "./materialsData";
 import "./StudyMaterials.css";
@@ -114,9 +116,9 @@ const MaterialCard = ({ material, onEdit, onDelete, onDownload }) => {
 
       {/* Footer */}
       <div className="sm-card-footer">
-        <span className="sm-footer-item">📅 {material.uploadDate}</span>
-        <span className="sm-footer-item">💾 {material.fileSize}</span>
-        <span className="sm-footer-item">⬇️ {material.downloads} downloads</span>
+        <span className="sm-footer-item"><Calendar size={13} /> {material.uploadDate}</span>
+        <span className="sm-footer-item"><HardDrive size={13} /> {material.fileSize}</span>
+        <span className="sm-footer-item"><Download size={13} /> {material.downloads} downloads</span>
       </div>
     </div>
   );
@@ -141,17 +143,6 @@ const MaterialModal = ({ mode, initial, onClose, onSave }) => {
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
-  /* Subject → auto-fill batch & grade */
-  const handleSubject = (subject) => {
-    const sub = SUBJECTS.find((s) => s.label === subject);
-    setForm((f) => ({
-      ...f,
-      subject,
-      batch: sub ? sub.batch : f.batch,
-      grade: sub ? sub.grade : f.grade,
-    }));
-  };
-
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -160,17 +151,26 @@ const MaterialModal = ({ mode, initial, onClose, onSave }) => {
       sizeKb >= 1024
         ? `${(sizeKb / 1024).toFixed(1)} MB`
         : `${Math.round(sizeKb)} KB`;
-    setForm((f) => ({
-      ...f,
-      fileName: file.name,
-      fileSize: sizeStr,
-      fileType: fileTypeOf(file.name),
-    }));
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setForm((f) => ({
+        ...f,
+        fileName: file.name,
+        fileSize: sizeStr,
+        fileType: fileTypeOf(file.name),
+        fileUrl: event.target.result,
+      }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const validate = () => {
     const e = {};
     if (!form.title.trim()) e.title = "Title is required";
+    if (!form.subject.trim()) e.subject = "Subject is required";
+    if (!form.batch.trim()) e.batch = "Batch is required";
+    if (!form.grade.trim()) e.grade = "Grade is required";
     if (!form.description.trim()) e.description = "Description is required";
     if (mode === "upload" && !form.fileName) e.file = "Please select a file";
     return e;
@@ -219,30 +219,37 @@ const MaterialModal = ({ mode, initial, onClose, onSave }) => {
             {errors.title && <span className="sm-error">{errors.title}</span>}
           </div>
 
-          {/* Subject */}
+          {/* Subject, Batch & Grade Inputs */}
           <div className="sm-field-row">
             <div className="sm-field">
               <label className="sm-label">Subject *</label>
-              <div className="sm-select-wrap">
-                <select
-                  className="sm-select"
-                  value={form.subject}
-                  onChange={(e) => handleSubject(e.target.value)}
-                >
-                  {SUBJECTS.map((s) => (
-                    <option key={s.id} value={s.label}>{s.label}</option>
-                  ))}
-                </select>
-                <ChevronDown size={14} className="sm-select-arrow" />
-              </div>
+              <input
+                className={`sm-input ${errors.subject ? "sm-input--error" : ""}`}
+                placeholder="e.g. Mathematics, Science..."
+                value={form.subject}
+                onChange={(e) => set("subject", e.target.value)}
+              />
+              {errors.subject && <span className="sm-error">{errors.subject}</span>}
             </div>
             <div className="sm-field">
-              <label className="sm-label">Batch</label>
-              <input className="sm-input sm-input--readonly" value={form.batch} readOnly />
+              <label className="sm-label">Batch *</label>
+              <input
+                className={`sm-input ${errors.batch ? "sm-input--error" : ""}`}
+                placeholder="e.g. Batch A"
+                value={form.batch}
+                onChange={(e) => set("batch", e.target.value)}
+              />
+              {errors.batch && <span className="sm-error">{errors.batch}</span>}
             </div>
             <div className="sm-field">
-              <label className="sm-label">Grade</label>
-              <input className="sm-input sm-input--readonly" value={form.grade} readOnly />
+              <label className="sm-label">Grade *</label>
+              <input
+                className={`sm-input ${errors.grade ? "sm-input--error" : ""}`}
+                placeholder="e.g. Grade 10"
+                value={form.grade}
+                onChange={(e) => set("grade", e.target.value)}
+              />
+              {errors.grade && <span className="sm-error">{errors.grade}</span>}
             </div>
           </div>
 
@@ -329,7 +336,25 @@ const DeleteModal = ({ material, onClose, onConfirm }) => (
 
 /* ── Main Component ────────────────────────────────────────── */
 const StudyMaterials = () => {
-  const [materials, setMaterials]       = useState(initialMaterials);
+  const [materials, setMaterials] = useState(() => {
+    try {
+      const stored = localStorage.getItem("gw_materials_v2");
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.error(e);
+    }
+    return initialMaterials;
+  });
+
+  const saveMaterials = (newMaterials) => {
+    setMaterials(newMaterials);
+    try {
+      localStorage.setItem("gw_materials_v2", JSON.stringify(newMaterials));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const [searchQ, setSearchQ]           = useState("");
   const [filterSubject, setFilterSubject] = useState("All");
   const [filterBatch, setFilterBatch]   = useState("All");
@@ -374,29 +399,43 @@ const StudyMaterials = () => {
   /* CRUD handlers */
   const handleSave = (data) => {
     if (modal === "upload") {
-      setMaterials((prev) => [data, ...prev]);
+      saveMaterials([data, ...materials]);
       showToast("Material uploaded successfully!");
     } else {
-      setMaterials((prev) => prev.map((m) => (m.id === data.id ? data : m)));
+      saveMaterials(materials.map((m) => (m.id === data.id ? data : m)));
       showToast("Material updated successfully!");
     }
     setModal(null);
   };
 
   const handleDelete = () => {
-    setMaterials((prev) => prev.filter((m) => m.id !== deleteTarget.id));
+    saveMaterials(materials.filter((m) => m.id !== deleteTarget.id));
     showToast(`"${deleteTarget.title}" deleted.`, "warning");
     setDeleteTarget(null);
   };
 
   const handleDownload = (material) => {
-    setMaterials((prev) =>
-      prev.map((m) => m.id === material.id ? { ...m, downloads: m.downloads + 1 } : m)
-    );
-    showToast(`Downloading "${material.fileName}"…`);
+    saveMaterials(materials.map((m) => (m.id === material.id ? { ...m, downloads: (m.downloads || 0) + 1 } : m)));
+
+    // Create a downloadable anchor link
+    const link = document.createElement("a");
+    if (material.fileUrl) {
+      link.href = material.fileUrl;
+    } else {
+      const content = `GroWise Study Material\n\nTitle: ${material.title}\nSubject: ${material.subject}\nBatch: ${material.batch}\nGrade: ${material.grade}\nDescription: ${material.description}\nUpload Date: ${material.uploadDate}`;
+      const blob = new Blob([content], { type: "application/pdf" });
+      link.href = URL.createObjectURL(blob);
+    }
+    link.download = material.fileName || `${material.title || "material"}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    showToast(`Downloaded "${material.fileName || material.title}"`);
   };
 
-  const allBatches = ["All", ...new Set(SUBJECTS.map((s) => s.batch))];
+  const allSubjects = ["All", ...new Set(materials.map((m) => m.subject).filter(Boolean))];
+  const allBatches = ["All", ...new Set(materials.map((m) => m.batch).filter(Boolean))];
 
   return (
     <div className="sm-page">
@@ -408,7 +447,7 @@ const StudyMaterials = () => {
         <div>
           <h1 className="sm-page-title">Study Materials</h1>
           <p className="sm-page-sub">
-            {materials.length} materials across {SUBJECTS.length} subjects
+            {materials.length} materials across {allSubjects.length - 1 || 1} subject{allSubjects.length - 1 !== 1 ? "s" : ""}
           </p>
         </div>
         <button className="sm-upload-btn" onClick={() => setModal("upload")}>
@@ -439,9 +478,8 @@ const StudyMaterials = () => {
               value={filterSubject}
               onChange={(e) => setFilterSubject(e.target.value)}
             >
-              <option value="All">All Subjects</option>
-              {SUBJECTS.map((s) => (
-                <option key={s.id} value={s.label}>{s.label}</option>
+              {allSubjects.map((s) => (
+                <option key={s} value={s}>{s === "All" ? "All Subjects" : s}</option>
               ))}
             </select>
             <ChevronDown size={13} className="sm-select-arrow" />
@@ -512,7 +550,7 @@ const StudyMaterials = () => {
                 {/* Subject heading */}
                 <div className="sm-subject-header">
                   <div className="sm-subject-icon" style={{ background: sc.bg, color: sc.text }}>
-                    <span>{subInfo?.icon ?? "📚"}</span>
+                    <BookOpen size={18} />
                   </div>
                   <div>
                     <h2 className="sm-subject-name" style={{ color: sc.text }}>{subject}</h2>

@@ -515,8 +515,8 @@ const StudentDashboard = ({ onNavigate }) => {
         <div style={{ color: "#ef4444", fontSize: "3rem", marginBottom: "15px" }}>⚠️</div>
         <h2 style={{ marginBottom: "10px" }}>Profile Load Error</h2>
         <p style={{ color: "#94a3b8", marginBottom: "20px", textAlign: "center", maxWidth: "400px" }}>{profileError}</p>
-        <button 
-          onClick={() => onNavigate("login")} 
+        <button
+          onClick={() => onNavigate("login")}
           style={{
             padding: "10px 20px",
             background: "#3b82f6",
@@ -626,7 +626,7 @@ const StudentDashboard = ({ onNavigate }) => {
             <div className="dashboard-dashboard-view">
               {/* Welcome Section */}
               <section className="welcome-section">
-                <h2>Good Morning, {studentProfile?.name} 👋</h2>
+                <h2>Good Morning, Sneha 👋</h2>
                 <p>Welcome back! Here's your academic progress today.</p>
               </section>
 
@@ -1735,7 +1735,7 @@ const StudentDashboard = ({ onNavigate }) => {
                               const lowerSub = sub.toLowerCase();
                               let badgeClass = "subject-badge math";
                               let Icon = Calculator;
-                              
+
                               if (lowerSub.includes("phys")) {
                                 badgeClass = "subject-badge phys";
                                 Icon = FlaskConical;
@@ -1743,7 +1743,7 @@ const StudentDashboard = ({ onNavigate }) => {
                                 badgeClass = "subject-badge chem";
                                 Icon = BookOpen;
                               }
-                              
+
                               return (
                                 <span className={badgeClass} key={index}>
                                   <Icon size={14} /> {sub}
