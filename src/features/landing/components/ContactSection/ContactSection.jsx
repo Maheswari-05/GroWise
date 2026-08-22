@@ -33,7 +33,7 @@ const ContactSection = ({ onNavigate }) => {
               <span>Get Started Now</span>
               <ArrowRight size={18} />
             </button>
-            <button className="btn-book-demo">
+            <button className="btn-book-demo" onClick={() => onNavigate && onNavigate("contact")}>
               <span>Book a Demo</span>
               <Calendar size={18} />
             </button>

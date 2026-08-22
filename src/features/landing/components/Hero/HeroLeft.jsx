@@ -34,12 +34,9 @@ const HeroLeft = ({ onNavigate }) => {
 
         </button>
 
-        <button className="hero-secondary-btn">
-
+        <button className="hero-secondary-btn" onClick={() => onNavigate && onNavigate("contact")}>
           Book a Demo
-
           <CalendarDays size={18} />
-
         </button>
 
       </div>

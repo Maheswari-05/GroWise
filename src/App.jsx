@@ -9,6 +9,7 @@ import StudentDashboard from "./features/student/StudentDashboard";
 import TeacherDashboard from "./features/teacher-dashboard/TeacherDashboard";
 import AdminLogin from "./features/admin/AdminLogin";
 import AdminDashboard from "./features/admin/AdminDashboard";
+import ContactPage from "./features/contact/ContactPage";
 
 function App() {
   const [currentView, setCurrentView] = useState("landing");
@@ -69,6 +70,8 @@ function App() {
         setCurrentView("reset-password");
       } else if (hashPath === "#/dashboard") {
         setCurrentView("dashboard");
+      } else if (hashPath === "#/contact") {
+        setCurrentView("contact");
       }
     };
 
@@ -88,6 +91,8 @@ function App() {
       window.location.hash = "";
     } else if (view === "role-selector") {
       window.location.hash = "/role-selector";
+    } else if (view === "contact") {
+      window.location.hash = "/contact";
     } else if (view === "admin-login") {
       window.location.hash = "/admin";
     } else if (view === "teacher-login") {
@@ -178,6 +183,10 @@ function App() {
 
   if (currentView === "dashboard" || hashPath === "#/dashboard") {
     return <StudentDashboard onNavigate={navigateTo} />;
+  }
+
+  if (currentView === "contact" || hashPath === "#/contact") {
+    return <ContactPage onNavigate={navigateTo} />;
   }
 
   return <LandingPage onNavigate={navigateTo} />;

@@ -38,7 +38,7 @@ const Navbar = ({ onNavigate }) => {
 
         {/* Desktop Nav Links */}
         <div className="nav-links-wrapper">
-          <NavLinks onLinkClick={closeMenu} />
+          <NavLinks onLinkClick={closeMenu} onNavigate={onNavigate} />
         </div>
 
         {/* Desktop Auth Buttons */}
@@ -59,7 +59,7 @@ const Navbar = ({ onNavigate }) => {
 
       {/* ── Mobile Drawer ── */}
       <div className={`mobile-menu${menuOpen ? " open" : ""}`}>
-        <NavLinks onLinkClick={closeMenu} />
+        <NavLinks onLinkClick={closeMenu} onNavigate={onNavigate} />
         <div className="mobile-buttons">
           <AuthButtons onNavigate={onNavigate} />
         </div>

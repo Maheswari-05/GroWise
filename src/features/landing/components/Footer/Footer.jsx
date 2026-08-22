@@ -50,7 +50,7 @@ const Footer = ({ onNavigate }) => {
                 <span>Get Started Now</span>
                 <ArrowRight size={18} />
               </button>
-              <button className="footer-cta-btn-demo">
+              <button className="footer-cta-btn-demo" onClick={() => onNavigate && onNavigate("contact")}>
                 <span>Book a Demo</span>
                 <Calendar size={18} />
               </button>
