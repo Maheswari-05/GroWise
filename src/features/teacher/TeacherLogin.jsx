@@ -22,7 +22,7 @@ const TeacherLogin = ({ onNavigate }) => {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
@@ -33,36 +33,66 @@ const TeacherLogin = ({ onNavigate }) => {
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      try {
-        const teachers = getStoredTeachers();
-        const matched = teachers.find(
-          (t) =>
-            t.email?.toLowerCase().trim() === email.toLowerCase().trim() &&
-            t.password === password
-        );
+    try {
+      const normalizedEmail = email.trim().toLowerCase();
+      console.log("🔐 Teacher login attempt with email:", normalizedEmail);
 
-        if (matched || (email.toLowerCase().trim() === "rajesh@growise.edu" && password === "Teacher@123")) {
-          const loggedTeacher = matched || {
+      // 1. Authenticate against Supabase Auth (this is where reset passwords live)
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password: password.trim(),
+      });
+
+      if (authError) {
+        console.error("❌ Teacher Supabase auth error:", authError.message);
+        // Fallback: also check demo hardcoded credentials
+        if (normalizedEmail === "rajesh@growise.edu" && password.trim() === "Teacher@123") {
+          const demoTeacher = {
             id: "TCH101",
             name: "Mr. Rajesh",
             email: "rajesh@growise.edu",
             subjects: ["Mathematics"],
             status: "Active"
           };
-          localStorage.setItem("gw_logged_teacher_id", loggedTeacher.id);
-          localStorage.setItem("gw_logged_teacher", JSON.stringify(loggedTeacher));
+          localStorage.setItem("gw_logged_teacher_id", demoTeacher.id);
+          localStorage.setItem("gw_logged_teacher", JSON.stringify(demoTeacher));
           onNavigate("teacher-dashboard");
-        } else {
-          setError("Invalid email or password.");
-          setIsLoading(false);
+          return;
         }
-      } catch (err) {
-        console.error("❌ Unexpected login error:", err);
-        setError("An error occurred. Please try again.");
+        setError("Invalid email or password.");
+        setIsLoading(false);
+        return;
+      }
+
+      if (data?.user) {
+        console.log("✅ Teacher Supabase login successful for:", data.user.email);
+
+        // 2. Look up their profile in localStorage (set by admin when adding them)
+        const teachers = getStoredTeachers();
+        const profile = teachers.find(
+          (t) => t.email?.toLowerCase().trim() === normalizedEmail
+        );
+
+        const loggedTeacher = profile || {
+          id: data.user.id,
+          name: data.user.user_metadata?.name || normalizedEmail.split("@")[0],
+          email: normalizedEmail,
+          subjects: [],
+          status: "Active",
+        };
+
+        localStorage.setItem("gw_logged_teacher_id", loggedTeacher.id);
+        localStorage.setItem("gw_logged_teacher", JSON.stringify(loggedTeacher));
+        onNavigate("teacher-dashboard");
+      } else {
+        setError("Login failed. Please try again.");
         setIsLoading(false);
       }
-    }, 600);
+    } catch (err) {
+      console.error("❌ Unexpected login error:", err);
+      setError("An error occurred. Please try again.");
+      setIsLoading(false);
+    }
   };
 
   // Build hint list from stored teachers so admins/testers know what to use

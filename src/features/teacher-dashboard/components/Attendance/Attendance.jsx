@@ -27,11 +27,13 @@ const Attendance = ({ attendanceRecords, setAttendanceRecords, students, batches
   useEffect(() => {
     const batchStudents = students.filter((s) => s.batchId === selectedBatch);
     if (existingRecord) {
+      const safeRecords = existingRecord.records || {};
+      const safeRemarks = existingRecord.remarks || {};
       const recordsMap = {};
       const remarksMap = {};
       batchStudents.forEach((student) => {
-        recordsMap[student.id] = existingRecord.records[student.id] || "present";
-        remarksMap[student.id] = existingRecord.remarks[student.id] || "";
+        recordsMap[student.id] = safeRecords[student.id] || "present";
+        remarksMap[student.id] = safeRemarks[student.id] || "";
       });
       setTempRecords(recordsMap);
       setTempRemarks(remarksMap);
@@ -51,6 +53,7 @@ const Attendance = ({ attendanceRecords, setAttendanceRecords, students, batches
       setIsEditing(true); // Automatically in edit mode for new entries
     }
   }, [selectedBatch, selectedSubject, selectedDate, existingRecord, students]);
+
 
   const handleSaveAttendance = () => {
     const batchStudents = students.filter((s) => s.batchId === selectedBatch);
@@ -377,10 +380,10 @@ const Attendance = ({ attendanceRecords, setAttendanceRecords, students, batches
                   filteredHistory.map((record) => {
                     const batch = batches.find((b) => b.id === record.batchId);
                     
-                    // Calculate Rate
-                    const values = Object.values(record.records);
+                    // Calculate Rate safely
+                    const values = Object.values(record.records || {});
                     const presentCount = values.filter((v) => v === "present" || v === "late").length;
-                    const rate = values.length > 0 ? ((presentCount / values.length) * 100).toFixed(0) + "%" : "0%";
+                    const rate = values.length > 0 ? ((presentCount / values.length) * 100).toFixed(0) + "%" : "N/A";
 
                     return (
                       <tr key={record.id}>

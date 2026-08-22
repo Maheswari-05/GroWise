@@ -30,6 +30,11 @@ const TeachersTab = ({
   const [filterStatus, setFilterStatus] = useState("All");
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
 
+  const generateTeacherId = () => {
+    const suffix = Date.now().toString().slice(-6);
+    return `TCH${suffix}`;
+  };
+
   // Form State
   const [formData, setFormData] = useState({
     id: "",
@@ -44,9 +49,8 @@ const TeachersTab = ({
   });
 
   const handleAddNewClick = () => {
-    const nextId = "TCH" + String(teachers.length + 101);
     setFormData({
-      id: nextId,
+      id: generateTeacherId(),
       name: "",
       contact: "",
       email: "",
@@ -92,38 +96,33 @@ const TeachersTab = ({
     });
   };
 
-  const handleSaveForm = (e) => {
+  const handleSaveForm = async (e) => {
     e.preventDefault();
     setFormError("");
     if (!formData.name || !formData.contact || formData.subjects.length === 0) {
-      setFormError("Please fill in Name, Contact, and select at least one Subject.");
+      alert("Please enter a Name, Contact, and select at least one Subject.");
       return;
     }
 
-    if (editMode) {
-      onUpdateTeacher(formData);
-    } else {
-      onAddTeacher(formData);
+    const saveResult = editMode
+      ? await onUpdateTeacher(formData)
+      : await onAddTeacher(formData);
+
+    if (saveResult === false) {
+      alert("Failed to save teacher details. Please check the data and try again.");
+      return;
     }
+
     setView("list");
   };
 
-  const handleDeleteClick = (id) => {
-    setConfirmDeleteId(id);
-  };
-
-  const handleConfirmDelete = () => {
-    if (confirmDeleteId) {
-      onDeleteTeacher(confirmDeleteId);
+  const handleDeleteClick = (teacherId) => {
+    if (confirm("Are you sure you want to delete this faculty record?")) {
+      onDeleteTeacher(teacherId);
       if (view === "profile") {
         setView("list");
       }
-      setConfirmDeleteId(null);
     }
-  };
-
-  const handleCancelDelete = () => {
-    setConfirmDeleteId(null);
   };
 
   // Filtering
@@ -607,6 +606,14 @@ const TeachersTab = ({
           </div>
         </div>
       )}
+      <InviteModal
+        isOpen={inviteModalOpen}
+        onClose={() => setInviteModalOpen(false)}
+        email={formData.email}
+        name={formData.name}
+        role="teacher"
+        onSend={() => sendPasswordInviteEmail(formData.email, 'teacher', formData.name)}
+      />
     </div>
   );
 };

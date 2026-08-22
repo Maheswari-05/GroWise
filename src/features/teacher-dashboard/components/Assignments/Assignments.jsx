@@ -20,6 +20,7 @@ import {
   Save,
   Paperclip,
   Star,
+  BookOpen,
 } from "lucide-react";
 import {
   initialAssignments,
@@ -165,7 +166,7 @@ const AssignmentCard = ({ asgn, onView, onEdit, onDelete }) => {
 /* ── Submissions Panel ─────────────────────────────────────── */
 const SubmissionsPanel = ({ asgn, onClose, onSave }) => {
   const [submissions, setSubmissions] = useState(
-    asgn.submissions.map(s => ({ ...s }))
+    (Array.isArray(asgn.submissions) ? asgn.submissions : []).map(s => ({ ...s }))
   );
   const [saved, setSaved] = useState(false);
 

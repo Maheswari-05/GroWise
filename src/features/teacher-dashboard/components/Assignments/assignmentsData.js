@@ -88,9 +88,11 @@ export const BATCH_STUDENTS = {
 
 /* Compute a displayable status for an assignment */
 export const assignmentStatus = (asgn) => {
+  if (!asgn) return "active";
   const today   = new Date(); today.setHours(0,0,0,0);
   const due     = new Date(asgn.dueDate); due.setHours(0,0,0,0);
-  const allDone = asgn.submissions.every(s => s.status === "reviewed");
+  const subs    = Array.isArray(asgn.submissions) ? asgn.submissions : [];
+  const allDone = subs.length > 0 && subs.every(s => s && s.status === "reviewed");
   if (allDone) return "completed";
   if (due < today) return "overdue";
   const diffDays = Math.round((due - today) / 86400000);

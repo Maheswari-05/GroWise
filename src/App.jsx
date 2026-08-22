@@ -11,51 +11,46 @@ import AdminLogin from "./features/admin/AdminLogin";
 import AdminDashboard from "./features/admin/AdminDashboard";
 
 function App() {
-  const [currentView, setCurrentView] = useState("landing"); // 'landing' | 'role-selector' | 'login' | 'reset-password' | 'teacher-login' | 'teacher-reset-password' | 'dashboard' | 'teacher-dashboard' | 'admin-login' | 'admin-dashboard'
+  const [currentView, setCurrentView] = useState("landing");
   const [route, setRoute] = useState(window.location.hash);
 
   useEffect(() => {
     const onHashChange = () => {
       const fullHash = window.location.hash;
+      const fullUrl = window.location.href;
       setRoute(fullHash);
       
-      // Extract path from hash (before ? if query params exist)
       const hashPath = fullHash.split('?')[0];
+      const searchParams = new URLSearchParams(window.location.search);
+      const roleParam = searchParams.get("role");
       
-      console.log("🔍 Route detected:", hashPath);
-      console.log("📍 Full hash:", fullHash);
+      console.log("🔍 Route detected - Hash:", fullHash, "Full URL:", fullUrl);
       
-      // Check for Supabase error redirects (these come with error parameters)
-      if (fullHash.includes("error=")) {
-        console.log("⚠️  Error URL detected");
-        // Check role via query param OR fallback to hash path
-        const errSearchParams = new URLSearchParams(window.location.search);
-        const errRole = errSearchParams.get("role");
-        if (errRole === "teacher" || fullHash.includes("teacher-reset-password") || fullHash.includes("role=teacher")) {
+      // 1. Check for password reset or auth token in URL (search or hash)
+      //    Also catches the "stripped" URL case: Supabase SDK processes the token
+      //    BEFORE this handler fires, leaving just ?role=teacher# or ?role=student#
+      const isAuthRedirect =
+        fullUrl.includes("access_token") || 
+        /[?&]code=/.test(fullUrl) || 
+        fullUrl.includes("type=recovery") ||
+        fullUrl.includes("error=") ||
+        fullHash.includes("reset-password") ||
+        roleParam === "teacher" ||
+        roleParam === "student";
+
+      if (isAuthRedirect) {
+        if (roleParam === "teacher" || fullUrl.includes("teacher-reset-password")) {
+          console.log("👨‍🏫 Teacher reset password route activated");
           setCurrentView("teacher-reset-password");
         } else {
+          console.log("👤 Student reset password route activated");
           setCurrentView("reset-password");
         }
         return;
       }
+
       
-      // Check for reset password with access token (MUST be before other checks!)
-      if (fullHash.includes("access_token")) {
-        console.log("🔑 Access token found in URL");
-        // Check role via query param (set in redirectTo) OR hash path fallback
-        const searchParams = new URLSearchParams(window.location.search);
-        const role = searchParams.get("role");
-        if (role === "teacher" || fullHash.includes("teacher-reset-password")) {
-          console.log("👨‍🏫 Teacher reset password detected");
-          setCurrentView("teacher-reset-password");
-        } else {
-          console.log("👤 Student reset password detected");
-          setCurrentView("reset-password");
-        }
-        return;
-      }
-      
-      // Synchronize currentView if hash changes
+      // 2. Synchronize standard navigation hash
       if (hashPath === "#/role-selector") {
         setCurrentView("role-selector");
       } else if (hashPath === "#/admin") {
@@ -76,10 +71,15 @@ function App() {
         setCurrentView("dashboard");
       }
     };
+
     window.addEventListener("hashchange", onHashChange);
+    window.addEventListener("popstate", onHashChange);
     // Initial run
     onHashChange();
-    return () => window.removeEventListener("hashchange", onHashChange);
+    return () => {
+      window.removeEventListener("hashchange", onHashChange);
+      window.removeEventListener("popstate", onHashChange);
+    };
   }, []);
 
   const navigateTo = (view) => {
@@ -108,65 +108,74 @@ function App() {
     window.scrollTo({ top: 0, behavior: "instant" });
   };
 
-  // Extract path from hash (before ? if query params exist)
-  const hashPath = route.split('?')[0];
-  
-  // Check if URL has access token (reset password link)
-  const hasAccessToken = route.includes("access_token");
+  // Inspect full URL for reset parameters
+  const fullUrl = window.location.href;
   const searchParams = new URLSearchParams(window.location.search);
   const roleParam = searchParams.get("role");
 
-  // Teacher Reset Password - Check FIRST if token present and role=teacher
-  if (hasAccessToken && (roleParam === "teacher" || route.includes("teacher-reset-password"))) {
-    return <TeacherResetPassword onNavigate={navigateTo} />;
-  }
+  // isResetUrl: detect all Supabase auth redirect patterns.
+  // IMPORTANT: When the Supabase SDK processes the hash (access_token, type=recovery etc.)
+  // BEFORE React reads it, the URL gets stripped to just ?role=teacher# or ?role=student#.
+  // So we ALSO treat any ?role=teacher / ?role=student query param as a reset-password signal,
+  // since that param is ONLY ever set by our sendPasswordInviteEmail redirectTo URL.
+  const isResetUrl = 
+    fullUrl.includes("access_token") || 
+    fullUrl.includes("type=recovery") ||
+    fullUrl.includes("error=") ||
+    route.includes("reset-password") ||
+    currentView === "reset-password" ||
+    currentView === "teacher-reset-password" ||
+    // ?code= must only match actual auth codes, not other query params named 'code'
+    /[?&]code=/.test(fullUrl) ||
+    // ?role=teacher or ?role=student only appears in our password setup redirect URLs
+    roleParam === "teacher" ||
+    roleParam === "student";
 
-  // Student Reset Password - Check if token present (default)
-  if (hasAccessToken) {
+  const isTeacherReset = roleParam === "teacher" || fullUrl.includes("teacher-reset-password") || currentView === "teacher-reset-password";
+
+  // Priority 1: Password Reset Routes
+  if (isResetUrl) {
+    if (isTeacherReset) {
+      return <TeacherResetPassword onNavigate={navigateTo} />;
+    }
     return <ResetPassword onNavigate={navigateTo} />;
   }
 
-  // Role Selector
+  // Priority 2: Standard Views
+  const hashPath = route.split('?')[0];
+
   if (hashPath === "#/role-selector" || currentView === "role-selector") {
     return <RoleSelector onNavigate={navigateTo} />;
   }
 
-  // Admin Login
   if (hashPath === "#/admin" || currentView === "admin-login") {
     return <AdminLogin onNavigate={navigateTo} />;
   }
 
-  // Student Login
   if (currentView === "login" || hashPath === "#/login") {
     return <Login onNavigate={navigateTo} />;
   }
 
-  // Student Reset Password (by currentView or path)
   if (currentView === "reset-password" || hashPath === "#/reset-password") {
     return <ResetPassword onNavigate={navigateTo} />;
   }
 
-  // Teacher Login
   if (hashPath === "#/teacher" || currentView === "teacher-login") {
     return <TeacherLogin onNavigate={navigateTo} />;
   }
 
-  // Teacher Reset Password (by currentView or path)
   if (currentView === "teacher-reset-password" || hashPath === "#/teacher-reset-password") {
     return <TeacherResetPassword onNavigate={navigateTo} />;
   }
 
-  // Admin Dashboard
   if (hashPath === "#/admin-dashboard" || currentView === "admin-dashboard") {
     return <AdminDashboard onNavigate={navigateTo} />;
   }
 
-  // Teacher Dashboard
   if (hashPath === "#/teacher-dashboard" || currentView === "teacher-dashboard") {
     return <TeacherDashboard onNavigate={navigateTo} />;
   }
 
-  // Student Dashboard
   if (currentView === "dashboard" || hashPath === "#/dashboard") {
     return <StudentDashboard onNavigate={navigateTo} />;
   }

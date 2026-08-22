@@ -88,47 +88,8 @@ export const initialStudents = [
   },
 ];
 
-export const initialWeeklyTests = [
-  {
-    id: "t1",
-    title: "Mathematics - Algebra Test",
-    subject: "Mathematics",
-    batchId: "b1",
-    date: "2026-06-12",
-    maxScore: 20,
-    status: "Published",
-    studentMarks: {
-      s01: { score: 18, remarks: "Excellent performance!" },
-      s02: { score: 12, remarks: "Need to focus on quadratic formulas." }
-    }
-  },
-  {
-    id: "t2",
-    title: "Physics - Quantum Mechanics Test",
-    subject: "Science",
-    batchId: "b2",
-    date: "2026-06-19",
-    maxScore: 20,
-    status: "Published",
-    studentMarks: {
-      s03: { score: 16, remarks: "Great conceptual understanding." },
-      s04: { score: 13, remarks: "A bit slow in solving numericals." }
-    }
-  },
-  {
-    id: "t3",
-    title: "Chemistry - Aldehydes Test",
-    subject: "Science",
-    batchId: "b2",
-    date: "2026-06-26",
-    maxScore: 20,
-    status: "Result Pending",
-    studentMarks: {
-      s03: { score: "", remarks: "" },
-      s04: { score: "", remarks: "" }
-    }
-  }
-];
+export const initialWeeklyTests = [];
+
 
 export const initialOnlineClasses = [
   {

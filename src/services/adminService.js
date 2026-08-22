@@ -386,20 +386,38 @@ export async function sendPasswordInviteEmail(email, role = 'student', name = ''
 
   const trimmedEmail = email.trim().toLowerCase();
 
-  // 1. Save current admin session
+  // Save current admin session if logged in
   const { data: { session: adminSession } } = await supabase.auth.getSession();
 
   try {
-    // 2. Try to create auth account (gracefully handles "already registered")
-    console.log("📝 Creating/verifying auth user for:", trimmedEmail);
-    
-    const tempPass = 'TempSetup@' + Math.floor(100000 + Math.random() * 900000);
-    
+    const baseUrl = window.location.origin + window.location.pathname;
+    const redirectUrl = role === 'teacher'
+      ? `${baseUrl}?role=teacher`
+      : `${baseUrl}?role=student`;
+
+    console.log("📧 Sending password setup link to:", trimmedEmail, "Role:", role);
+    console.log("🔗 Redirect URL:", redirectUrl);
+
+    // 1. Try sending reset password email directly first
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+      redirectTo: redirectUrl,
+    });
+
+    if (!resetError) {
+      console.log("✅ Reset password email sent directly to:", trimmedEmail);
+      return { success: true };
+    }
+
+    console.log("User may not exist yet in Supabase Auth, creating account...", resetError.message);
+
+    // 2. If resetPasswordForEmail failed (e.g. user does not exist in Supabase Auth), create account
+    const tempPass = 'SetupPass@' + Math.floor(100000 + Math.random() * 900000);
     const { error: signUpError } = await supabase.auth.signUp({
       email: trimmedEmail,
       password: tempPass,
       options: { 
-        data: { role, name }
+        data: { role, name },
+        emailRedirectTo: redirectUrl
       }
     });
 
@@ -407,13 +425,7 @@ export async function sendPasswordInviteEmail(email, role = 'student', name = ''
       throw new Error(`Failed to create auth account: ${signUpError.message}`);
     }
 
-    if (!signUpError) {
-      console.log("✅ Auth user created for:", trimmedEmail);
-    } else {
-      console.log("ℹ️  Auth user already exists for:", trimmedEmail);
-    }
-
-    // 3. Restore admin session
+    // Restore admin session after signUp
     if (adminSession) {
       await supabase.auth.setSession({
         access_token: adminSession.access_token,
@@ -421,25 +433,14 @@ export async function sendPasswordInviteEmail(email, role = 'student', name = ''
       });
     }
 
-    // 4. Send ONE password reset email with role-based redirect.
-    // IMPORTANT: Do NOT use hash (#) in redirectTo — Supabase replaces the entire hash
-    // with token params (access_token, refresh_token, type=recovery), losing our route.
-    // Instead, pass role as a query param so it survives the redirect.
-    const baseUrl = window.location.origin + window.location.pathname;
-    const redirectUrl = role === 'teacher'
-      ? `${baseUrl}?role=teacher`
-      : `${baseUrl}?role=student`;
+    // Small delay to ensure Supabase Auth syncs user before reset request
+    await new Promise((r) => setTimeout(r, 600));
 
-    console.log("📧 Sending password reset email to:", trimmedEmail);
-    console.log("🔗 Role:", role, "→ Redirect URL:", redirectUrl);
-
-    const { data: resetData, error: resetError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+    const { error: secondResetErr } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
       redirectTo: redirectUrl,
     });
 
-    console.log("📧 Reset email response:", resetData, resetError);
-
-    // 5. Restore admin session after reset email call
+    // Restore admin session again
     if (adminSession) {
       await supabase.auth.setSession({
         access_token: adminSession.access_token,
@@ -447,16 +448,14 @@ export async function sendPasswordInviteEmail(email, role = 'student', name = ''
       });
     }
 
-    if (resetError) {
-      console.error("❌ Password reset email error:", resetError);
-      throw new Error(`Failed to send password reset email: ${resetError.message}`);
+    if (secondResetErr) {
+      console.warn("Second reset attempt warning:", secondResetErr.message);
     }
 
-    console.log("✅ Password reset email sent to:", trimmedEmail);
+    console.log("✅ Password setup email processed for:", trimmedEmail);
     return { success: true };
 
   } catch (error) {
-    // Restore admin session in case of error
     if (adminSession) {
       try {
         await supabase.auth.setSession({

@@ -13,6 +13,10 @@ const ResetPassword = ({ onNavigate }) => {
   const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [tokenValid, setTokenValid] = useState(null); // null = checking, true = valid, false = invalid
+  // Resend link state — MUST be declared before any early returns
+  const [resendEmailInput, setResendEmailInput] = useState("");
+  const [resendSent, setResendSent] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
 
   // Password validation requirements
   const [requirements, setRequirements] = useState({
@@ -25,77 +29,76 @@ const ResetPassword = ({ onNavigate }) => {
   });
 
   useEffect(() => {
-    // Check if reset token is in URL hash and set session
     const processResetToken = async () => {
-      const hash = window.location.hash;
-      const fullUrl = window.location.href;
-      
-      console.log("DEBUG - Full URL:", fullUrl);
-      console.log("DEBUG - Hash:", hash);
-      
-      // Check for error parameters from Supabase
-      if (hash.includes("error=")) {
-        const errorMatch = hash.match(/error_description=([^&]*)/);
-        const errorDesc = errorMatch ? decodeURIComponent(errorMatch[1]).replace(/\+/g, ' ') : "Invalid or expired link";
-        setTokenValid(false);
-        setError(`Error: ${errorDesc}. Please request a new password reset email.`);
-        return;
-      }
-      
-      // Extract token and type from hash
-      const accessTokenMatch = hash.match(/access_token=([^&]*)/);
-      const typeMatch = hash.match(/type=([^&]*)/);
-      const refreshTokenMatch = hash.match(/refresh_token=([^&]*)/);
-      
-      const accessToken = accessTokenMatch ? accessTokenMatch[1] : null;
-      const type = typeMatch ? typeMatch[1] : null;
-      const refreshToken = refreshTokenMatch ? refreshTokenMatch[1] : null;
-      
-      console.log("DEBUG - Access Token found:", !!accessToken);
-      console.log("DEBUG - Token Type:", type);
-      console.log("DEBUG - Has refresh_token:", !!refreshToken);
-      
-      // If we have an access token with recovery type, set it as the session
-      if (accessToken && type === 'recovery') {
-        try {
-          console.log("DEBUG - Setting recovery session with access token...");
-          
-          // Use setSession with the recovery token
+      try {
+        const fullUrl = window.location.href;
+        const search = window.location.search;
+        
+        console.log("🔍 ResetPassword processResetToken - Full URL:", fullUrl);
+        
+        // 1. Check for error parameters from Supabase
+        if (fullUrl.includes("error=")) {
+          const errorMatch = fullUrl.match(/error_description=([^&]*)/);
+          const errorDesc = errorMatch ? decodeURIComponent(errorMatch[1]).replace(/\+/g, ' ') : "Invalid or expired link";
+          setTokenValid(false);
+          setError(`Error: ${errorDesc}. Please request a new password reset link below.`);
+          return;
+        }
+
+        // 2. Check for PKCE exchange code in URL search params
+        const searchParams = new URLSearchParams(search);
+        const code = searchParams.get("code");
+        if (code) {
+          console.log("🔑 Found PKCE code, exchanging for session...");
+          const { data, error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeErr) {
+            console.error("❌ PKCE exchange error:", exchangeErr);
+            setTokenValid(false);
+            setError("The reset code is invalid or has expired. Please request a new password reset link below.");
+            return;
+          }
+          console.log("✅ PKCE Session established for:", data?.user?.email);
+          setTokenValid(true);
+          return;
+        }
+
+        // 3. Extract access_token / refresh_token from URL
+        const accessTokenMatch = fullUrl.match(/access_token=([^&]*)/);
+        const refreshTokenMatch = fullUrl.match(/refresh_token=([^&]*)/);
+        
+        const accessToken = accessTokenMatch ? accessTokenMatch[1] : null;
+        const refreshToken = refreshTokenMatch ? refreshTokenMatch[1] : null;
+
+        if (accessToken) {
+          console.log("🔑 Access token found, setting recovery session...");
           const { error: sessionError } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken || '',
           });
-          
           if (sessionError) {
-            console.error("DEBUG - Session error:", sessionError);
-            console.log("DEBUG - Continuing despite session error...");
-            setTokenValid(true); // Let them try anyway
+            console.warn("⚠️ Session error with token:", sessionError.message);
           } else {
-            console.log("DEBUG - Session set successfully");
-            setTokenValid(true);
+            console.log("✅ Recovery session set successfully");
           }
-        } catch (err) {
-          console.error("DEBUG - Error setting session:", err);
-          setTokenValid(true); // Let them try anyway
+          setTokenValid(true);
+          return;
         }
-      } else if (accessToken) {
-        // Token exists but might not be recovery type, try setting session anyway
-        console.log("DEBUG - Token exists but type unclear, attempting to set session");
-        try {
-          const { error: sessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken || '',
-          });
-          if (!sessionError) {
-            console.log("DEBUG - Session set successfully");
-          }
-        } catch (e) {
-          console.warn("DEBUG - Could not set session:", e);
+
+        // 4. Check if an active session already exists in Supabase
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData?.session) {
+          console.log("✅ Active recovery session found for:", sessionData.session.user?.email);
+          setTokenValid(true);
+          return;
         }
-        setTokenValid(true);
-      } else {
+
+        // 5. Fallback
         setTokenValid(false);
-        setError("Invalid or missing reset token. Please request a new password reset email.");
+        setError("No valid reset token found. Please enter your email below to receive a new password reset link.");
+      } catch (err) {
+        console.error("❌ Error in processResetToken:", err);
+        setTokenValid(false);
+        setError("Unable to verify link. Please request a new password reset link below.");
       }
     };
 
@@ -212,6 +215,26 @@ const ResetPassword = ({ onNavigate }) => {
     );
   }
 
+
+  const handleResendResetLink = async (e) => {
+    e.preventDefault();
+    if (!resendEmailInput.trim()) return;
+    setResendLoading(true);
+    try {
+      const baseUrl = window.location.origin + window.location.pathname;
+      const redirectUrl = `${baseUrl}?role=student`;
+      const { error: sendErr } = await supabase.auth.resetPasswordForEmail(resendEmailInput.trim().toLowerCase(), {
+        redirectTo: redirectUrl,
+      });
+      if (sendErr) throw sendErr;
+      setResendSent(true);
+    } catch (err) {
+      alert("Could not send password reset email: " + (err.message || "Please check the email address."));
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
   // Show error if token invalid
   if (tokenValid === false) {
     return (
@@ -230,15 +253,39 @@ const ResetPassword = ({ onNavigate }) => {
           <div className="error-state">
             <AlertCircle size={48} className="error-icon" />
             <h2>Invalid or Expired Link</h2>
-            <p>{error || "The password reset link is invalid or has expired. It is valid for 1 hour from the time it was sent."}</p>
+            <p>{error || "The password reset link is invalid or has expired."}</p>
+
+            {resendSent ? (
+              <div className="reset-error" style={{ backgroundColor: "rgba(16, 185, 129, 0.1)", color: "#10b981", borderColor: "rgba(16, 185, 129, 0.3)", padding: "12px", borderRadius: "8px", margin: "16px 0" }}>
+                ✅ A fresh password reset link has been sent to <strong>{resendEmailInput}</strong>. Please check your inbox!
+              </div>
+            ) : (
+              <form onSubmit={handleResendResetLink} style={{ margin: "20px 0 10px 0", width: "100%" }}>
+                <p style={{ fontSize: "14px", color: "#64748b", marginBottom: "8px" }}>Enter your registered email to receive a fresh password reset link:</p>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input 
+                    type="email" 
+                    required 
+                    placeholder="Enter your email" 
+                    value={resendEmailInput}
+                    onChange={(e) => setResendEmailInput(e.target.value)}
+                    style={{ flex: 1, padding: "10px 14px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "14px" }}
+                  />
+                  <button type="submit" className="reset-submit-btn" style={{ width: "auto", padding: "10px 16px", margin: 0 }} disabled={resendLoading}>
+                    {resendLoading ? "Sending..." : "Request New Link"}
+                  </button>
+                </div>
+              </form>
+            )}
+
             <div className="error-actions">
               <button 
                 className="reset-submit-btn"
+                style={{ backgroundColor: "#64748b" }}
                 onClick={() => onNavigate("login")}
               >
                 Back to Login
               </button>
-              <p className="help-text">Check the browser console (F12) for debug information. If the link is expired, please contact your administrator to resend it.</p>
             </div>
           </div>
         </div>

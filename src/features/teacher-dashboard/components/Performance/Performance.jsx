@@ -208,7 +208,10 @@ const Performance = ({ weeklyTests, attendanceRecords, students, batches }) => {
             <div className="perf-batch-list">
               {batches.map((b) => {
                 const batchSt = students.filter(s => s.batchId === b.id);
-                const avgBatchScore = (batchSt.reduce((acc, s) => acc + s.avgScore, 0) / batchSt.length).toFixed(0);
+                const validBatchScores = batchSt.filter(s => typeof s.avgScore === "number" && !isNaN(s.avgScore));
+                const avgBatchScore = validBatchScores.length > 0
+                  ? (validBatchScores.reduce((acc, s) => acc + s.avgScore, 0) / validBatchScores.length).toFixed(0)
+                  : "0";
                 const colorClass = b.color === "green" ? "bg-green" : "bg-blue";
                 
                 return (
@@ -329,13 +332,14 @@ const Performance = ({ weeklyTests, attendanceRecords, students, batches }) => {
             <tbody>
               {weeklyTests.map((test) => {
                 const batch = batches.find(b => b.id === test.batchId);
-                const marks = Object.values(test.studentMarks)
-                  .map(m => m.score)
-                  .filter(s => s !== null && s !== "");
+                const marks = Object.values(test.studentMarks || {})
+                  .map(m => m?.score)
+                  .filter(s => s !== null && s !== "" && s !== undefined && !isNaN(Number(s)));
                 
-                const avgScoreText = marks.length > 0 
-                  ? ((marks.reduce((acc, curr) => acc + curr, 0) / (marks.length * test.maxScore)) * 100).toFixed(0) + "%"
+                const avgScoreText = marks.length > 0 && test.maxScore > 0
+                  ? ((marks.reduce((acc, curr) => acc + Number(curr), 0) / (marks.length * test.maxScore)) * 100).toFixed(0) + "%"
                   : "Pending Publication";
+
 
                 return (
                   <tr key={test.id}>

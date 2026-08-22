@@ -176,7 +176,7 @@ const TeacherDashboard = ({ onNavigate }) => {
   };
 
   // Shared state initialized from LocalStorage
-  const [weeklyTests, setWeeklyTests] = useState(() => loadFromStorage("gw_weeklytests_v2", initialWeeklyTests));
+  const [weeklyTests, setWeeklyTests] = useState(() => loadFromStorage("gw_weeklytests_v3", initialWeeklyTests));
   const [onlineClasses, setOnlineClasses] = useState(() => loadFromStorage("gw_classes_v2", initialOnlineClasses));
   const [attendanceRecords, setAttendanceRecords] = useState(() => loadFromStorage("gw_attendance_v2", initialAttendanceRecords));
   const [notifications, setNotifications] = useState(() => loadFromStorage("gw_notifications_v2", initialNotifications));
@@ -186,10 +186,21 @@ const TeacherDashboard = ({ onNavigate }) => {
   const [assignments, setAssignments] = useState(() => loadFromStorage("gw_assignments_v2", []));
   const [materials, setMaterials] = useState(() => loadFromStorage("gw_materials_v2", []));
 
+  // One-time migration: wipe old cached weekly tests so stale data doesn't appear
+  useEffect(() => {
+    try {
+      localStorage.removeItem("gw_weeklytests_v1");
+      localStorage.removeItem("gw_weeklytests_v2");
+    } catch {}
+    setWeeklyTests([]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
   // Sync state changes to LocalStorage
   useEffect(() => {
     try {
-      localStorage.setItem("gw_weeklytests_v2", JSON.stringify(weeklyTests));
+      localStorage.setItem("gw_weeklytests_v3", JSON.stringify(weeklyTests));
     } catch {}
   }, [weeklyTests]);
 

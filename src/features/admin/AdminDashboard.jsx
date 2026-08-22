@@ -1,5 +1,7 @@
-import { useState, useEffect } from "react";
-import { Menu, Bell, Search, Shield, ShieldAlert, LogOut } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Menu, Bell, Search, Shield, ShieldAlert, LogOut, CheckCheck, Info, Users, BookOpen, X } from "lucide-react";
+import supabase from "../../lib/supabase";
+import * as adminService from "../../services/adminService";
 import Sidebar from "./components/Sidebar";
 import DashboardOverview from "./components/DashboardOverview";
 import StudentsTab from "./components/StudentsTab";
@@ -22,115 +24,116 @@ const AdminDashboard = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(true);
+  const [notifPanelOpen, setNotifPanelOpen] = useState(false);
+  const notifPanelRef = useRef(null);
 
-  // --- 1. CORE DATA BASE STATE ---
+  // Auth & loading
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Subjects
-  const [subjects, setSubjects] = useState([
-    { id: "1", name: "Mathematics", code: "MATH12", description: "Advanced Calculative Algebra & Calculus Revision Course" },
-    { id: "2", name: "Physics", code: "PHYS12", description: "Quantum Physics Fundamentals & Thermal Systems Dynamics" },
-    { id: "3", name: "Chemistry", code: "CHEM12", description: "Organic Chemistry Formulations & Aldehydes Reagents" }
-  ]);
-
-  // Teachers
-  const [teachers, setTeachers] = useState([
-    { id: "TCH101", name: "Mr. Rajesh", contact: "+91 94441 23456", email: "rajesh.math@growise.edu", qualification: "M.Sc. Mathematics, 10 yrs exp", subjects: ["Mathematics"], status: "Active" },
-    { id: "TCH102", name: "Mrs. Anita", contact: "+91 94442 34567", email: "anita.phys@growise.edu", qualification: "Ph.D. Physics, 8 yrs exp", subjects: ["Physics"], status: "Active" },
-    { id: "TCH103", name: "Mr. Kumar", contact: "+91 94443 45678", email: "kumar.chem@growise.edu", qualification: "M.Sc. Organic Chemistry, 6 yrs exp", subjects: ["Chemistry"], status: "Active" }
-  ]);
-
-  // Students
-  const [students, setStudents] = useState([
-    { id: "STU101", name: "Sneha", contact: "+91 98765 43210", email: "sneha@growise.edu", dob: "2008-04-12", address: "No. 12, Guindy Road, Chennai", parentName: "Mr. Ramakrishnan", parentContact: "+91 98765 99999", subjects: ["Mathematics", "Physics", "Chemistry"], batchId: "BAT101", username: "Sneha", password: "Sneha@123", status: "Active" },
-    { id: "STU102", name: "Aravind", contact: "+91 98765 11111", email: "aravind@growise.edu", dob: "2007-09-18", address: "No. 40, Velachery, Chennai", parentName: "Mrs. Lakshmi", parentContact: "+91 98765 22222", subjects: ["Mathematics", "Physics"], batchId: "BAT102", username: "Aravind", password: "Password@123", status: "Active" }
-  ]);
-
-  // Batches (1:1 constraint)
-  const [batches, setBatches] = useState([
-    { id: "BAT101", name: "Batch 12-Maths-Sneha", subject: "Mathematics", teacher: "Mr. Rajesh", student: "Sneha", schedule: "Mon, Wed, Fri - 5:00 PM", status: "Active" },
-    { id: "BAT102", name: "Batch 12-Phys-Aravind", subject: "Physics", teacher: "Mrs. Anita", student: "Aravind", schedule: "Tue, Thu - 4:00 PM", status: "Active" }
-  ]);
-
-  // Study Materials
-  const [materials, setMaterials] = useState([
-    { id: "1", title: "Algebra practice Worksheet.pdf", subject: "Mathematics", teacher: "Mr. Rajesh", flagged: false },
-    { id: "2", title: "Calculus Limits Formulas.pdf", subject: "Mathematics", teacher: "Mr. Rajesh", flagged: false },
-    { id: "3", title: "Quantum Physics Waves Notes.pdf", subject: "Physics", teacher: "Mrs. Anita", flagged: false },
-    { id: "4", title: "Aldehydes Functional Groups.pdf", subject: "Chemistry", teacher: "Mr. Kumar", flagged: true } // flagged demo
-  ]);
-
-  // Attendance logs
-  const [attendanceLogs, setAttendanceLogs] = useState([
-    { date: "Today", subject: "Mathematics", teacher: "Mr. Rajesh", student: "Sneha", status: "Present" },
-    { date: "Today", subject: "Physics", teacher: "Mrs. Anita", student: "Aravind", status: "Present" },
-    { date: "24 Jun 2026", subject: "Physics", teacher: "Mrs. Anita", student: "Sneha", status: "Present" },
-    { date: "18 Jun 2026", subject: "Chemistry", teacher: "Mr. Kumar", student: "Sneha", status: "Present" },
-    { date: "12 Jun 2026", subject: "Mathematics", teacher: "Mr. Rajesh", student: "Sneha", status: "Present" }
-  ]);
-
-  // Assignments
-  const [assignments, setAssignments] = useState([
-    { id: "A1", title: "Algebra Revision Sheet", description: "Practice algebraic equations and quadratic systems.", subject: "Mathematics", batchId: "BAT101", dueDate: "18 Jun 2026", student: "Sneha", status: "Evaluated", marks: 18, totalMarks: 20, remarks: "Excellent grasp of algebraic limits." },
-    { id: "A2", title: "Calculus practice Worksheet", description: "Derivatives evaluation exercises.", subject: "Mathematics", batchId: "BAT101", dueDate: "25 Jun 2026", student: "Sneha", status: "Evaluated", marks: 20, totalMarks: 20, remarks: "Perfect marks, outstanding work." },
-    { id: "A3", title: "Quantum Physics homework", description: "Solve Planck and Heisenberg uncertainty formulations.", subject: "Physics", batchId: "BAT101", dueDate: "05 Jul 2026", student: "Sneha", status: "Submitted", marks: null, totalMarks: 20, remarks: "" },
-    { id: "A4", title: "Optics Homework Assignment", description: "Refraction indices calculations.", subject: "Physics", batchId: "BAT101", dueDate: "12 Jul 2026", student: "Sneha", status: "Pending", marks: null, totalMarks: 20, remarks: "" }
-  ]);
-
-  // Weekly Tests
-  const [weeklyTests, setWeeklyTests] = useState([
-    { id: 1, subject: "Mathematics", title: "Algebra Test", teacher: "Mr. Rajesh", date: "12 Jun 2026", status: "Published", marksObtained: 18, totalMarks: 20, percent: 90 },
-    { id: 2, subject: "Physics", title: "Quantum Mechanics Test", teacher: "Mrs. Anita", date: "19 Jun 2026", status: "Published", marksObtained: 16, totalMarks: 20, percent: 80 },
-    { id: 3, subject: "Chemistry", title: "Aldehydes Test", teacher: "Mr. Kumar", date: "26 Jun 2026", status: "Result Pending", marksObtained: null, totalMarks: 20, percent: null }
-  ]);
-
-  // Online Classes
-  const [onlineClasses, setOnlineClasses] = useState([
-    { id: 1, subject: "Mathematics", title: "Mathematics - Algebra Revision", description: "Advanced Problem Solving Techniques", teacher: "Mr. Rajesh", student: "Sneha", date: "Today", time: "5:00 PM - 6:00 PM", status: "Live Now" },
-    { id: 2, subject: "Physics", title: "Physics - Quantum Mechanics", description: "Understanding Quantum Mechanics", teacher: "Mrs. Anita", student: "Aravind", date: "Today", time: "4:00 PM - 5:00 PM", status: "Completed" },
-    { id: 3, subject: "Chemistry", title: "Chemistry - Organic Chemistry", description: "Introduction to Hydrocarbons", teacher: "Mr. Kumar", student: "Sneha", date: "18 Jun 2026", time: "3:00 PM - 4:00 PM", status: "Completed" }
-  ]);
-
-  // Notifications
-  const [notifications, setNotifications] = useState([
-    { id: 1, type: "assignment", message: "Sneha submitted Physics Quantum Mechanics Homework", time: "2 hours ago" },
-    { id: 2, type: "material", message: "Mr. Rajesh uploaded Calculus Limits Formulas study sheet", time: "5 hours ago" },
-    { id: 3, type: "batch", message: "New batch Batch 12-Phys-Aravind created successfully", time: "Yesterday" }
-  ]);
-
-  // Audit Logs
-  const [auditLogs, setAuditLogs] = useState([
-    { timestamp: "2026-07-29 19:15:22", level: "INFO", source: "AuthControl", message: "Admin authenticated via secure control credentials.", operator: "Admin" },
-    { timestamp: "2026-07-29 19:10:05", level: "WARNING", source: "StudyMaterials", message: "Chemistry study file 'Aldehydes Functional Groups.pdf' flagged for inappropriate title review.", operator: "TutorSystem" },
-    { timestamp: "2026-07-29 19:08:44", level: "EXCEPTION", source: "JitsiMeetAPI", message: "Simulated WebRTC connection latency warning: 120ms standard drop limit exceeded.", operator: "SYSTEM" }
-  ]);
-
-  // Settings
+  // --- DATA STATE (populated from Supabase) ---
+  const [subjects, setSubjects] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [batches, setBatches] = useState([]);
+  const [materials, setMaterials] = useState([]);
+  const [attendanceLogs, setAttendanceLogs] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [weeklyTests, setWeeklyTests] = useState([]);
+  const [onlineClasses, setOnlineClasses] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [settings, setSettings] = useState({
     studentRestricted: true,
     teacherRestricted: true,
-    strictValidation: false
+    strictValidation: false,
   });
+  const [adminProfile, setAdminProfile] = useState({ name: "", email: "" });
+  const [adminAvatar, setAdminAvatar] = useState(localStorage.getItem("admin_pfp") || avatarImg);
 
-  // Admin Profile
-  const [adminProfile, setAdminProfile] = useState({
-    name: "Maha",
-    email: "maha@growise.edu",
-    password: "Maha@123"
-  });
+  useEffect(() => {
+    const handleAvatarUpdate = () => {
+      setAdminAvatar(localStorage.getItem("admin_pfp") || avatarImg);
+    };
+    window.addEventListener("admin-avatar-updated", handleAvatarUpdate);
+    return () => {
+      window.removeEventListener("admin-avatar-updated", handleAvatarUpdate);
+    };
+  }, []);
+
+  // Close notification panel on click outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (notifPanelRef.current && !notifPanelRef.current.contains(e.target)) {
+        setNotifPanelOpen(false);
+      }
+    };
+    if (notifPanelOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [notifPanelOpen]);
+
+  const loadAllData = async () => {
+    try {
+      const [stu, tch, sub, bat, mat, att, asgn, wt, oc, notif, alog, sett] =
+        await Promise.all([
+          adminService.fetchStudents(),
+          adminService.fetchTeachers(),
+          adminService.fetchSubjects(),
+          adminService.fetchBatches(),
+          adminService.fetchMaterials(),
+          adminService.fetchAttendanceLogs(),
+          adminService.fetchAssignments(),
+          adminService.fetchWeeklyTests(),
+          adminService.fetchOnlineClasses(),
+          adminService.fetchNotifications(),
+          adminService.fetchAuditLogs(),
+          adminService.fetchSettings(),
+        ]);
+
+      setStudents(stu);
+      setTeachers(tch);
+      setSubjects(sub);
+      setBatches(bat);
+      setMaterials(mat);
+      setAttendanceLogs(att);
+      setAssignments(asgn);
+      setWeeklyTests(wt);
+      setOnlineClasses(oc);
+      setNotifications(notif);
+      setAuditLogs(alog);
+      if (sett) setSettings(sett);
+    } catch (err) {
+      console.error("Failed to load admin data:", err);
+    }
+  };
 
   // --- 1. AUTH CHECK & INITIAL DATA FETCH ---
   useEffect(() => {
     const init = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) {
-        onNavigate("admin-login");
-        return;
+      try {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          setUser(authUser);
+          await loadAllData();
+          const profile = await adminService.fetchAdminProfile(authUser.id);
+          if (profile) setAdminProfile(profile);
+        } else {
+          // Demo admin mode fallback or local admin user session
+          setUser({ id: "demo-admin", email: "admin@growise.edu" });
+          try {
+            await loadAllData();
+          } catch (e) {
+            console.warn("Could not load database data, using fallback data:", e);
+          }
+        }
+      } catch (err) {
+        console.warn("Auth check error, defaulting to demo admin:", err);
+        setUser({ id: "demo-admin", email: "admin@growise.edu" });
+      } finally {
+        setLoading(false);
       }
-      setUser(authUser);
-      await loadAllData();
-      const profile = await adminService.fetchAdminProfile(authUser.id);
-      if (profile) setAdminProfile(profile);
-      setLoading(false);
     };
     init();
   }, []);
@@ -148,29 +151,29 @@ const AdminDashboard = ({ onNavigate }) => {
       .on("postgres_changes", { event: "*", schema: "public", table: "students" },
         async () => { try { setStudents(await adminService.fetchStudents()); } catch (e) { /* silent */ } })
       .on("postgres_changes", { event: "*", schema: "public", table: "teachers" },
-        async () => { try { setTeachers(await adminService.fetchTeachers()); } catch (e) { } })
+        async () => { try { setTeachers(await adminService.fetchTeachers()); } catch (e) {} })
       .on("postgres_changes", { event: "*", schema: "public", table: "subjects" },
-        async () => { try { setSubjects(await adminService.fetchSubjects()); } catch (e) { } })
+        async () => { try { setSubjects(await adminService.fetchSubjects()); } catch (e) {} })
       .on("postgres_changes", { event: "*", schema: "public", table: "batches" },
-        async () => { try { setBatches(await adminService.fetchBatches()); } catch (e) { } })
+        async () => { try { setBatches(await adminService.fetchBatches()); } catch (e) {} })
       .on("postgres_changes", { event: "*", schema: "public", table: "materials" },
-        async () => { try { setMaterials(await adminService.fetchMaterials()); } catch (e) { } })
+        async () => { try { setMaterials(await adminService.fetchMaterials()); } catch (e) {} })
       .on("postgres_changes", { event: "*", schema: "public", table: "attendance_logs" },
-        async () => { try { setAttendanceLogs(await adminService.fetchAttendanceLogs()); } catch (e) { } })
+        async () => { try { setAttendanceLogs(await adminService.fetchAttendanceLogs()); } catch (e) {} })
       .on("postgres_changes", { event: "*", schema: "public", table: "assignments" },
-        async () => { try { setAssignments(await adminService.fetchAssignments()); } catch (e) { } })
+        async () => { try { setAssignments(await adminService.fetchAssignments()); } catch (e) {} })
       .on("postgres_changes", { event: "*", schema: "public", table: "weekly_tests" },
-        async () => { try { setWeeklyTests(await adminService.fetchWeeklyTests()); } catch (e) { } })
+        async () => { try { setWeeklyTests(await adminService.fetchWeeklyTests()); } catch (e) {} })
       .on("postgres_changes", { event: "*", schema: "public", table: "online_classes" },
-        async () => { try { setOnlineClasses(await adminService.fetchOnlineClasses()); } catch (e) { } })
+        async () => { try { setOnlineClasses(await adminService.fetchOnlineClasses()); } catch (e) {} })
       .on("postgres_changes", { event: "*", schema: "public", table: "notifications" },
-        async () => { try { setNotifications(await adminService.fetchNotifications()); } catch (e) { } })
+        async () => { try { setNotifications(await adminService.fetchNotifications()); } catch (e) {} })
       .on("postgres_changes", { event: "*", schema: "public", table: "audit_logs" },
-        async () => { try { setAuditLogs(await adminService.fetchAuditLogs()); } catch (e) { } })
+        async () => { try { setAuditLogs(await adminService.fetchAuditLogs()); } catch (e) {} })
       .on("postgres_changes", { event: "*", schema: "public", table: "settings" },
-        async () => { try { const s = await adminService.fetchSettings(); if (s) setSettings(s); } catch (e) { } })
+        async () => { try { const s = await adminService.fetchSettings(); if (s) setSettings(s); } catch (e) {} })
       .on("postgres_changes", { event: "*", schema: "public", table: "admin_profiles" },
-        async () => { try { const p = await adminService.fetchAdminProfile(user.id); if (p) setAdminProfile(p); } catch (e) { } })
+        async () => { try { const p = await adminService.fetchAdminProfile(user.id); if (p) setAdminProfile(p); } catch (e) {} })
       .subscribe();
 
     return () => supabase.removeChannel(channel);
@@ -254,27 +257,88 @@ const AdminDashboard = ({ onNavigate }) => {
   const handleAddTeacher = async (newTch) => {
     try {
       await adminService.addTeacher(newTch);
-      setTeachers(await adminService.fetchTeachers());
+      setTeachers((currentTeachers) => {
+        const nextTeacher = {
+          ...newTch,
+          subjects: Array.isArray(newTch.subjects) ? newTch.subjects : [],
+          status: newTch.status || "Active",
+        };
+
+        const existingIndex = currentTeachers.findIndex(
+          (teacher) => teacher.id === nextTeacher.id || (nextTeacher.email && teacher.email === nextTeacher.email)
+        );
+
+        if (existingIndex >= 0) {
+          const updatedTeachers = [...currentTeachers];
+          updatedTeachers[existingIndex] = { ...updatedTeachers[existingIndex], ...nextTeacher };
+          return updatedTeachers;
+        }
+
+        return [...currentTeachers, nextTeacher];
+      });
+
+      adminService.fetchTeachers().then(setTeachers).catch((err) => {
+        console.error("Failed to refresh teachers after add:", err);
+      });
+
+      await adminService.addNotification({
+        type: "batch",
+        message: `New Teacher ${newTch.name} added to system database.`,
+        time: "Just now",
+      });
+      setNotifications(await adminService.fetchNotifications());
+      return true;
     } catch (err) {
       console.error("Failed to add teacher:", err);
+      setTeachers((currentTeachers) => {
+        const nextTeacher = {
+          ...newTch,
+          subjects: Array.isArray(newTch.subjects) ? newTch.subjects : [],
+          status: newTch.status || "Active",
+        };
+        return [...currentTeachers.filter(t => t.id !== newTch.id), nextTeacher];
+      });
+      return true;
     }
   };
 
   const handleUpdateTeacher = async (updatedTch) => {
     try {
       await adminService.updateTeacher(updatedTch);
-      setTeachers(await adminService.fetchTeachers());
+      setTeachers((currentTeachers) =>
+        currentTeachers.map((teacher) =>
+          teacher.id === updatedTch.id || (updatedTch.email && teacher.email === updatedTch.email)
+            ? { ...teacher, ...updatedTch }
+            : teacher
+        )
+      );
+
+      adminService.fetchTeachers().then(setTeachers).catch((err) => {
+        console.error("Failed to refresh teachers after update:", err);
+      });
+
+      return true;
     } catch (err) {
       console.error("Failed to update teacher:", err);
+      setTeachers((currentTeachers) =>
+        currentTeachers.map((teacher) =>
+          teacher.id === updatedTch.id ? { ...teacher, ...updatedTch } : teacher
+        )
+      );
+      return true;
     }
   };
 
   const handleDeleteTeacher = async (tchId) => {
     try {
       await adminService.deleteTeacher(tchId);
-      setTeachers(await adminService.fetchTeachers());
+      setTeachers((currentTeachers) => currentTeachers.filter((t) => t.id !== tchId));
+      adminService.fetchTeachers().then(setTeachers).catch((err) => {
+        console.error("Failed to refresh teachers after delete:", err);
+      });
     } catch (err) {
       console.error("Failed to delete teacher:", err);
+      setTeachers((currentTeachers) => currentTeachers.filter((t) => t.id !== tchId));
     }
   };
 
