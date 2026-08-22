@@ -118,7 +118,7 @@ const Footer = ({ onNavigate }) => {
                 </div>
                 <div className="footer-contact-info">
                   <span className="footer-contact-label">Email Us</span>
-                  <span className="footer-contact-value">support@growise.edu</span>
+                  <span className="footer-contact-value">growiselearningstudio@gmail.com</span>
                 </div>
               </a>
 

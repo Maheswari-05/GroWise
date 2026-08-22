@@ -44,7 +44,7 @@ const ContactPage = ({ onNavigate }) => {
 
     try {
       // Record a notification in Supabase for Admin awareness
-      const notifMsg = `📅 Demo Request: ${formData.fullName} (${formData.role}) - ${formData.phone}`;
+      const notifMsg = ` Demo Request: ${formData.fullName} (${formData.role}) - ${formData.phone}`;
       await supabase.from("notifications").insert({
         type: "batch",
         message: notifMsg,
@@ -77,7 +77,7 @@ const ContactPage = ({ onNavigate }) => {
               className="contact-back-home-btn"
               onClick={() => onNavigate("landing")}
             >
-              <ArrowLeft size={16} />
+              <ArrowLeft size={18} />
               <span>Back to Home</span>
             </button>
             <button 
@@ -85,7 +85,7 @@ const ContactPage = ({ onNavigate }) => {
               onClick={() => onNavigate("role-selector")}
             >
               <span>Sign In</span>
-              <ChevronRight size={16} />
+              <ChevronRight size={18} />
             </button>
           </div>
         </div>
@@ -171,46 +171,23 @@ const ContactPage = ({ onNavigate }) => {
               {/* ── Left Column: Visuals & Contact Info ── */}
               <div className="contact-visual-column">
                 <h1 className="contact-hero-heading">
-                  See GroWise in Action for Your <span className="gradient-highlight">Tuition Centre</span>
+                  Find Expert Tutors or Teach with <span className="gradient-highlight">GroWise</span>
                 </h1>
 
                 <p className="contact-hero-desc">
-                  Discover how GroWise automates attendance, student progress tracking, live batches, weekly tests, and fee notifications in one seamless platform.
+                  Connecting students with qualified teachers for interactive online tuitions, structured study materials, weekly tests, and continuous progress tracking.
                 </p>
 
-                {/* Uploaded User Illustration */}
-                <div className="contact-illustration-card">
-                  <div className="illustration-wrapper">
-                    <img 
-                      src={contactIllustration} 
-                      alt="Contact and Book Demo with GroWise" 
-                      className="contact-feature-img"
-                    />
-                  </div>
+                {/* Illustration */}
+                <div className="contact-illustration-container">
+                  <img 
+                    src={contactIllustration} 
+                    alt="Contact and Book Demo with GroWise" 
+                    className="contact-feature-img"
+                  />
                 </div>
 
-                {/* Value Highlights Pill Chips */}
-                <div className="contact-perks-list">
-                  <div className="contact-perk-item">
-                    <div className="perk-icon-wrap">
-                      <ShieldCheck size={18} />
-                    </div>
-                    <div>
-                      <h4>Customized To Your Scale</h4>
-                      <p>Personalized walkthrough for small batches to multi-branch academies.</p>
-                    </div>
-                  </div>
 
-                  <div className="contact-perk-item">
-                    <div className="perk-icon-wrap">
-                      <Clock size={18} />
-                    </div>
-                    <div>
-                      <h4>30-Minute Zero-Hassle Session</h4>
-                      <p>Get all your questions answered live by tuition tech specialists.</p>
-                    </div>
-                  </div>
-                </div>
 
                 {/* Direct Contact Channels */}
                 <div className="direct-contact-bar">
@@ -234,6 +211,7 @@ const ContactPage = ({ onNavigate }) => {
                 <div className="contact-form-card">
                   <div className="form-card-header">
                     <h2>Schedule Your Free Demo</h2>
+                    <p>Fill in your details and our team will reach out within 2 hours.</p>
                   </div>
 
                   <form className="booking-form" onSubmit={handleSubmit}>
@@ -248,7 +226,7 @@ const ContactPage = ({ onNavigate }) => {
                             id="fullName"
                             type="text" 
                             name="fullName"
-                            placeholder="e.g. Dr. Rajesh Kumar"
+                            placeholder="e.g. Rajesh Kumar"
                             required
                             value={formData.fullName}
                             onChange={handleChange}
@@ -264,7 +242,7 @@ const ContactPage = ({ onNavigate }) => {
                             id="email"
                             type="email" 
                             name="email"
-                            placeholder="rajesh@growisecentre.com"
+                            placeholder="rajesh@example.com"
                             required
                             value={formData.email}
                             onChange={handleChange}
@@ -299,8 +277,9 @@ const ContactPage = ({ onNavigate }) => {
                           value={formData.role} 
                           onChange={handleChange}
                         >
-                          <option value="Student">Student</option>
-                          <option value="Teacher">Teacher</option>
+                          <option value="Student">Student (Seeking Tuition)</option>
+                          <option value="Parent">Parent (For Student)</option>
+                          <option value="Teacher">Teacher (Interested in Taking Classes)</option>
                         </select>
                       </div>
                     </div>
@@ -342,14 +321,14 @@ const ContactPage = ({ onNavigate }) => {
 
                     {/* Row 5: Notes / Requirements */}
                     <div className="form-group">
-                      <label htmlFor="message">Any specific features or questions you'd like to explore?</label>
+                      <label htmlFor="message">Any specific requirements or questions?</label>
                       <div className="input-with-icon textarea-wrap">
                         <MessageSquare size={18} className="field-icon textarea-icon" />
                         <textarea 
                           id="message"
                           name="message"
                           rows="3"
-                          placeholder="e.g. We want to streamline batch attendance and send WhatsApp test score reports to parents..."
+                          placeholder="e.g. Subjects/grades you want tuition for, or your teaching qualifications and subjects you'd like to teach..."
                           value={formData.message}
                           onChange={handleChange}
                         ></textarea>
@@ -372,11 +351,6 @@ const ContactPage = ({ onNavigate }) => {
                       )}
                     </button>
 
-                    <div className="form-privacy-note">
-                      <HelpCircle size={14} />
-                      <span>We respect your privacy. No spam. Instant calendar invite sent upon confirmation.</span>
-                    </div>
-
                   </form>
                 </div>
               </div>
@@ -396,7 +370,7 @@ const ContactPage = ({ onNavigate }) => {
             <span>&bull;</span>
             <span onClick={() => onNavigate("role-selector")}>Portals</span>
             <span>&bull;</span>
-            <a href="mailto:support@growise.edu">support@growise.edu</a>
+            <a href="mailto:support@growise.edu">growiselearningstudio@gmail.com</a>
           </div>
         </div>
       </footer>

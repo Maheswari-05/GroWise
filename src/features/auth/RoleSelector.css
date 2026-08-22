@@ -49,6 +49,14 @@
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.navbar-logo:hover {
+  opacity: 0.88;
+  transform: translateY(-1px);
 }
 
 .navbar-logo img {

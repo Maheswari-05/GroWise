@@ -7,6 +7,7 @@ const DashboardOverview = ({
   batches, 
   onlineClasses, 
   notifications, 
+  formatTimeAgo,
   onNavigateTab,
   onQuickAction
 }) => {
@@ -28,6 +29,13 @@ const DashboardOverview = ({
     return "#ef4444";
   };
   const progressColor = getProgressColor(attendancePercent);
+
+  const formatItemTime = (item) => {
+    if (formatTimeAgo) {
+      return formatTimeAgo(item.time, item.createdAt);
+    }
+    return item.time || "Just now";
+  };
 
   return (
     <div className="admin-overview-container">
@@ -280,7 +288,7 @@ const DashboardOverview = ({
                     <div className="feed-dot"></div>
                     <div className="feed-content">
                       <p className="feed-message">{n.message}</p>
-                      <span className="feed-time">{n.time}</span>
+                      <span className="feed-time">{formatItemTime(n)}</span>
                     </div>
                   </div>
                 ))}

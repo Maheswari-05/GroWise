@@ -43,8 +43,6 @@ const TeachersTab = ({
     email: "",
     qualification: "",
     subjects: [],
-    username: "",
-    password: "",
     status: "Active"
   });
 
@@ -56,8 +54,6 @@ const TeachersTab = ({
       email: "",
       qualification: "",
       subjects: [],
-      username: "",
-      password: "Teacher@123",
       status: "Active"
     });
     setEditMode(false);
@@ -72,8 +68,6 @@ const TeachersTab = ({
       email: teacher.email || "",
       qualification: teacher.qualification || "",
       subjects: teacher.subjects || [],
-      username: teacher.username || teacher.name.split(" ")[1]?.toLowerCase() || "teacher",
-      password: teacher.password || "Teacher@123",
       status: teacher.status || "Active"
     });
     setEditMode(true);
@@ -364,38 +358,6 @@ const TeachersTab = ({
                   <div className="info-helper-box text-xs">
                     Tutors are automatically associated with batches that contain their assigned subjects. You can map students and schedules in the Batches tab.
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Credentials block */}
-            <div className="form-credentials-section">
-              <h3>Portal Authentication Access</h3>
-              <div className="form-grid-three">
-                <div className="form-control">
-                  <label htmlFor="tch-username">Portal Username</label>
-                  <input
-                    id="tch-username"
-                    type="text"
-                    placeholder="Username for tutor portal"
-                    value={formData.username}
-                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  />
-                </div>
-                <div className="form-control">
-                  <label htmlFor="tch-password">Portal Password</label>
-                  <input
-                    id="tch-password"
-                    type="text"
-                    placeholder="Portal login password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  />
-                </div>
-                <div className="form-control justify-end flex">
-                  <span className="field-helper-block">
-                    These credentials allow the teacher to sign in via the Teacher Portal.
-                  </span>
                 </div>
               </div>
             </div>

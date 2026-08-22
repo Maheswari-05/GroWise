@@ -30,7 +30,7 @@ const RoleSelector = ({ onNavigate }) => {
       {/* Navbar Header */}
       <nav className="role-selector-navbar">
         <div className="navbar-content">
-          <div className="navbar-logo">
+          <div className="navbar-logo" onClick={() => onNavigate("landing")}>
             <img src={logo} alt="GroWise Logo" />
             <span className="navbar-logo-text">GroWise</span>
           </div>

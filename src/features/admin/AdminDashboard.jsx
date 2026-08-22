@@ -50,6 +50,39 @@ const AdminDashboard = ({ onNavigate }) => {
   });
   const [adminProfile, setAdminProfile] = useState({ name: "", email: "" });
   const [adminAvatar, setAdminAvatar] = useState(localStorage.getItem("admin_pfp") || avatarImg);
+  const [, setTimeTick] = useState(0);
+
+  // Helper to format timestamps to human-readable relative time (e.g. "Just now", "2m ago")
+  const formatTimeAgo = (timeStr, createdAt) => {
+    const rawDate = createdAt || timeStr;
+    if (!rawDate) return "Just now";
+    const date = new Date(rawDate);
+    if (isNaN(date.getTime())) {
+      return timeStr || "Just now";
+    }
+    const now = new Date();
+    const diffMs = now - date;
+    if (diffMs < 0) return "Just now";
+    const diffSecs = Math.floor(diffMs / 1000);
+    const diffMins = Math.floor(diffSecs / 60);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffSecs < 45) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+
+  // Periodic interval to keep relative time strings fresh in real time
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeTick((t) => t + 1);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const handleAvatarUpdate = () => {
@@ -212,7 +245,7 @@ const AdminDashboard = ({ onNavigate }) => {
       await adminService.addNotification({
         type: "batch",
         message: `New Student ${newStu.name} added to system database.`,
-        time: "Just now",
+        time: new Date().toISOString(),
       });
       setNotifications(await adminService.fetchNotifications());
       return true;
@@ -237,6 +270,12 @@ const AdminDashboard = ({ onNavigate }) => {
         console.error("Failed to refresh students after update:", err);
       });
 
+      await adminService.addNotification({
+        type: "batch",
+        message: `Student ${updatedStu.name || updatedStu.id} records updated.`,
+        time: new Date().toISOString(),
+      });
+      setNotifications(await adminService.fetchNotifications());
       return true;
     } catch (err) {
       console.error("Failed to update student:", err);
@@ -246,8 +285,16 @@ const AdminDashboard = ({ onNavigate }) => {
 
   const handleDeleteStudent = async (stuId) => {
     try {
+      const stuObj = students.find((s) => s.id === stuId);
+      const stuName = stuObj ? stuObj.name : stuId;
       await adminService.deleteStudent(stuId);
       setStudents(await adminService.fetchStudents());
+      await adminService.addNotification({
+        type: "alert",
+        message: `Student record for ${stuName} (${stuId}) deleted from system.`,
+        time: new Date().toISOString(),
+      });
+      setNotifications(await adminService.fetchNotifications());
     } catch (err) {
       console.error("Failed to delete student:", err);
     }
@@ -284,7 +331,7 @@ const AdminDashboard = ({ onNavigate }) => {
       await adminService.addNotification({
         type: "batch",
         message: `New Teacher ${newTch.name} added to system database.`,
-        time: "Just now",
+        time: new Date().toISOString(),
       });
       setNotifications(await adminService.fetchNotifications());
       return true;
@@ -317,6 +364,12 @@ const AdminDashboard = ({ onNavigate }) => {
         console.error("Failed to refresh teachers after update:", err);
       });
 
+      await adminService.addNotification({
+        type: "batch",
+        message: `Faculty record for ${updatedTch.name || updatedTch.id} updated.`,
+        time: new Date().toISOString(),
+      });
+      setNotifications(await adminService.fetchNotifications());
       return true;
     } catch (err) {
       console.error("Failed to update teacher:", err);
@@ -331,11 +384,19 @@ const AdminDashboard = ({ onNavigate }) => {
 
   const handleDeleteTeacher = async (tchId) => {
     try {
+      const tchObj = teachers.find((t) => t.id === tchId);
+      const tchName = tchObj ? tchObj.name : tchId;
       await adminService.deleteTeacher(tchId);
       setTeachers((currentTeachers) => currentTeachers.filter((t) => t.id !== tchId));
       adminService.fetchTeachers().then(setTeachers).catch((err) => {
         console.error("Failed to refresh teachers after delete:", err);
       });
+      await adminService.addNotification({
+        type: "alert",
+        message: `Faculty member ${tchName} (${tchId}) removed from roster.`,
+        time: new Date().toISOString(),
+      });
+      setNotifications(await adminService.fetchNotifications());
     } catch (err) {
       console.error("Failed to delete teacher:", err);
       setTeachers((currentTeachers) => currentTeachers.filter((t) => t.id !== tchId));
@@ -347,6 +408,12 @@ const AdminDashboard = ({ onNavigate }) => {
     try {
       await adminService.addSubject(newSub);
       setSubjects(await adminService.fetchSubjects());
+      await adminService.addNotification({
+        type: "subject",
+        message: `New Subject ${newSub.name} (${newSub.code || ""}) registered in curriculum.`,
+        time: new Date().toISOString(),
+      });
+      setNotifications(await adminService.fetchNotifications());
     } catch (err) {
       console.error("Failed to add subject:", err);
     }
@@ -356,6 +423,12 @@ const AdminDashboard = ({ onNavigate }) => {
     try {
       await adminService.updateSubject(updatedSub);
       setSubjects(await adminService.fetchSubjects());
+      await adminService.addNotification({
+        type: "subject",
+        message: `Subject ${updatedSub.name} curriculum details updated.`,
+        time: new Date().toISOString(),
+      });
+      setNotifications(await adminService.fetchNotifications());
     } catch (err) {
       console.error("Failed to update subject:", err);
     }
@@ -363,8 +436,16 @@ const AdminDashboard = ({ onNavigate }) => {
 
   const handleDeleteSubject = async (subId) => {
     try {
+      const subObj = subjects.find((s) => s.id === subId);
+      const subName = subObj ? subObj.name : `Subject #${subId}`;
       await adminService.deleteSubject(subId);
       setSubjects(await adminService.fetchSubjects());
+      await adminService.addNotification({
+        type: "alert",
+        message: `Subject ${subName} removed from curriculum.`,
+        time: new Date().toISOString(),
+      });
+      setNotifications(await adminService.fetchNotifications());
     } catch (err) {
       console.error("Failed to delete subject:", err);
     }
@@ -378,7 +459,7 @@ const AdminDashboard = ({ onNavigate }) => {
       await adminService.addNotification({
         type: "batch",
         message: `New batch ${newBat.name} scheduled for ${newBat.student} with ${newBat.teacher}.`,
-        time: "Just now",
+        time: new Date().toISOString(),
       });
       setNotifications(await adminService.fetchNotifications());
     } catch (err) {
@@ -390,6 +471,12 @@ const AdminDashboard = ({ onNavigate }) => {
     try {
       await adminService.updateBatch(updatedBat);
       setBatches(await adminService.fetchBatches());
+      await adminService.addNotification({
+        type: "batch",
+        message: `Batch ${updatedBat.name} schedule/mapping updated.`,
+        time: new Date().toISOString(),
+      });
+      setNotifications(await adminService.fetchNotifications());
     } catch (err) {
       console.error("Failed to update batch:", err);
     }
@@ -397,8 +484,16 @@ const AdminDashboard = ({ onNavigate }) => {
 
   const handleDeleteBatch = async (batId) => {
     try {
+      const batObj = batches.find((b) => b.id === batId);
+      const batName = batObj ? batObj.name : `Batch #${batId}`;
       await adminService.deleteBatch(batId);
       setBatches(await adminService.fetchBatches());
+      await adminService.addNotification({
+        type: "alert",
+        message: `Batch ${batName} deleted from active schedule.`,
+        time: new Date().toISOString(),
+      });
+      setNotifications(await adminService.fetchNotifications());
     } catch (err) {
       console.error("Failed to delete batch:", err);
     }
@@ -409,8 +504,15 @@ const AdminDashboard = ({ onNavigate }) => {
     try {
       const material = materials.find((m) => m.id === id);
       if (material) {
-        await adminService.flagMaterial(id, !material.flagged);
+        const nextFlagged = !material.flagged;
+        await adminService.flagMaterial(id, nextFlagged);
         setMaterials(await adminService.fetchMaterials());
+        await adminService.addNotification({
+          type: nextFlagged ? "alert" : "material",
+          message: `Material "${material.title}" ${nextFlagged ? "flagged for review" : "unflagged / verified"}.`,
+          time: new Date().toISOString(),
+        });
+        setNotifications(await adminService.fetchNotifications());
       }
     } catch (err) {
       console.error("Failed to flag material:", err);
@@ -419,8 +521,16 @@ const AdminDashboard = ({ onNavigate }) => {
 
   const handleDeleteMaterial = async (id) => {
     try {
+      const material = materials.find((m) => m.id === id);
+      const matTitle = material ? material.title : `File #${id}`;
       await adminService.deleteMaterial(id);
       setMaterials(await adminService.fetchMaterials());
+      await adminService.addNotification({
+        type: "alert",
+        message: `Study material "${matTitle}" removed from system.`,
+        time: new Date().toISOString(),
+      });
+      setNotifications(await adminService.fetchNotifications());
     } catch (err) {
       console.error("Failed to delete material:", err);
     }
@@ -431,6 +541,12 @@ const AdminDashboard = ({ onNavigate }) => {
     try {
       await adminService.updateAttendanceLog(updatedLog);
       setAttendanceLogs(await adminService.fetchAttendanceLogs());
+      await adminService.addNotification({
+        type: "batch",
+        message: `Attendance for ${updatedLog.student} on ${updatedLog.date} updated to ${updatedLog.status}.`,
+        time: new Date().toISOString(),
+      });
+      setNotifications(await adminService.fetchNotifications());
       await adminService.addAuditLog({
         timestamp: new Date().toISOString().replace("T", " ").slice(0, 19),
         level: "INFO",
@@ -471,6 +587,12 @@ const AdminDashboard = ({ onNavigate }) => {
           const newStatus = student.status === "Active" ? "Inactive" : "Active";
           await adminService.toggleUserStatus("students", id, newStatus);
           setStudents(await adminService.fetchStudents());
+          await adminService.addNotification({
+            type: "alert",
+            message: `Student ${student.name} account set to ${newStatus}.`,
+            time: new Date().toISOString(),
+          });
+          setNotifications(await adminService.fetchNotifications());
         }
       } else if (role === "teacher") {
         const teacher = teachers.find((t) => t.id === id);
@@ -478,6 +600,12 @@ const AdminDashboard = ({ onNavigate }) => {
           const newStatus = teacher.status === "Active" ? "Inactive" : "Active";
           await adminService.toggleUserStatus("teachers", id, newStatus);
           setTeachers(await adminService.fetchTeachers());
+          await adminService.addNotification({
+            type: "alert",
+            message: `Teacher ${teacher.name} account set to ${newStatus}.`,
+            time: new Date().toISOString(),
+          });
+          setNotifications(await adminService.fetchNotifications());
         }
       }
     } catch (err) {
@@ -718,6 +846,7 @@ const AdminDashboard = ({ onNavigate }) => {
             batches={batches}
             onlineClasses={onlineClasses}
             notifications={notifications}
+            formatTimeAgo={formatTimeAgo}
             onNavigateTab={setActiveTab}
             onQuickAction={handleQuickAction}
           />
@@ -821,7 +950,7 @@ const AdminDashboard = ({ onNavigate }) => {
                         <p>No notifications yet</p>
                       </div>
                     ) : (
-                      notifications.slice().reverse().map((n) => (
+                      notifications.slice(0, 10).map((n) => (
                         <div className="notif-dropdown-item" key={n.id}>
                           <div
                             className="notif-item-icon"
@@ -831,7 +960,7 @@ const AdminDashboard = ({ onNavigate }) => {
                           </div>
                           <div className="notif-item-content">
                             <p className="notif-item-msg">{n.message}</p>
-                            <span className="notif-item-time">{n.time}</span>
+                            <span className="notif-item-time">{formatTimeAgo(n.time, n.createdAt)}</span>
                           </div>
                         </div>
                       ))

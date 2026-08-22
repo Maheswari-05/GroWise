@@ -143,7 +143,10 @@ export async function fetchOnlineClasses() {
 
 export async function fetchNotifications() {
   try {
-    const { data, error } = await supabase.from('notifications').select('*');
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .order('created_at', { ascending: false });
     if (error) { console.error('fetchNotifications error:', error); return []; }
     return (data || []).map(toCamelCase);
   } catch (e) {
@@ -154,7 +157,10 @@ export async function fetchNotifications() {
 
 export async function fetchAuditLogs() {
   try {
-    const { data, error } = await supabase.from('audit_logs').select('*');
+    const { data, error } = await supabase
+      .from('audit_logs')
+      .select('*')
+      .order('created_at', { ascending: false });
     if (error) { console.error('fetchAuditLogs error:', error); return []; }
     return (data || []).map(toCamelCase);
   } catch (e) {
