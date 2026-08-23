@@ -198,15 +198,15 @@ const OnlineClasses = ({
     if (!newTitle.trim()) return;
 
     setIsScheduling(true);
-    const selectedBatchObj = batches.find((b) => String(b.id) === String(newBatch)) || batches[0];
-    const batchIdentifier = selectedBatchObj?.name || newBatch || "Batch";
+    const selectedBatchObj = batches.find((b) => String(b.id) === String(newBatch) || b.name === newBatch) || batches[0];
+    const batchIdentifier = selectedBatchObj?.name || newBatch || "Assigned Batch";
 
     const newClassData = {
       title: newTitle.trim(),
       subject: newSubject,
       teacher: teacherName,
       student: batchIdentifier,
-      batchId: selectedBatchObj?.id || newBatch,
+      batchId: selectedBatchObj?.id || newBatch || "b1",
       date: newDate,
       time: newTime,
       status: "upcoming",
@@ -217,8 +217,12 @@ const OnlineClasses = ({
       const created = await adminService.addOnlineClass(newClassData);
       const newClass = created ? { ...newClassData, id: created.id } : { ...newClassData, id: "c_" + Date.now() };
 
-      // 2. Update local state
-      setOnlineClasses([newClass, ...(onlineClasses || [])]);
+      // 2. Update local state & LocalStorage
+      const nextClasses = [newClass, ...(onlineClasses || [])];
+      setOnlineClasses(nextClasses);
+      try {
+        localStorage.setItem("gw_classes_v3", JSON.stringify(nextClasses));
+      } catch (e) {}
 
       // 3. Send notification for students
       try {
@@ -227,11 +231,38 @@ const OnlineClasses = ({
           minute: "2-digit",
           hour12: true,
         });
-        await supabase.from("notifications").insert({
-          type: `online-class:${teacherName}`,
-          message: `Live class scheduled: ${newTitle} (${newSubject}) for ${newDate} at ${newTime}`,
-          time: currentTime,
-        });
+
+        const notifMsg = `Live class scheduled: "${newTitle.trim()}" (${newSubject}) for ${newDate} at ${newTime}`;
+
+        await supabase.from("notifications").insert([
+          {
+            type: `online-class:${teacherName}`,
+            message: notifMsg,
+            time: currentTime,
+          },
+          {
+            type: "class-reminder",
+            message: notifMsg,
+            time: currentTime,
+          }
+        ]);
+
+        try {
+          const raw = localStorage.getItem("gw_notifications_v3");
+          const existing = raw ? JSON.parse(raw) : [];
+          const newNotif = {
+            id: `notif_${Date.now()}`,
+            type: "class-reminder",
+            title: "Live Class Scheduled",
+            detail: notifMsg,
+            message: notifMsg,
+            time: "Just now",
+            group: "TODAY",
+            unread: true,
+            read: false,
+          };
+          localStorage.setItem("gw_notifications_v3", JSON.stringify([newNotif, ...existing]));
+        } catch (e) {}
       } catch (notifErr) {
         console.warn("Notification send warning:", notifErr);
       }
@@ -253,6 +284,10 @@ const OnlineClasses = ({
       return c;
     });
     setOnlineClasses(updated);
+    try {
+      localStorage.setItem("gw_classes_v3", JSON.stringify(updated));
+    } catch (e) {}
+
     setActiveCallClassId(classId);
     setVideoActive(true);
     setMicActive(true);

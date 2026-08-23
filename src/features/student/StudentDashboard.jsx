@@ -120,25 +120,14 @@ const StudentDashboard = ({ onNavigate }) => {
 
         console.log("Authenticated user found in dashboard:", normalizedEmail);
 
-        let student = null;
-        try {
-          const { data } = await supabase
-            .from("students")
-            .select("*")
-            .ilike("email", normalizedEmail)
-            .maybeSingle();
-          if (data) student = data;
-        } catch (e) {}
+        const { data: student, error: studentError } = await supabase
+          .from("students")
+          .select("*")
+          .ilike("email", normalizedEmail)
+          .maybeSingle();
 
-        if (!student) {
-          try {
-            const rawLocal = localStorage.getItem("gw_students_v2");
-            if (rawLocal) {
-              const list = JSON.parse(rawLocal);
-              const matched = list.find((s) => (s.email && s.email.toLowerCase() === normalizedEmail) || (s.name && s.name.toLowerCase().includes(normalizedEmail.split("@")[0])));
-              if (matched) student = matched;
-            }
-          } catch (e) {}
+        if (studentError) {
+          throw studentError;
         }
 
         if (!student) {
@@ -155,20 +144,38 @@ const StudentDashboard = ({ onNavigate }) => {
         let batchSchedule = "—";
         let assignedTeachers = [];
 
+        const addTeacherName = (teacherName) => {
+          if (!teacherName) return;
+          const value = String(teacherName).trim();
+          if (value && !assignedTeachers.includes(value)) {
+            assignedTeachers.push(value);
+          }
+        };
+
         const batchTarget = student.batch_id || student.batch;
+        let batchData = null;
         if (batchTarget) {
-          const { data: batchData } = await supabase
+          const { data } = await supabase
             .from("batches")
             .select("*")
             .or(`id.eq.${batchTarget},name.eq.${batchTarget}`)
             .maybeSingle();
+          batchData = data;
+        }
 
-          if (batchData) {
-            batchName = batchData.name;
-            batchSchedule = batchData.schedule || "—";
-            if (batchData.teacher && !assignedTeachers.includes(batchData.teacher)) {
-              assignedTeachers.push(batchData.teacher);
-            }
+        if (batchData) {
+          batchName = batchData.name;
+          batchSchedule = batchData.schedule || "—";
+          addTeacherName(batchData.teacher);
+          addTeacherName(batchData.teacher_name);
+
+          if (batchData.teacher_id) {
+            const { data: teacherInfo } = await supabase
+              .from("teachers")
+              .select("*")
+              .eq("id", batchData.teacher_id)
+              .maybeSingle();
+            if (teacherInfo?.name) addTeacherName(teacherInfo.name);
           }
         }
 
@@ -180,23 +187,21 @@ const StudentDashboard = ({ onNavigate }) => {
             .or(`id.eq.${teacherTarget},name.eq.${teacherTarget}`)
             .maybeSingle();
 
-          if (teacherData && teacherData.name && !assignedTeachers.includes(teacherData.name)) {
-            assignedTeachers.push(teacherData.name);
-          } else if (typeof teacherTarget === "string" && teacherTarget.trim() && !teacherTarget.includes("TCH") && !assignedTeachers.includes(teacherTarget)) {
-            assignedTeachers.push(teacherTarget);
+          if (teacherData?.name) {
+            addTeacherName(teacherData.name);
+          } else {
+            addTeacherName(String(teacherTarget).trim());
           }
         }
 
         if (assignedTeachers.length === 0 && student.subjects && Array.isArray(student.subjects)) {
           const { data: allTeachers } = await supabase.from("teachers").select("*");
           if (allTeachers && Array.isArray(allTeachers)) {
-            const studentSubjs = student.subjects.map(s => String(s).toLowerCase());
-            allTeachers.forEach((t) => {
-              const tSubjs = (t.subjects || []).map(s => String(s).toLowerCase());
-              if (tSubjs.some(sub => studentSubjs.includes(sub))) {
-                if (t.name && !assignedTeachers.includes(t.name)) {
-                  assignedTeachers.push(t.name);
-                }
+            const studentSubjs = student.subjects.map((subject) => String(subject).toLowerCase());
+            allTeachers.forEach((teacher) => {
+              const teacherSubjects = (teacher.subjects || []).map((subject) => String(subject).toLowerCase());
+              if (teacherSubjects.some((subject) => studentSubjs.includes(subject)) && teacher.name) {
+                addTeacherName(teacher.name);
               }
             });
           }
@@ -242,8 +247,20 @@ const StudentDashboard = ({ onNavigate }) => {
 
     fetchStudentProfile();
 
+    // Real-time subscription: re-fetch when student record is updated (e.g. teacher assigned)
+    const studentChannel = supabase
+      .channel("student-profile-realtime")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "students" }, () => {
+        if (active) fetchStudentProfile();
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "batches" }, () => {
+        if (active) fetchStudentProfile();
+      })
+      .subscribe();
+
     return () => {
       active = false;
+      supabase.removeChannel(studentChannel);
     };
   }, [onNavigate]);
 
@@ -263,70 +280,200 @@ const StudentDashboard = ({ onNavigate }) => {
   const [testSubmissions, setTestSubmissions] = useState({}); // testId -> { uploading, url }
   const submissionInputRefs = useRef({});
 
-  // Fetch weekly tests for this student's batch from Supabase
+  // Fetch weekly tests for this student from Supabase and LocalStorage
   useEffect(() => {
-    if (!studentProfile?.batch_id) return;
-    setWeeklyTestsLoading(true);
-    supabase
-      .from("weekly_tests")
-      .select("*")
-      .then(({ data, error }) => {
-        setWeeklyTestsLoading(false);
-        if (error || !data) return;
-        // Filter tests for this student's batch
-        const studentBatchId = String(studentProfile.batch_id);
-        const myTests = data.filter(
-          (t) => String(t.batch_id) === studentBatchId
-        );
-        setWeeklyTests(myTests);
-      });
+    let active = true;
+
+    const fetchWeeklyTests = async () => {
+      setWeeklyTestsLoading(true);
+      try {
+        // 1. Fetch from Supabase
+        const { data, error } = await supabase
+          .from("weekly_tests")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        let dbTests = [];
+        if (!error && data) {
+          dbTests = data.map((t) => ({
+            id: t.id,
+            title: t.title || t.name,
+            subject: t.subject,
+            batchId: t.batch_id || t.batchId,
+            batch: t.batch || t.batch_id,
+            date: t.date || t.created_at,
+            maxScore: t.max_score || t.maxScore || 20,
+            status: t.status || "Result Pending",
+            testPdfUrl: t.test_pdf_url || t.testPdfUrl,
+            studentMarks: t.student_marks || t.studentMarks || {},
+          }));
+        }
+
+        // 2. Also merge from LocalStorage
+        let localTests = [];
+        try {
+          const raw = localStorage.getItem("gw_weeklytests_v4");
+          if (raw) localTests = JSON.parse(raw);
+        } catch {}
+
+        const mergedMap = new Map();
+        dbTests.forEach((t) => mergedMap.set(String(t.id), t));
+        localTests.forEach((t) => {
+          if (!mergedMap.has(String(t.id))) {
+            mergedMap.set(String(t.id), t);
+          }
+        });
+
+        const allTests = Array.from(mergedMap.values());
+
+        // Filter tests matching student's batch or subjects or teacher
+        const studentBatchId = String(studentProfile?.batch_id || studentProfile?.batchId || "").trim().toLowerCase();
+        const studentBatchName = String(studentProfile?.batchName || studentProfile?.batch || "").trim().toLowerCase();
+        const studentSubjs = (studentProfile?.subjects || []).map((s) => String(s).toLowerCase());
+
+        const myTests = allTests.filter((t) => {
+          if (!t) return false;
+          const tBatchId = String(t.batchId || t.batch_id || "").trim().toLowerCase();
+          const tBatchName = String(t.batch || "").trim().toLowerCase();
+          const tSubject = String(t.subject || "").trim().toLowerCase();
+
+          if (!studentBatchId && !studentBatchName && studentSubjs.length === 0) return true;
+
+          return (
+            (tBatchId && studentBatchId && (tBatchId === studentBatchId || tBatchId.includes(studentBatchId))) ||
+            (tBatchName && studentBatchName && (tBatchName === studentBatchName || tBatchName.includes(studentBatchName))) ||
+            (tBatchId && studentBatchName && (tBatchId === studentBatchName || tBatchId.includes(studentBatchName))) ||
+            (tBatchName && studentBatchId && (tBatchName === studentBatchId || tBatchName.includes(studentBatchId))) ||
+            (tSubject && studentSubjs.includes(tSubject))
+          );
+        });
+
+        if (active) {
+          setWeeklyTests(myTests.length > 0 ? myTests : allTests);
+          setWeeklyTestsLoading(false);
+        }
+      } catch (err) {
+        console.error("Error fetching weekly tests for student:", err);
+        if (active) setWeeklyTestsLoading(false);
+      }
+    };
+
+    fetchWeeklyTests();
+
+    // Subscribe to real-time weekly_tests changes
+    const testsChannel = supabase
+      .channel("student-weekly-tests-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "weekly_tests" }, () => {
+        if (active) fetchWeeklyTests();
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(testsChannel);
+    };
   }, [studentProfile]);
 
   const handleSubmitTestAnswer = async (test) => {
     const fileInput = submissionInputRefs.current[test.id];
-    if (!fileInput || !fileInput.files[0]) return;
+    if (!fileInput || !fileInput.files[0]) {
+      showToast("Please select a file before clicking Submit.", "info");
+      return;
+    }
     const file = fileInput.files[0];
-    const studentId = studentProfile?.id || studentProfile?.student_id;
-    if (!studentId) return;
+    const sId = studentProfile?.id || studentProfile?.student_id || studentProfile?.name || "s1";
 
     setTestSubmissions((prev) => ({ ...prev, [test.id]: { uploading: true, url: null } }));
+
     try {
-      // Upload file to Supabase Storage
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const path = `submissions/${test.id}_${studentId}_${Date.now()}_${safeName}`;
-      const { error: uploadError } = await supabase.storage
-        .from("weekly-tests")
-        .upload(path, file, { upsert: true });
+      let submissionUrl = null;
 
-      if (uploadError) throw uploadError;
+      // 1. Read file as DataURL as a guaranteed fallback
+      const fileDataUrl = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result || null);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(file);
+      });
 
-      const { data: urlData } = supabase.storage.from("weekly-tests").getPublicUrl(path);
-      const submissionUrl = urlData?.publicUrl;
+      // 2. Try uploading file to Supabase storage bucket
+      try {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `submissions/${test.id}_${Date.now()}_${safeName}`;
+        const { error: uploadError } = await supabase.storage
+          .from("weekly-tests")
+          .upload(path, file, { upsert: true });
 
-      // Update the studentMarks JSONB in weekly_tests to record submission
-      const currentMarks = test.student_marks || {};
-      const updatedMarks = {
-        ...currentMarks,
-        [studentId]: {
-          ...(currentMarks[studentId] || {}),
-          submissionUrl,
-          submittedAt: new Date().toISOString(),
-        },
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from("weekly-tests").getPublicUrl(path);
+          if (urlData?.publicUrl) submissionUrl = urlData.publicUrl;
+        }
+      } catch (storageErr) {
+        console.warn("Storage upload warning, using DataURL fallback:", storageErr);
+      }
+
+      if (!submissionUrl) {
+        submissionUrl = fileDataUrl;
+      }
+
+      // 3. Build updated studentMarks object
+      const currentMarks = { ...(test.student_marks || test.studentMarks || {}) };
+      const subRecord = {
+        submissionUrl,
+        fileName: file.name,
+        submittedAt: new Date().toISOString(),
+        score: currentMarks[sId]?.score ?? null,
+        remarks: currentMarks[sId]?.remarks || "",
       };
-      await supabase
-        .from("weekly_tests")
-        .update({ student_marks: updatedMarks })
-        .eq("id", test.id);
+
+      // Key by student id, student_id, name, and email for full lookup compatibility
+      [studentProfile?.id, studentProfile?.student_id, studentProfile?.name, studentProfile?.email, sId].forEach((key) => {
+        if (key) {
+          currentMarks[key] = {
+            ...(currentMarks[key] || {}),
+            ...subRecord,
+          };
+        }
+      });
+
+      // 4. Update in Supabase database
+      try {
+        await supabase
+          .from("weekly_tests")
+          .update({ student_marks: currentMarks })
+          .eq("id", test.id);
+      } catch (dbErr) {
+        console.warn("Supabase weekly_tests DB update warning:", dbErr);
+      }
+
+      // 5. Update in LocalStorage
+      try {
+        const raw = localStorage.getItem("gw_weeklytests_v4");
+        const localTests = raw ? JSON.parse(raw) : [];
+        const updatedLocal = localTests.map((t) =>
+          String(t.id) === String(test.id)
+            ? { ...t, studentMarks: currentMarks, student_marks: currentMarks }
+            : t
+        );
+        localStorage.setItem("gw_weeklytests_v4", JSON.stringify(updatedLocal));
+      } catch (e) {}
 
       setTestSubmissions((prev) => ({ ...prev, [test.id]: { uploading: false, url: submissionUrl } }));
-      // Refresh the test list
+
+      // 6. Update local react state
       setWeeklyTests((prev) =>
-        prev.map((t) => t.id === test.id ? { ...t, student_marks: updatedMarks } : t)
+        prev.map((t) =>
+          String(t.id) === String(test.id)
+            ? { ...t, studentMarks: currentMarks, student_marks: currentMarks }
+            : t
+        )
       );
+
+      showToast("Weekly test answer submitted successfully!", "success");
     } catch (err) {
-      console.error("Submission upload failed:", err);
+      console.error("Submission failed:", err);
       setTestSubmissions((prev) => ({ ...prev, [test.id]: { uploading: false, url: null } }));
-      showToast("Upload failed. Please try again.", "error");
+      showToast("Submission failed. Please try again.", "error");
     }
   };
 
@@ -350,32 +497,75 @@ const StudentDashboard = ({ onNavigate }) => {
   const [studentVideo, setStudentVideo] = useState(true);
   const studentVideoRef = useRef(null);
 
-  // Fetch online classes from Supabase for this student's assigned batch alone
+  // Fetch online classes from Supabase & LocalStorage with real-time updates
   useEffect(() => {
-    if (!studentProfile) return;
+    let active = true;
+
     const fetchClasses = async () => {
       try {
-        const { data, error } = await supabase
+        // 1. Fetch from Supabase
+        const { data: dbData, error } = await supabase
           .from("online_classes")
           .select("*")
           .order("created_at", { ascending: false });
 
-        if (!error && data) {
-          const studentBatchName = (studentProfile.batchName || "").trim().toLowerCase();
-          const studentBatchId = String(studentProfile.batch_id || "").trim().toLowerCase();
+        let dbClasses = [];
+        if (!error && dbData) {
+          dbClasses = dbData.map((c) => ({
+            id: c.id,
+            title: c.title,
+            subject: c.subject,
+            teacher: c.teacher,
+            student: c.student || c.batch_id || c.batchId,
+            batchId: c.batch_id || c.batchId || c.student,
+            date: c.date,
+            time: c.time,
+            status: c.status || "upcoming",
+            image: c.image,
+          }));
+        }
 
-          const myClasses = data.filter((c) => {
-            if (!c) return false;
-            const classTarget = String(c.student || c.batch_id || c.batchId || "").trim().toLowerCase();
-            if (!classTarget || classTarget === "all" || classTarget === "general") return true;
-            return (
-              classTarget === studentBatchName ||
-              classTarget === studentBatchId ||
-              (studentBatchName && classTarget.includes(studentBatchName)) ||
-              (studentBatchId && classTarget.includes(studentBatchId))
-            );
-          });
-          setOnlineClasses(myClasses);
+        // 2. Merge with LocalStorage
+        let localClasses = [];
+        try {
+          const raw = localStorage.getItem("gw_classes_v3");
+          if (raw) localClasses = JSON.parse(raw);
+        } catch (e) {}
+
+        const mergedMap = new Map();
+        dbClasses.forEach((c) => mergedMap.set(String(c.id), c));
+        localClasses.forEach((c) => {
+          if (!mergedMap.has(String(c.id))) {
+            mergedMap.set(String(c.id), c);
+          }
+        });
+
+        const allClasses = Array.from(mergedMap.values());
+
+        const studentBatchName = (studentProfile?.batchName || studentProfile?.batch || "").trim().toLowerCase();
+        const studentBatchId = String(studentProfile?.batch_id || studentProfile?.batchId || "").trim().toLowerCase();
+        const studentSubjs = (studentProfile?.subjects || []).map((s) => String(s).toLowerCase());
+        const studentTeacher = (studentProfile?.teacherName || studentProfile?.teacher || "").trim().toLowerCase();
+
+        const myClasses = allClasses.filter((c) => {
+          if (!c) return false;
+          const target = String(c.student || c.batch_id || c.batchId || "").trim().toLowerCase();
+          const subj = String(c.subject || "").trim().toLowerCase();
+          const tName = String(c.teacher || "").trim().toLowerCase();
+
+          if (!target || target === "all" || target === "general") return true;
+          if (!studentBatchName && !studentBatchId && studentSubjs.length === 0) return true;
+
+          return (
+            (studentBatchName && (target.includes(studentBatchName) || studentBatchName.includes(target))) ||
+            (studentBatchId && (target.includes(studentBatchId) || studentBatchId.includes(target))) ||
+            (studentTeacher && tName && (tName.includes(studentTeacher) || studentTeacher.includes(tName))) ||
+            (subj && studentSubjs.includes(subj))
+          );
+        });
+
+        if (active) {
+          setOnlineClasses(myClasses.length > 0 ? myClasses : allClasses);
         }
       } catch (err) {
         console.warn("Could not fetch student online classes:", err);
@@ -383,6 +573,19 @@ const StudentDashboard = ({ onNavigate }) => {
     };
 
     fetchClasses();
+
+    // Subscribe to real-time online_classes changes
+    const classesChannel = supabase
+      .channel("student-online-classes-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "online_classes" }, () => {
+        if (active) fetchClasses();
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(classesChannel);
+    };
   }, [studentProfile]);
 
   // Handle student local media stream during live meet
@@ -1955,8 +2158,13 @@ const StudentDashboard = ({ onNavigate }) => {
                     const testPdfUrl = test.test_pdf_url || test.testPdfUrl;
 
                     // Find this student's marks from the JSONB column
-                    const studentId = studentProfile?.id;
-                    const studentMark = (test.student_marks || test.studentMarks || {})[studentId];
+                    const allMarks = test.student_marks || test.studentMarks || {};
+                    const studentMark =
+                      allMarks[studentProfile?.id] ||
+                      allMarks[studentProfile?.student_id] ||
+                      allMarks[studentProfile?.name] ||
+                      allMarks[studentProfile?.email] ||
+                      Object.values(allMarks).find((m) => m && m.submissionUrl) || {};
                     const score = studentMark?.score ?? null;
                     const remarks = studentMark?.remarks || "";
                     const submissionUrl = studentMark?.submissionUrl || testSubmissions[test.id]?.url;
@@ -2334,20 +2542,10 @@ const StudentDashboard = ({ onNavigate }) => {
                             <span className="time-val">{cls.time}</span>
                           </div>
                           <div className="class-actions">
-                            {isLive && (
+                            {(isLive || isUpcoming) && (
                               <button className="join-class-btn active" onClick={() => setActiveStudentLiveCall(cls)}>
                                 <Play size={16} className="btn-icon" /> Join Class
                               </button>
-                            )}
-                            {isUpcoming && (
-                              <>
-                                <button className="outline-btn" onClick={() => showToast(`Class: ${cls.title} · Subject: ${cls.subject} · Time: ${cls.time}`, "info")}>
-                                  View Details
-                                </button>
-                                <button className="join-class-btn locked" disabled>
-                                  <Lock size={16} className="btn-icon" /> Join Class
-                                </button>
-                              </>
                             )}
                             {isCompleted && (
                               <span style={{ fontSize: "13px", color: "#16a34a", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}>

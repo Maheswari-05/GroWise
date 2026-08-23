@@ -187,6 +187,15 @@ export async function addWeeklyTest(test) {
   }
 }
 
+export async function deleteWeeklyTest(id) {
+  try {
+    const { error } = await supabase.from('weekly_tests').delete().eq('id', id);
+    if (error) { console.error('deleteWeeklyTest error:', error); }
+  } catch (e) {
+    console.error('deleteWeeklyTest exception:', e);
+  }
+}
+
 
 export async function fetchOnlineClasses() {
   try {

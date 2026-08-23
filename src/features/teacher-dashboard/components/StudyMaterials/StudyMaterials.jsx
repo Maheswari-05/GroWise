@@ -138,8 +138,18 @@ const EMPTY_FORM = {
   fileType: "pdf",
 };
 
-const MaterialModal = ({ mode, initial, onClose, onSave }) => {
-  const [form, setForm] = useState(initial || EMPTY_FORM);
+const MaterialModal = ({ mode, initial, onClose, onSave, batches = [], students = [] }) => {
+  const [form, setForm] = useState(() => {
+    if (initial) return { ...initial };
+    const firstBatch = batches[0];
+    return {
+      ...EMPTY_FORM,
+      batchId: firstBatch ? firstBatch.id || firstBatch.name : "b1",
+      batch: firstBatch ? firstBatch.name : "Batch A",
+      grade: firstBatch ? firstBatch.grade || "Grade 10" : "Grade 10",
+      subject: firstBatch && firstBatch.subject ? firstBatch.subject : "Mathematics",
+    };
+  });
   const [errors, setErrors] = useState({});
   const fileRef = useRef();
 
@@ -172,7 +182,6 @@ const MaterialModal = ({ mode, initial, onClose, onSave }) => {
     if (!form.title.trim()) e.title = "Title is required";
     if (!form.subject.trim()) e.subject = "Subject is required";
     if (!form.batch.trim()) e.batch = "Batch is required";
-    if (!form.grade.trim()) e.grade = "Grade is required";
     if (!form.description.trim()) e.description = "Description is required";
     if (mode === "upload" && !form.fileName) e.file = "Please select a file";
     return e;
@@ -214,7 +223,7 @@ const MaterialModal = ({ mode, initial, onClose, onSave }) => {
             <label className="sm-label">Title *</label>
             <input
               className={`sm-input ${errors.title ? "sm-input--error" : ""}`}
-              placeholder="e.g. Chapter 5 – Trigonometry"
+              placeholder="e.g. Chapter 5 – Trigonometry Notes"
               value={form.title}
               onChange={(e) => set("title", e.target.value)}
             />
@@ -235,23 +244,46 @@ const MaterialModal = ({ mode, initial, onClose, onSave }) => {
             </div>
             <div className="sm-field">
               <label className="sm-label">Batch *</label>
-              <input
-                className={`sm-input ${errors.batch ? "sm-input--error" : ""}`}
-                placeholder="e.g. Batch A"
-                value={form.batch}
-                onChange={(e) => set("batch", e.target.value)}
-              />
+              {batches && batches.length > 0 ? (
+                <select
+                  className="sm-input"
+                  value={form.batchId || form.batch}
+                  onChange={(e) => {
+                    const bId = e.target.value;
+                    const bObj = batches.find((b) => String(b.id) === bId || b.name === bId);
+                    setForm((f) => ({
+                      ...f,
+                      batchId: bId,
+                      batch: bObj ? bObj.name : bId,
+                      grade: bObj ? bObj.grade || "Grade 10" : f.grade,
+                      subject: bObj && bObj.subject ? bObj.subject : f.subject,
+                    }));
+                  }}
+                >
+                  {batches.map((b) => (
+                    <option key={b.id || b.name} value={b.id || b.name}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className={`sm-input ${errors.batch ? "sm-input--error" : ""}`}
+                  placeholder="e.g. Batch A"
+                  value={form.batch}
+                  onChange={(e) => set("batch", e.target.value)}
+                />
+              )}
               {errors.batch && <span className="sm-error">{errors.batch}</span>}
             </div>
             <div className="sm-field">
-              <label className="sm-label">Grade *</label>
+              <label className="sm-label">Grade</label>
               <input
-                className={`sm-input ${errors.grade ? "sm-input--error" : ""}`}
+                className="sm-input"
                 placeholder="e.g. Grade 10"
-                value={form.grade}
+                value={form.grade || "Grade 10"}
                 onChange={(e) => set("grade", e.target.value)}
               />
-              {errors.grade && <span className="sm-error">{errors.grade}</span>}
             </div>
           </div>
 
@@ -268,7 +300,7 @@ const MaterialModal = ({ mode, initial, onClose, onSave }) => {
             {errors.description && <span className="sm-error">{errors.description}</span>}
           </div>
 
-          {/* File Upload */}
+          {/* File Upload Drop Area */}
           <div className="sm-field">
             <label className="sm-label">
               {mode === "upload" ? "File *" : "Replace File (optional)"}
@@ -285,16 +317,31 @@ const MaterialModal = ({ mode, initial, onClose, onSave }) => {
                 onChange={handleFileChange}
               />
               {form.fileName ? (
-                <div className="sm-file-selected">
-                  <FileText size={20} color="#2D6BFF" />
-                  <span className="sm-file-name">{form.fileName}</span>
-                  <span className="sm-file-size">{form.fileSize}</span>
+                <div className="sm-file-selected" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <FileText size={22} color="#2D6BFF" />
+                    <div>
+                      <div className="sm-file-name" style={{ fontWeight: 600, fontSize: "14px", color: "var(--text-primary)" }}>{form.fileName}</div>
+                      <div className="sm-file-size" style={{ fontSize: "12px", color: "var(--text-muted)" }}>{form.fileSize}</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", padding: "4px" }}
+                    onClick={(evt) => {
+                      evt.stopPropagation();
+                      setForm((f) => ({ ...f, fileName: "", fileSize: "", fileType: "pdf", fileUrl: null }));
+                    }}
+                    title="Remove File"
+                  >
+                    <X size={16} />
+                  </button>
                 </div>
               ) : (
                 <div className="sm-file-placeholder">
-                  <Upload size={22} color="var(--muted-light)" />
-                  <p>Click to browse or drag & drop</p>
-                  <span>PDF, DOC, PPT, XLS, ZIP — max 50 MB</span>
+                  <Upload size={24} color="#2D6BFF" />
+                  <p style={{ fontWeight: 600, color: "var(--text-primary)", margin: "4px 0" }}>Click to browse or drag & drop</p>
+                  <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>PDF, DOC, PPT, XLS, ZIP — max 50 MB</span>
                 </div>
               )}
             </div>
@@ -337,7 +384,7 @@ const DeleteModal = ({ material, onClose, onConfirm }) => (
 );
 
 /* ── Main Component ────────────────────────────────────────── */
-const StudyMaterials = () => {
+const StudyMaterials = ({ batches = [], students = [] }) => {
   const [materials, setMaterials] = useState([]);
 
   // Fetch materials dynamically from Supabase
@@ -482,18 +529,45 @@ const StudyMaterials = () => {
       try {
         await supabase.from("materials").insert(payload);
 
-        // Insert notification for the student along with the current time
+        // Insert notification for the student along with current time
         const currentTime = new Date().toLocaleTimeString("en-US", {
           hour: "numeric",
           minute: "2-digit",
           hour12: true,
         });
 
-        await supabase.from("notifications").insert({
-          type: `study-material:${teacherName}`,
-          message: `New Study Material: ${data.title} (${data.subject})`,
-          time: currentTime,
-        });
+        const notifMsg = `New Study Material: "${data.title}" uploaded for ${data.batch || "your batch"} (${data.subject}).`;
+
+        await supabase.from("notifications").insert([
+          {
+            type: `study-material:${teacherName}`,
+            message: notifMsg,
+            time: currentTime,
+          },
+          {
+            type: "batch",
+            message: notifMsg,
+            time: currentTime,
+          },
+        ]);
+
+        // Also add to local storage notifications store so UI updates immediately
+        try {
+          const raw = localStorage.getItem("gw_notifications_v3");
+          const existing = raw ? JSON.parse(raw) : [];
+          const newNotif = {
+            id: `notif_${Date.now()}`,
+            type: "study-material",
+            title: "New Study Material Uploaded",
+            message: notifMsg,
+            time: "Just now",
+            date: new Date().toISOString(),
+            read: false,
+            batch: data.batch,
+            subject: data.subject,
+          };
+          localStorage.setItem("gw_notifications_v3", JSON.stringify([newNotif, ...existing]));
+        } catch (e) {}
       } catch (err) {
         console.error("Failed to insert material/notification:", err);
       }
@@ -701,6 +775,8 @@ const StudyMaterials = () => {
           initial={null}
           onClose={() => setModal(null)}
           onSave={handleSave}
+          batches={batches}
+          students={students}
         />
       )}
       {modal?.mode === "edit" && (
@@ -709,6 +785,8 @@ const StudyMaterials = () => {
           initial={modal.material}
           onClose={() => setModal(null)}
           onSave={handleSave}
+          batches={batches}
+          students={students}
         />
       )}
       {deleteTarget && (

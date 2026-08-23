@@ -2,29 +2,232 @@ import { useState, useRef } from "react";
 import {
   Search, Plus, Filter, BookOpen, FlaskConical, User, Calendar,
   CheckCircle2, AlertCircle, TrendingUp, BarChart2, Check, X,
-  ArrowLeft, Upload, FileText, Eye, Download, Loader2
+  ArrowLeft, Upload, FileText, Eye, Download, Loader2, Pencil, Trash2, Paperclip
 } from "lucide-react";
 import * as adminService from "../../../../services/adminService";
 import supabase from "../../../../lib/supabase";
 import "./WeeklyTests.css";
 
-const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
+/* ── Delete Confirmation Modal ─────────────────────────────────────── */
+const DeleteTestModal = ({ test, onClose, onConfirm }) => (
+  <div className="wt-modal-overlay" onClick={onClose}>
+    <div className="wt-modal" style={{ maxWidth: "420px" }} onClick={(e) => e.stopPropagation()}>
+      <div className="wt-modal-header" style={{ borderBottom: "none", paddingBottom: "0" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#ef4444" }}>
+          <Trash2 size={24} />
+          <h3 style={{ margin: 0, color: "#0f172a" }}>Delete Weekly Test?</h3>
+        </div>
+        <button className="wt-modal-close" onClick={onClose}>
+          <X size={18} />
+        </button>
+      </div>
+      <div style={{ padding: "16px 20px", color: "#475569", fontSize: "14px" }}>
+        Are you sure you want to delete <strong>"{test.title}"</strong>? This action cannot be undone.
+      </div>
+      <div className="wt-modal-footer">
+        <button type="button" className="wt-btn-secondary" onClick={onClose}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="wt-btn-primary"
+          style={{ background: "#ef4444", borderColor: "#ef4444" }}
+          onClick={onConfirm}
+        >
+          <Trash2 size={14} /> Delete
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+/* ── Create / Edit Test Modal ─────────────────────────────────────── */
+const TestModal = ({ mode, initial, batches = [], onClose, onSave }) => {
+  const [title, setTitle] = useState(initial?.title || "");
+  const [subject, setSubject] = useState(initial?.subject || "Mathematics");
+  const [batchId, setBatchId] = useState(initial?.batchId || batches[0]?.id || "");
+  const [date, setDate] = useState(initial?.date || new Date().toISOString().split("T")[0]);
+  const [maxScore, setMaxScore] = useState(initial?.maxScore || 20);
+  const [pdfFile, setPdfFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const pdfInputRef = useRef(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+    setUploading(true);
+
+    try {
+      let testPdfUrl = initial?.testPdfUrl || null;
+
+      if (pdfFile) {
+        const safeName = pdfFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `papers/${Date.now()}_${safeName}`;
+        const uploadedUrl = await adminService.uploadTestFile(pdfFile, path);
+        if (uploadedUrl) testPdfUrl = uploadedUrl;
+      }
+
+      await onSave({
+        ...initial,
+        title,
+        subject,
+        batchId,
+        date,
+        maxScore: Number(maxScore) || 20,
+        testPdfUrl,
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="wt-modal-overlay" onClick={onClose}>
+      <div className="wt-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="wt-modal-header">
+          <h3>{mode === "create" ? "Create Weekly Test" : "Edit Weekly Test"}</h3>
+          <button className="wt-modal-close" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="wt-form-group">
+            <label>Test Title *</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Chapter 4 Trigonometry Test"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
+
+          <div className="wt-form-row">
+            <div className="wt-form-group">
+              <label>Subject *</label>
+              <select value={subject} onChange={(e) => setSubject(e.target.value)}>
+                <option value="Mathematics">Mathematics</option>
+                <option value="Science">Science</option>
+                <option value="Physics">Physics</option>
+                <option value="Chemistry">Chemistry</option>
+                <option value="Biology">Biology</option>
+                <option value="English">English</option>
+                <option value="Social Studies">Social Studies</option>
+              </select>
+            </div>
+
+            <div className="wt-form-group">
+              <label>Batch *</label>
+              <select value={batchId} onChange={(e) => setBatchId(e.target.value)}>
+                {batches.map((b) => (
+                  <option key={b.id || b.name} value={b.id || b.name}>
+                    {b.name} {b.grade ? `(${b.grade})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="wt-form-row">
+            <div className="wt-form-group">
+              <label>Test Date *</label>
+              <input
+                type="date"
+                required
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </div>
+
+            <div className="wt-form-group">
+              <label>Max Marks *</label>
+              <input
+                type="number"
+                min="1"
+                required
+                value={maxScore}
+                onChange={(e) => setMaxScore(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* PDF Upload */}
+          <div className="wt-form-group">
+            <label>Upload Test Paper (PDF) <span className="wt-optional-tag">{mode === "edit" ? "replace optional" : "optional"}</span></label>
+            <div
+              className={`wt-pdf-upload-zone ${pdfFile || initial?.testPdfUrl ? "has-file" : ""}`}
+              onClick={() => pdfInputRef.current?.click()}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const file = e.dataTransfer.files[0];
+                if (file && file.type === "application/pdf") setPdfFile(file);
+              }}
+            >
+              <input
+                ref={pdfInputRef}
+                type="file"
+                accept=".pdf"
+                style={{ display: "none" }}
+                onChange={(e) => setPdfFile(e.target.files[0] || null)}
+              />
+              {pdfFile ? (
+                <div className="wt-pdf-file-info">
+                  <FileText size={24} />
+                  <span>{pdfFile.name}</span>
+                  <button
+                    type="button"
+                    className="wt-pdf-remove-btn"
+                    onClick={(e) => { e.stopPropagation(); setPdfFile(null); }}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : initial?.testPdfUrl ? (
+                <div className="wt-pdf-file-info">
+                  <FileText size={24} color="#2D6BFF" />
+                  <span>Attached Test Paper PDF</span>
+                  <small style={{ color: "#2D6BFF" }}>Click to replace</small>
+                </div>
+              ) : (
+                <div className="wt-pdf-upload-placeholder">
+                  <Upload size={28} />
+                  <span>Click or drag & drop a PDF here</span>
+                  <small>Students will be able to download this test paper</small>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="wt-modal-footer">
+            <button type="button" className="wt-btn-secondary" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="wt-btn-primary" disabled={uploading}>
+              {uploading ? (
+                <><Loader2 size={14} className="wt-spin" /> Saving...</>
+              ) : mode === "create" ? (
+                "Create Test"
+              ) : (
+                "Save Changes"
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+/* ── Main WeeklyTests Component ─────────────────────────────────────── */
+const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches = [] }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBatch, setSelectedBatch] = useState("all");
   const [selectedSubject, setSelectedSubject] = useState("all");
   const [activeTestId, setActiveTestId] = useState(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [modalMode, setModalMode] = useState(null); // null | "create" | { mode: "edit", test }
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [viewAnalysisTestId, setViewAnalysisTestId] = useState(null);
-
-  // Create form state
-  const [newTestTitle, setNewTestTitle] = useState("");
-  const [newTestSubject, setNewTestSubject] = useState("Mathematics");
-  const [newTestBatch, setNewTestBatch] = useState(() => batches[0]?.id || "");
-  const [newTestDate, setNewTestDate] = useState(new Date().toISOString().split("T")[0]);
-  const [newTestMaxScore, setNewTestMaxScore] = useState(20);
-  const [testPdfFile, setTestPdfFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const pdfInputRef = useRef(null);
 
   // Marks entry state
   const [tempMarks, setTempMarks] = useState({});
@@ -89,7 +292,11 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
       );
       setWeeklyTests(updatedTests);
 
-      // Persist to Supabase
+      // Persist to Supabase and localStorage
+      try {
+        localStorage.setItem("gw_weeklytests_v4", JSON.stringify(updatedTests));
+      } catch {}
+
       await adminService.updateWeeklyTest(activeTest.id, {
         studentMarks: updatedMarks,
         status: newStatus,
@@ -108,7 +315,7 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
                 text: `Your result for "${activeTest.title}" has been published: ${mark.score}/${activeTest.maxScore} (${pct}%). ${mark.remarks ? "Remarks: " + mark.remarks : ""}`,
                 read: false,
               });
-            } catch (_) { /* notifications are best-effort */ }
+            } catch (_) {}
           }
         }
       }
@@ -119,23 +326,10 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
     }
   };
 
-  const handleCreateTest = async (e) => {
-    e.preventDefault();
-    if (!newTestTitle.trim()) return;
-    setUploading(true);
-
-    try {
-      let testPdfUrl = null;
-
-      // Upload PDF if selected
-      if (testPdfFile) {
-        const safeName = testPdfFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const path = `papers/${Date.now()}_${safeName}`;
-        testPdfUrl = await adminService.uploadTestFile(testPdfFile, path);
-      }
-
+  const handleSaveTest = async (testData) => {
+    if (modalMode === "create") {
       const batchStudents = (students || []).filter(
-        (s) => s && String(s.batchId) === String(newTestBatch)
+        (s) => s && String(s.batchId) === String(testData.batchId)
       );
 
       const studentMarks = {};
@@ -144,28 +338,24 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
       });
 
       const newTestData = {
-        title: newTestTitle,
-        subject: newTestSubject,
-        batchId: newTestBatch,
-        date: newTestDate,
-        maxScore: Number(newTestMaxScore) || 20,
+        ...testData,
         status: "Result Pending",
-        testPdfUrl,
         studentMarks,
       };
 
-      // Try saving to Supabase
       const saved = await adminService.addWeeklyTest(newTestData);
       const newTest = saved
         ? { ...newTestData, id: saved.id }
         : { ...newTestData, id: "t" + Date.now() };
 
-      setWeeklyTests([newTest, ...(weeklyTests || [])]);
-      setShowCreateModal(false);
-      setNewTestTitle("");
-      setTestPdfFile(null);
+      const nextTests = [newTest, ...(weeklyTests || [])];
+      setWeeklyTests(nextTests);
 
-      // Send notification for new test
+      try {
+        localStorage.setItem("gw_weeklytests_v4", JSON.stringify(nextTests));
+      } catch {}
+
+      // Dispatch Notification
       try {
         const loggedTeacherStr = localStorage.getItem("gw_logged_teacher");
         let teacherName = "Teacher";
@@ -178,21 +368,48 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
           hour12: true,
         });
 
-        await supabase.from("notifications").insert({
-          type: `weekly-test:${teacherName}`,
-          message: `New Test Scheduled: ${newTestTitle} (${newTestSubject})`,
-          time: currentTime,
-        });
+        await supabase.from("notifications").insert([
+          {
+            type: `weekly-test:${teacherName}`,
+            message: `New Test Scheduled: ${testData.title} (${testData.subject})`,
+            time: currentTime,
+          },
+          {
+            type: "batch",
+            message: `New Weekly Test "${testData.title}" uploaded for ${testData.subject}.`,
+            time: currentTime,
+          }
+        ]);
       } catch (err) {
         console.error("Failed to insert test notification:", err);
       }
-    } finally {
-      setUploading(false);
+    } else if (modalMode?.mode === "edit") {
+      const updatedTests = (weeklyTests || []).map((t) =>
+        t.id === testData.id ? { ...t, ...testData } : t
+      );
+      setWeeklyTests(updatedTests);
+
+      try {
+        localStorage.setItem("gw_weeklytests_v4", JSON.stringify(updatedTests));
+      } catch {}
+
+      await adminService.updateWeeklyTest(testData.id, testData);
     }
+    setModalMode(null);
   };
 
-  // Handle student submission upload from teacher's marks entry (teacher can see submitted files)
-  // Student-side upload is handled in StudentDashboard
+  const handleDeleteTest = async () => {
+    if (!deleteTarget) return;
+    const nextTests = (weeklyTests || []).filter((t) => t.id !== deleteTarget.id);
+    setWeeklyTests(nextTests);
+
+    try {
+      localStorage.setItem("gw_weeklytests_v4", JSON.stringify(nextTests));
+    } catch {}
+
+    await adminService.deleteWeeklyTest(deleteTarget.id);
+    setDeleteTarget(null);
+  };
 
   const getTestStats = (test) => {
     if (!test || !test.studentMarks) return { avgScore: 0, highestScore: 0, passRate: 0, totalGraded: 0 };
@@ -268,7 +485,13 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
                     score !== "" && !isNaN(score)
                       ? ((Number(score) / activeTest.maxScore) * 100).toFixed(0) + "%"
                       : "-";
-                  const submissionUrl = activeTest.studentMarks?.[student.id]?.submissionUrl;
+                  const allStudentMarks = activeTest.studentMarks || activeTest.student_marks || {};
+                  const studentRecord =
+                    allStudentMarks[student.id] ||
+                    allStudentMarks[student.name] ||
+                    allStudentMarks[student.email] ||
+                    Object.values(allStudentMarks).find((m) => m && m.submissionUrl);
+                  const submissionUrl = studentRecord?.submissionUrl;
 
                   return (
                     <tr key={student.id}>
@@ -467,7 +690,7 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
                   <select value={selectedBatch} onChange={(e) => setSelectedBatch(e.target.value)}>
                     <option value="all">All Batches</option>
                     {batches.map((b) => (
-                      <option key={b.id} value={b.id}>
+                      <option key={b.id || b.name} value={b.id || b.name}>
                         {b.name} {b.grade ? `(${b.grade})` : ""}
                       </option>
                     ))}
@@ -486,7 +709,7 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
               </div>
             </div>
 
-            <button className="wt-create-btn" onClick={() => setShowCreateModal(true)}>
+            <button className="wt-create-btn" onClick={() => setModalMode("create")}>
               <Plus size={16} /> Create Weekly Test
             </button>
           </div>
@@ -499,7 +722,7 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
               </div>
             ) : (
               filteredTests.map((test) => {
-                const batch = batches.find((b) => String(b.id) === String(test.batchId));
+                const batch = batches.find((b) => String(b.id) === String(test.batchId) || b.name === test.batchId);
                 const isPublished = test.status === "Published";
                 const stats = getTestStats(test);
                 const submissionCount = getSubmissionCount(test);
@@ -522,18 +745,48 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
                         </span>
                       </div>
                       <div className="wt-card-details">
-                        <div className="wt-card-title-row">
-                          <h3 className="wt-card-title">{test.title}</h3>
-                          <span className={`wt-badge ${isPublished ? "wt-badge-published" : "wt-badge-pending"}`}>
-                            {test.status}
-                          </span>
+                        <div className="wt-card-title-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                            <h3 className="wt-card-title">{test.title}</h3>
+                            <span className={`wt-badge ${isPublished ? "wt-badge-published" : "wt-badge-pending"}`}>
+                              {test.status}
+                            </span>
+                          </div>
+                          {/* Card Action Buttons (Eye, Pencil, Trash2) like Assignments section */}
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <button
+                              className="wt-btn-secondary"
+                              style={{ padding: "5px 8px", fontSize: "12px" }}
+                              onClick={() => handleOpenMarksEntry(test)}
+                              title="View Submissions & Enter Marks"
+                            >
+                              <Eye size={14} /> View / Marks
+                            </button>
+                            <button
+                              className="wt-btn-secondary"
+                              style={{ padding: "5px 8px", fontSize: "12px" }}
+                              onClick={() => setModalMode({ mode: "edit", test })}
+                              title="Edit Test"
+                            >
+                              <Pencil size={14} /> Edit
+                            </button>
+                            <button
+                              className="wt-btn-secondary"
+                              style={{ padding: "5px 8px", fontSize: "12px", color: "#ef4444", borderColor: "#fecaca" }}
+                              onClick={() => setDeleteTarget(test)}
+                              title="Delete Test"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         </div>
+
                         <div className="wt-card-meta">
-                          <span><User size={14} /> {batch?.name || "Batch"} {batch?.grade ? `(${batch.grade})` : ""}</span>
+                          <span><User size={14} /> {batch?.name || test.batchId || "Batch"} {batch?.grade ? `(${batch.grade})` : ""}</span>
                           <span><Calendar size={14} /> {dateDisplay}</span>
                           {test.testPdfUrl && (
                             <a href={test.testPdfUrl} target="_blank" rel="noopener noreferrer" className="wt-paper-link">
-                              <FileText size={13} /> Test Paper
+                              <FileText size={13} /> Test Paper (PDF)
                             </a>
                           )}
                           {totalStudents > 0 && (
@@ -585,134 +838,34 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
         </>
       )}
 
-      {/* 4. Create Test Modal */}
-      {showCreateModal && (
-        <div className="wt-modal-overlay">
-          <div className="wt-modal">
-            <div className="wt-modal-header">
-              <h3>Create Weekly Test</h3>
-              <button className="wt-modal-close" onClick={() => setShowCreateModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-            <form onSubmit={handleCreateTest}>
-              <div className="wt-form-group">
-                <label>Test Title</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Chapter 4 Trigonometry Test"
-                  value={newTestTitle}
-                  onChange={(e) => setNewTestTitle(e.target.value)}
-                />
-              </div>
+      {/* 4. Create / Edit Test Modal */}
+      {modalMode === "create" && (
+        <TestModal
+          mode="create"
+          initial={null}
+          batches={batches}
+          onClose={() => setModalMode(null)}
+          onSave={handleSaveTest}
+        />
+      )}
 
-              <div className="wt-form-row">
-                <div className="wt-form-group">
-                  <label>Subject</label>
-                  <select value={newTestSubject} onChange={(e) => setNewTestSubject(e.target.value)}>
-                    <option value="Mathematics">Mathematics</option>
-                    <option value="Science">Science</option>
-                    <option value="Physics">Physics</option>
-                    <option value="Chemistry">Chemistry</option>
-                    <option value="Biology">Biology</option>
-                    <option value="English">English</option>
-                    <option value="Social Studies">Social Studies</option>
-                  </select>
-                </div>
+      {modalMode?.mode === "edit" && (
+        <TestModal
+          mode="edit"
+          initial={modalMode.test}
+          batches={batches}
+          onClose={() => setModalMode(null)}
+          onSave={handleSaveTest}
+        />
+      )}
 
-                <div className="wt-form-group">
-                  <label>Batch</label>
-                  <select value={newTestBatch} onChange={(e) => setNewTestBatch(e.target.value)}>
-                    {batches.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name} {b.grade ? `(${b.grade})` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="wt-form-row">
-                <div className="wt-form-group">
-                  <label>Test Date</label>
-                  <input
-                    type="date"
-                    required
-                    value={newTestDate}
-                    onChange={(e) => setNewTestDate(e.target.value)}
-                  />
-                </div>
-
-                <div className="wt-form-group">
-                  <label>Max Marks</label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={newTestMaxScore}
-                    onChange={(e) => setNewTestMaxScore(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {/* PDF Upload */}
-              <div className="wt-form-group">
-                <label>Upload Test Paper (PDF) <span className="wt-optional-tag">optional</span></label>
-                <div
-                  className={`wt-pdf-upload-zone ${testPdfFile ? "has-file" : ""}`}
-                  onClick={() => pdfInputRef.current?.click()}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const file = e.dataTransfer.files[0];
-                    if (file && file.type === "application/pdf") setTestPdfFile(file);
-                  }}
-                >
-                  <input
-                    ref={pdfInputRef}
-                    type="file"
-                    accept=".pdf"
-                    style={{ display: "none" }}
-                    onChange={(e) => setTestPdfFile(e.target.files[0] || null)}
-                  />
-                  {testPdfFile ? (
-                    <div className="wt-pdf-file-info">
-                      <FileText size={24} />
-                      <span>{testPdfFile.name}</span>
-                      <button
-                        type="button"
-                        className="wt-pdf-remove-btn"
-                        onClick={(e) => { e.stopPropagation(); setTestPdfFile(null); }}
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="wt-pdf-upload-placeholder">
-                      <Upload size={28} />
-                      <span>Click or drag & drop a PDF here</span>
-                      <small>Students will be able to download this test paper</small>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="wt-modal-footer">
-                <button type="button" className="wt-btn-secondary" onClick={() => setShowCreateModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="wt-btn-primary" disabled={uploading}>
-                  {uploading ? (
-                    <><Loader2 size={14} className="wt-spin" /> Uploading...</>
-                  ) : (
-                    "Create Test"
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {/* 5. Delete Test Modal */}
+      {deleteTarget && (
+        <DeleteTestModal
+          test={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={handleDeleteTest}
+        />
       )}
     </div>
   );

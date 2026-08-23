@@ -248,14 +248,23 @@ const AdminDashboard = ({ onNavigate }) => {
     try {
       await adminService.addStudent(newStu);
 
-      // Update the batch's teacher to the selected teacher's name in the database
-      if (newStu.batchId && newStu.teacherId) {
+      // Update the batch's teacher field AND save teacher_id on the student directly
+      if (newStu.teacherId) {
         const teacherObj = teachers.find(t => t.id === newStu.teacherId);
         if (teacherObj) {
+          // Update student's teacher_id in DB directly
           await supabase
-            .from("batches")
-            .update({ teacher: teacherObj.name })
-            .eq("id", newStu.batchId);
+            .from("students")
+            .update({ teacher_id: teacherObj.id })
+            .eq("id", newStu.id);
+
+          // Also update batch's teacher field so teacher dashboard can match by name
+          if (newStu.batchId) {
+            await supabase
+              .from("batches")
+              .update({ teacher: teacherObj.name, teacher_id: teacherObj.id })
+              .eq("id", newStu.batchId);
+          }
         }
       }
 
@@ -309,13 +318,23 @@ const AdminDashboard = ({ onNavigate }) => {
       await adminService.updateStudent(updatedStu);
 
       // Update the batch's teacher to the selected teacher's name in the database
-      if (updatedStu.batchId && updatedStu.teacherId) {
+      // AND update student's teacher_id directly
+      if (updatedStu.teacherId) {
         const teacherObj = teachers.find(t => t.id === updatedStu.teacherId);
         if (teacherObj) {
+          // Update student's teacher_id in DB directly
           await supabase
-            .from("batches")
-            .update({ teacher: teacherObj.name })
-            .eq("id", updatedStu.batchId);
+            .from("students")
+            .update({ teacher_id: teacherObj.id })
+            .eq("id", updatedStu.id);
+
+          // Also update batch's teacher field so teacher dashboard can match by name
+          if (updatedStu.batchId) {
+            await supabase
+              .from("batches")
+              .update({ teacher: teacherObj.name, teacher_id: teacherObj.id })
+              .eq("id", updatedStu.batchId);
+          }
         }
       }
 
