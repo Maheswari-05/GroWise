@@ -142,18 +142,30 @@ const StudentDashboard = ({ onNavigate }) => {
         let assignedTeachers = [];
 
         if (student.batch_id) {
-          const { data: batchData, error: batchError } = await supabase
+          const { data: batchData } = await supabase
             .from("batches")
             .select("*")
             .eq("id", student.batch_id)
             .maybeSingle();
 
-          if (!batchError && batchData) {
+          if (batchData) {
             batchName = batchData.name;
             batchSchedule = batchData.schedule || "—";
-            if (batchData.teacher) {
-              assignedTeachers = [batchData.teacher];
+            if (batchData.teacher && !assignedTeachers.includes(batchData.teacher)) {
+              assignedTeachers.push(batchData.teacher);
             }
+          }
+        }
+
+        if (student.teacher_id) {
+          const { data: teacherData } = await supabase
+            .from("teachers")
+            .select("*")
+            .eq("id", student.teacher_id)
+            .maybeSingle();
+
+          if (teacherData && teacherData.name && !assignedTeachers.includes(teacherData.name)) {
+            assignedTeachers.push(teacherData.name);
           }
         }
 

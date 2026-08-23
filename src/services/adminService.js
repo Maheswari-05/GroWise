@@ -360,7 +360,10 @@ export async function addStudent(student) {
   delete row.created_at;
   delete row.password; // Passwords stored in auth, not table
   delete row.username; // Username not in schema
-  delete row.teacher_id; // teacher_id not in schema (assigned dynamically via subjects)
+
+  if (student.teacherId || student.teacher_id) {
+    row.teacher_id = student.teacherId || student.teacher_id;
+  }
 
   if (row.email) {
     row.email = String(row.email).trim().toLowerCase();
@@ -467,8 +470,17 @@ export async function updateStudent(student) {
   delete row.created_at;
   delete row.password; // Not stored in table
   delete row.username; // Not stored in table
-  delete row.teacher_id; // teacher_id not in schema (assigned dynamically via subjects)
-  const { error } = await supabase.from('students').update(row).eq('id', id);
+
+  if (student.teacherId !== undefined || student.teacher_id !== undefined) {
+    row.teacher_id = student.teacherId || student.teacher_id || null;
+  }
+
+  let { error } = await supabase.from('students').update(row).eq('id', id);
+  if (error && (error.message?.includes('teacher_id') || error.code === 'PGRST204')) {
+    delete row.teacher_id;
+    const retry = await supabase.from('students').update(row).eq('id', id);
+    error = retry.error;
+  }
   handleError(error, 'updateStudent');
 }
 

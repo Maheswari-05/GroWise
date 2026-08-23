@@ -281,54 +281,61 @@ const TeacherDashboard = ({ onNavigate }) => {
           supabase.from("students").select("*"),
         ]);
 
-        let activeBatches = [];
-        let activeStudents = [];
+        const activeBatchMap = new Map();
 
         if (batchesData && teacherName) {
-          // Filter batches explicitly assigned to this teacher
-          activeBatches = batchesData.filter((b) => {
-            if (!b) return false;
+          batchesData.forEach((b) => {
+            if (!b) return;
             const bTeacher = (b.teacher || "").trim().toLowerCase();
             const bTeacherId = String(b.teacher_id || "").trim();
-            return (
-              (bTeacher && bTeacher === teacherName) ||
+            if (
+              (bTeacher && (bTeacher === teacherName || bTeacher.includes(teacherName) || teacherName.includes(bTeacher))) ||
               (bTeacherId && bTeacherId === teacherId)
-            );
+            ) {
+              activeBatchMap.set(String(b.id), b);
+            }
           });
         }
 
-        if (studentsData && activeBatches.length > 0) {
-          const batchIds = new Set(activeBatches.map((b) => String(b.id)));
-          const batchNames = new Set(activeBatches.map((b) => (b.name || "").trim().toLowerCase()));
+        const activeStudents = [];
 
-          activeStudents = studentsData
-            .filter((s) => {
-              if (!s) return false;
-              const sBatchId = String(s.batch_id || s.batchId || "");
-              const sBatchName = (s.batch || s.batchName || "").trim().toLowerCase();
-              const sTeacherId = String(s.teacher_id || s.teacherId || "");
+        if (studentsData && (teacherId || teacherName)) {
+          studentsData.forEach((s) => {
+            if (!s) return;
+            const sTeacherId = String(s.teacher_id || s.teacherId || "").trim();
+            const sBatchId = String(s.batch_id || s.batchId || "").trim();
+            const sBatchName = (s.batch || s.batchName || "").trim().toLowerCase();
 
-              return (
-                (sTeacherId && sTeacherId === teacherId) ||
-                (sBatchId && batchIds.has(sBatchId)) ||
-                (sBatchName && batchNames.has(sBatchName))
-              );
-            })
-            .map((s) => ({
-              id: s.id,
-              name: s.name,
-              contact: s.contact,
-              email: s.email || "",
-              dob: s.dob || "",
-              address: s.address || "",
-              parentName: s.parent_name || s.parentName || "",
-              parentContact: s.parent_contact || s.parentContact || "",
-              subjects: s.subjects || [],
-              batchId: s.batch_id || s.batchId || "",
-              batch: s.batch || "",
-              status: s.status || "Active",
-            }));
+            const isDirectMatch = Boolean(teacherId && sTeacherId === teacherId);
+            const isBatchMatch = activeBatchMap.has(sBatchId) || Array.from(activeBatchMap.values()).some((b) => (b.name || "").trim().toLowerCase() === sBatchName);
+
+            if (isDirectMatch || isBatchMatch) {
+              activeStudents.push({
+                id: s.id,
+                name: s.name,
+                contact: s.contact,
+                email: s.email || "",
+                dob: s.dob || "",
+                address: s.address || "",
+                parentName: s.parent_name || s.parentName || "",
+                parentContact: s.parent_contact || s.parentContact || "",
+                subjects: s.subjects || [],
+                batchId: s.batch_id || s.batchId || "",
+                batch: s.batch || "",
+                status: s.status || "Active",
+              });
+
+              if (sBatchId && batchesData) {
+                const foundBatch = batchesData.find((b) => String(b.id) === sBatchId || b.name === s.batch);
+                if (foundBatch && !activeBatchMap.has(String(foundBatch.id))) {
+                  activeBatchMap.set(String(foundBatch.id), foundBatch);
+                }
+              }
+            }
+          });
         }
+
+        activeBatches = Array.from(activeBatchMap.values());
 
         const formatDate = (dateStr) => {
           if (!dateStr) return "—";

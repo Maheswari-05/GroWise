@@ -466,11 +466,9 @@ const StudentsTab = ({
                     onChange={(e) => setFormData({...formData, teacherId: e.target.value})}
                   >
                     <option value="">-- Choose Teacher --</option>
-                    {teachers
-                      .filter(t => t.name.toLowerCase().includes("alice") || t.name.toLowerCase().includes("rajesh"))
-                      .map(t => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
+                    {(teachers || []).map(t => (
+                      <option key={t.id} value={t.id}>{t.name} {t.subjects ? `(${Array.isArray(t.subjects) ? t.subjects.join(", ") : t.subjects})` : ""}</option>
+                    ))}
                   </select>
                 </div>
 
