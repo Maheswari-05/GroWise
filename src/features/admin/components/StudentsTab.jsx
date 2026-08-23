@@ -45,6 +45,7 @@ const StudentsTab = ({
     parentContact: "",
     subjects: [],
     batchId: "",
+    teacherId: "",
     username: "",
     password: "",
     status: "Active"
@@ -62,6 +63,7 @@ const StudentsTab = ({
       parentContact: student.parentContact || "",
       subjects: student.subjects || [],
       batchId: student.batchId || "",
+      teacherId: student.teacherId || "",
       username: student.username || student.name.split(" ")[0],
       password: student.password || "Password@123",
       status: student.status || "Active"
@@ -82,6 +84,7 @@ const StudentsTab = ({
       parentContact: "",
       subjects: [],
       batchId: "",
+      teacherId: "",
       username: "",
       password: "Password@123",
       status: "Active"
@@ -396,7 +399,21 @@ const StudentsTab = ({
                       <option key={b.id} value={b.id}>{b.name} ({b.subject})</option>
                     ))}
                   </select>
-                  <span className="field-hint">Note: Batches enforce a 1:1 student mapping. Please select a vacant batch.</span>
+                </div>
+
+                {/* Teacher select */}
+                <div className="form-control">
+                  <label htmlFor="stu-teacher">Assigned Teacher</label>
+                  <select 
+                    id="stu-teacher" 
+                    value={formData.teacherId}
+                    onChange={(e) => setFormData({...formData, teacherId: e.target.value})}
+                  >
+                    <option value="">-- Choose Teacher --</option>
+                    {teachers.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Subject Enrollment Checkboxes */}

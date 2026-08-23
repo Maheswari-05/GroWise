@@ -352,13 +352,7 @@ const TeachersTab = ({
                   </div>
                 </div>
 
-                {/* Batch setup helper */}
-                <div className="form-control">
-                  <label>Assigned Batches</label>
-                  <div className="info-helper-box text-xs">
-                    Tutors are automatically associated with batches that contain their assigned subjects. You can map students and schedules in the Batches tab.
-                  </div>
-                </div>
+
               </div>
             </div>
 
