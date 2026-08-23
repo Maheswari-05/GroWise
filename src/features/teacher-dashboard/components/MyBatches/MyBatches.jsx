@@ -59,8 +59,26 @@ const getRollNo = (s) => {
 };
 
 const MyBatches = ({ batches: propBatches = [], students: propStudents = [] }) => {
-  const batches = Array.isArray(propBatches) ? propBatches : [];
+  let batches = Array.isArray(propBatches) ? propBatches : [];
   const students = Array.isArray(propStudents) ? propStudents : [];
+
+  // Fallback: If no explicit batch object exists in DB, but students are assigned to this teacher, generate dynamic batch tabs!
+  if (batches.length === 0 && students.length > 0) {
+    const batchMap = new Map();
+    students.forEach((s) => {
+      const bKey = String(s.batchId || s.batch_id || s.batch || "assigned_batch").trim();
+      const bName = s.batch || s.batchId || "Assigned Students Batch";
+      if (!batchMap.has(bKey)) {
+        batchMap.set(bKey, {
+          id: bKey,
+          name: bName,
+          grade: "Active Grade",
+          subject: Array.isArray(s.subjects) ? s.subjects.join(", ") : "Enrolled"
+        });
+      }
+    });
+    batches = Array.from(batchMap.values());
+  }
 
   const [selectedBatchId, setSelectedBatchId] = useState(batches[0]?.id || batches[0]?.name || "");
   const [selectedStudent, setSelectedStudent]  = useState(null);

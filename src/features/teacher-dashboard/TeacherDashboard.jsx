@@ -331,6 +331,16 @@ const TeacherDashboard = ({ onNavigate }) => {
                   activeBatchMap.set(String(foundBatch.id), foundBatch);
                 }
               }
+
+              const bKey = sBatchId || s.batch || "assigned_batch";
+              if (!activeBatchMap.has(bKey)) {
+                activeBatchMap.set(bKey, {
+                  id: bKey,
+                  name: s.batch || sBatchId || "Assigned Students Batch",
+                  grade: "Active Grade",
+                  subject: Array.isArray(s.subjects) ? s.subjects.join(", ") : "Enrolled"
+                });
+              }
             }
           });
         }

@@ -137,15 +137,16 @@ const StudentDashboard = ({ onNavigate }) => {
           return;
         }
 
-        let batchName = "Not Assigned";
+        let batchName = student.batch || student.batch_id || "Not Assigned";
         let batchSchedule = "—";
         let assignedTeachers = [];
 
-        if (student.batch_id) {
+        const batchTarget = student.batch_id || student.batch;
+        if (batchTarget) {
           const { data: batchData } = await supabase
             .from("batches")
             .select("*")
-            .eq("id", student.batch_id)
+            .or(`id.eq.${batchTarget},name.eq.${batchTarget}`)
             .maybeSingle();
 
           if (batchData) {
@@ -157,15 +158,33 @@ const StudentDashboard = ({ onNavigate }) => {
           }
         }
 
-        if (student.teacher_id) {
+        const teacherTarget = student.teacher_id || student.teacherId || student.teacher;
+        if (teacherTarget) {
           const { data: teacherData } = await supabase
             .from("teachers")
             .select("*")
-            .eq("id", student.teacher_id)
+            .or(`id.eq.${teacherTarget},name.eq.${teacherTarget}`)
             .maybeSingle();
 
           if (teacherData && teacherData.name && !assignedTeachers.includes(teacherData.name)) {
             assignedTeachers.push(teacherData.name);
+          } else if (typeof teacherTarget === "string" && teacherTarget.trim() && !teacherTarget.includes("TCH") && !assignedTeachers.includes(teacherTarget)) {
+            assignedTeachers.push(teacherTarget);
+          }
+        }
+
+        if (assignedTeachers.length === 0 && student.subjects && Array.isArray(student.subjects)) {
+          const { data: allTeachers } = await supabase.from("teachers").select("*");
+          if (allTeachers && Array.isArray(allTeachers)) {
+            const studentSubjs = student.subjects.map(s => String(s).toLowerCase());
+            allTeachers.forEach((t) => {
+              const tSubjs = (t.subjects || []).map(s => String(s).toLowerCase());
+              if (tSubjs.some(sub => studentSubjs.includes(sub))) {
+                if (t.name && !assignedTeachers.includes(t.name)) {
+                  assignedTeachers.push(t.name);
+                }
+              }
+            });
           }
         }
 
