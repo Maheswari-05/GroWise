@@ -105,6 +105,15 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
     setShowCreateModal(false);
     setNewTestTitle("");
 
+    // Resolve logged in teacher name
+    const loggedTeacherStr = localStorage.getItem("gw_logged_teacher");
+    let teacherName = "Alice";
+    if (loggedTeacherStr) {
+      try {
+        teacherName = JSON.parse(loggedTeacherStr).name;
+      } catch (e) {}
+    }
+
     // Insert notification for the student along with the current time
     try {
       const currentTime = new Date().toLocaleTimeString("en-US", {
@@ -114,7 +123,7 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
       });
 
       await supabase.from("notifications").insert({
-        type: "weekly-test",
+        type: `weekly-test:${teacherName}`,
         message: `New Test Scheduled: ${newTestTitle} (${newTestSubject})`,
         time: currentTime,
       });

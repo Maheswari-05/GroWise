@@ -39,7 +39,7 @@ const TeacherLogin = ({ onNavigate }) => {
 
       // Bypass login for teacher Rajesh if password is forgotten
       if (normalizedEmail === "snehar20067@gmail.com") {
-        if (password.trim() === "Sneha!1234") {
+        if (password.trim() === "Teacher@123") {
           const { data: dbTeacher } = await supabase
             .from("teachers")
             .select("*")

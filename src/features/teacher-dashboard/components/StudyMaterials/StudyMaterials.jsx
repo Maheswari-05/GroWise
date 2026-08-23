@@ -490,7 +490,7 @@ const StudyMaterials = () => {
         });
 
         await supabase.from("notifications").insert({
-          type: "study-material",
+          type: `study-material:${teacherName}`,
           message: `New Study Material: ${data.title} (${data.subject})`,
           time: currentTime,
         });

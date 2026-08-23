@@ -633,6 +633,15 @@ const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssi
       setAssignments(p => [data, ...p]);
       showToast("Assignment created successfully!");
 
+      // Resolve logged in teacher name
+      const loggedTeacherStr = localStorage.getItem("gw_logged_teacher");
+      let teacherName = "Alice";
+      if (loggedTeacherStr) {
+        try {
+          teacherName = JSON.parse(loggedTeacherStr).name;
+        } catch (e) {}
+      }
+
       // Insert notification for the student along with the current time
       try {
         const currentTime = new Date().toLocaleTimeString("en-US", {
@@ -642,7 +651,7 @@ const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssi
         });
 
         await supabase.from("notifications").insert({
-          type: "assignment",
+          type: `assignment:${teacherName}`,
           message: `New Assignment: ${data.title} (${data.subject})`,
           time: currentTime,
         });
