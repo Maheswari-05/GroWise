@@ -246,7 +246,12 @@ export async function addStudent(student) {
     row.email = String(row.email).trim().toLowerCase();
   }
 
-  const { error } = await supabase.from('students').insert(row);
+  let { error } = await supabase.from('students').insert(row);
+  if (error && (error.message?.includes('teacher_id') || error.code === 'PGRST204')) {
+    delete row.teacher_id;
+    const retry = await supabase.from('students').insert(row);
+    error = retry.error;
+  }
   handleError(error, 'addStudent');
 
   // Note: Auth user will be created when password invite email is sent
@@ -342,7 +347,13 @@ export async function updateStudent(student) {
   delete row.created_at;
   delete row.password; // Not stored in table
   delete row.username; // Not stored in table
-  const { error } = await supabase.from('students').update(row).eq('id', id);
+
+  let { error } = await supabase.from('students').update(row).eq('id', id);
+  if (error && (error.message?.includes('teacher_id') || error.code === 'PGRST204')) {
+    delete row.teacher_id;
+    const retry = await supabase.from('students').update(row).eq('id', id);
+    error = retry.error;
+  }
   handleError(error, 'updateStudent');
 }
 

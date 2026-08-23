@@ -164,12 +164,31 @@ const StudentsTab = ({
     }
   };
 
+  const getAssignedTeacherName = (student) => {
+    if (!student) return "None Assigned";
+    if (student.teacherId) {
+      const matched = teachers.find(t => t.id === student.teacherId);
+      if (matched) return matched.name;
+    }
+    if (student.batchId) {
+      const batch = batches.find(b => b.id === student.batchId);
+      if (batch?.teacher) return batch.teacher;
+    }
+    const subjectTeachers = teachers.filter(t => t.subjects && t.subjects.some(sub => student.subjects?.includes(sub)));
+    if (subjectTeachers.length > 0) {
+      return subjectTeachers.map(t => t.name).join(", ");
+    }
+    return "Unassigned";
+  };
+
   // Filter logic
   const filteredStudents = students.filter(student => {
+    const teacherName = getAssignedTeacherName(student).toLowerCase();
     const matchesSearch = 
       student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       student.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (student.batchId && student.batchId.toLowerCase().includes(searchQuery.toLowerCase()));
+      (student.batchId && student.batchId.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      teacherName.includes(searchQuery.toLowerCase());
 
     const matchesBatch = filterBatch === "All" || student.batchId === filterBatch;
     const matchesSubject = filterSubject === "All" || (student.subjects && student.subjects.includes(filterSubject));
@@ -242,6 +261,7 @@ const StudentsTab = ({
                   <th>Contact</th>
                   <th>Enrolled Subjects</th>
                   <th>Batch ID</th>
+                  <th>Assigned Teacher</th>
                   <th>Status</th>
                   <th className="text-center">Actions</th>
                 </tr>
@@ -249,7 +269,7 @@ const StudentsTab = ({
               <tbody>
                 {filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="empty-table-row">No students found matching your criteria.</td>
+                    <td colSpan="8" className="empty-table-row">No students found matching your criteria.</td>
                   </tr>
                 ) : (
                   filteredStudents.map(stu => (
@@ -271,6 +291,11 @@ const StudentsTab = ({
                       </td>
                       <td>
                         <span className="badge-tag batch">{stu.batchId || "Unassigned"}</span>
+                      </td>
+                      <td>
+                        <span className="font-semibold text-sm" style={{ color: "#334155" }}>
+                          {getAssignedTeacherName(stu)}
+                        </span>
                       </td>
                       <td>
                         <span className={`status-badge-pill ${stu.status === "Active" ? "active" : "inactive"}`}>
@@ -572,12 +597,9 @@ const StudentsTab = ({
                     <span>{selectedStudent.dob || "Not Provided"}</span>
                   </div>
                   <div className="info-item text-xs">
-                    <span className="info-label">Assigned Teachers:</span>
+                    <span className="info-label">Assigned Teacher:</span>
                     <span className="teachers-names">
-                      {teachers
-                        .filter(t => t.subjects && t.subjects.some(sub => selectedStudent.subjects.includes(sub)))
-                        .map(t => t.name)
-                        .join(", ") || "None Assigned"}
+                      {getAssignedTeacherName(selectedStudent)}
                     </span>
                   </div>
                 </div>

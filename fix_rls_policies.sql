@@ -17,6 +17,9 @@ CREATE TABLE IF NOT EXISTS contact_inquiries (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Ensure teacher_id column exists on students table if used
+ALTER TABLE IF EXISTS students ADD COLUMN IF NOT EXISTS teacher_id TEXT;
+
 -- 2. Grant schema & table permissions to anon, authenticated & service_role
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
