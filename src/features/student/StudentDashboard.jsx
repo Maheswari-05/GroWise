@@ -934,80 +934,35 @@ const StudentDashboard = ({ onNavigate }) => {
                 </div>
 
                 <div className="materials-list">
-                  {/* File 1: Physics */}
-                  <div className="material-item">
-                    <div className="material-left">
-                      <div className="file-icon-wrap pdf">
-                        <span className="file-icon-text">PDF</span>
+                  {materialsList.length === 0 ? (
+                    <p style={{ padding: "12px", color: "var(--muted-color, #94a3b8)", fontSize: "0.9rem" }}>No study materials uploaded yet.</p>
+                  ) : (
+                    materialsList.slice(0, 3).map((material) => (
+                      <div key={material.id} className="material-item">
+                        <div className="material-left">
+                          <div className={`file-icon-wrap ${material.fileType || "pdf"}`}>
+                            <span className="file-icon-text">{(material.fileType || "pdf").toUpperCase()}</span>
+                          </div>
+                          <div className="material-info">
+                            <h4>{material.fileName || material.title}</h4>
+                            <p>Added: {material.uploadDate} &bull; {material.fileSize || "1.2 MB"}</p>
+                          </div>
+                        </div>
+                        <button
+                          className="download-icon-btn"
+                          onClick={() => handleDownloadMaterial(material)}
+                          disabled={downloadProgress !== null}
+                          aria-label={`Download ${material.fileName || material.title}`}
+                        >
+                          {downloadProgress === material.id ? (
+                            <span className="download-spinner"></span>
+                          ) : (
+                            <Download size={20} />
+                          )}
+                        </button>
                       </div>
-                      <div className="material-info">
-                        <h4>Physics Notes Unit 4.pdf</h4>
-                        <p>Added: Oct 24, 2023 &bull; 4.2 MB</p>
-                      </div>
-                    </div>
-                    <button
-                      className="download-icon-btn"
-                      onClick={() => handleDownloadFile("Physics Notes Unit 4.pdf")}
-                      disabled={downloadProgress !== null}
-                      aria-label="Download Physics Notes Unit 4.pdf"
-                    >
-                      {downloadProgress === "Physics Notes Unit 4.pdf" ? (
-                        <span className="download-spinner"></span>
-                      ) : (
-                        <Download size={20} />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* File 2: Mathematics */}
-                  <div className="material-item">
-                    <div className="material-left">
-                      <div className="file-icon-wrap doc">
-                        <span className="file-icon-text">DOC</span>
-                      </div>
-                      <div className="material-info">
-                        <h4>Mathematics Practice Sheet.pdf</h4>
-                        <p>Added: Oct 22, 2023 &bull; 1.8 MB</p>
-                      </div>
-                    </div>
-                    <button
-                      className="download-icon-btn"
-                      onClick={() => handleDownloadFile("Mathematics Practice Sheet.pdf")}
-                      disabled={downloadProgress !== null}
-                      aria-label="Download Mathematics Practice Sheet.pdf"
-                    >
-                      {downloadProgress === "Mathematics Practice Sheet.pdf" ? (
-                        <span className="download-spinner"></span>
-                      ) : (
-                        <Download size={20} />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* File 3: Chemistry */}
-                  <div className="material-item">
-                    <div className="material-left">
-                      <div className="file-icon-wrap chem">
-                        <span className="file-icon-text">PDF</span>
-                      </div>
-                      <div className="material-info">
-                        <h4>Chemistry Revision.pdf</h4>
-                        <p>Added: Oct 20, 2023 &bull; 5.1 MB</p>
-                      </div>
-                    </div>
-                    <button
-                      className="download-icon-btn"
-                      onClick={() => handleDownloadFile("Chemistry Revision.pdf")}
-                      disabled={downloadProgress !== null}
-                      aria-label="Download Chemistry Revision.pdf"
-                    >
-                      {downloadProgress === "Chemistry Revision.pdf" ? (
-                        <span className="download-spinner"></span>
-                      ) : (
-                        <Download size={20} />
-                      )}
-                    </button>
-                  </div>
+                    ))
+                  )}
                 </div>
               </section>
             </div>
@@ -1309,80 +1264,35 @@ const StudentDashboard = ({ onNavigate }) => {
                 </div>
 
                 <div className="materials-list">
-                  {/* File 1: Physics */}
-                  <div className="material-item">
-                    <div className="material-left">
-                      <div className="file-icon-wrap pdf">
-                        <span className="file-icon-text">PDF</span>
+                  {materialsList.length === 0 ? (
+                    <p style={{ padding: "12px", color: "var(--muted-color, #94a3b8)", fontSize: "0.9rem" }}>No study materials uploaded yet.</p>
+                  ) : (
+                    materialsList.map((material) => (
+                      <div key={material.id} className="material-item">
+                        <div className="material-left">
+                          <div className={`file-icon-wrap ${material.fileType || "pdf"}`}>
+                            <span className="file-icon-text">{(material.fileType || "pdf").toUpperCase()}</span>
+                          </div>
+                          <div className="material-info">
+                            <h4>{material.fileName || material.title}</h4>
+                            <p>Added: {material.uploadDate} &bull; {material.fileSize || "1.2 MB"}</p>
+                          </div>
+                        </div>
+                        <button
+                          className="download-icon-btn"
+                          onClick={() => handleDownloadMaterial(material)}
+                          disabled={downloadProgress !== null}
+                          aria-label={`Download ${material.fileName || material.title}`}
+                        >
+                          {downloadProgress === material.id ? (
+                            <span className="download-spinner"></span>
+                          ) : (
+                            <Download size={20} />
+                          )}
+                        </button>
                       </div>
-                      <div className="material-info">
-                        <h4>Physics Notes Unit 4.pdf</h4>
-                        <p>Added: Oct 24, 2023 &bull; 4.2 MB</p>
-                      </div>
-                    </div>
-                    <button
-                      className="download-icon-btn"
-                      onClick={() => handleDownloadFile("Physics Notes Unit 4.pdf")}
-                      disabled={downloadProgress !== null}
-                      aria-label="Download Physics Notes Unit 4.pdf"
-                    >
-                      {downloadProgress === "Physics Notes Unit 4.pdf" ? (
-                        <span className="download-spinner"></span>
-                      ) : (
-                        <Download size={20} />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* File 2: Mathematics */}
-                  <div className="material-item">
-                    <div className="material-left">
-                      <div className="file-icon-wrap doc">
-                        <span className="file-icon-text">DOC</span>
-                      </div>
-                      <div className="material-info">
-                        <h4>Mathematics Practice Sheet.pdf</h4>
-                        <p>Added: Oct 22, 2023 &bull; 1.8 MB</p>
-                      </div>
-                    </div>
-                    <button
-                      className="download-icon-btn"
-                      onClick={() => handleDownloadFile("Mathematics Practice Sheet.pdf")}
-                      disabled={downloadProgress !== null}
-                      aria-label="Download Mathematics Practice Sheet.pdf"
-                    >
-                      {downloadProgress === "Mathematics Practice Sheet.pdf" ? (
-                        <span className="download-spinner"></span>
-                      ) : (
-                        <Download size={20} />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* File 3: Chemistry */}
-                  <div className="material-item">
-                    <div className="material-left">
-                      <div className="file-icon-wrap chem">
-                        <span className="file-icon-text">PDF</span>
-                      </div>
-                      <div className="material-info">
-                        <h4>Chemistry Revision.pdf</h4>
-                        <p>Added: Oct 20, 2023 &bull; 5.1 MB</p>
-                      </div>
-                    </div>
-                    <button
-                      className="download-icon-btn"
-                      onClick={() => handleDownloadFile("Chemistry Revision.pdf")}
-                      disabled={downloadProgress !== null}
-                      aria-label="Download Chemistry Revision.pdf"
-                    >
-                      {downloadProgress === "Chemistry Revision.pdf" ? (
-                        <span className="download-spinner"></span>
-                      ) : (
-                        <Download size={20} />
-                      )}
-                    </button>
-                  </div>
+                    ))
+                  )}
                 </div>
               </section>
             </div>
