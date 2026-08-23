@@ -17,6 +17,7 @@ import {
 import logo from "../../assets/logo.png";
 import contactIllustration from "../../assets/contact_demo.png";
 import supabase from "../../lib/supabase";
+import * as adminService from "../../services/adminService";
 import "./ContactPage.css";
 
 const ContactPage = ({ onNavigate }) => {
@@ -43,15 +44,31 @@ const ContactPage = ({ onNavigate }) => {
     setIsSubmitting(true);
 
     try {
-      // Record a notification in Supabase for Admin awareness
-      const notifMsg = ` Demo Request: ${formData.fullName} (${formData.role}) - ${formData.phone}`;
-      await supabase.from("notifications").insert({
-        type: "batch",
-        message: notifMsg,
-        time: "Just now"
+      // Save inquiry (persists to Supabase and local cache)
+      await adminService.addInquiry({
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        role: formData.role,
+        preferredDate: formData.preferredDate || null,
+        preferredTime: formData.preferredTime,
+        message: formData.message,
+        status: "New"
       });
     } catch (err) {
-      console.warn("Could not log notification to Supabase:", err);
+      console.warn("Could not save inquiry:", err);
+    }
+
+    try {
+      // Record a notification for Admin awareness
+      const notifMsg = `New Inquiry: ${formData.fullName} (${formData.role}) - ${formData.phone}`;
+      await adminService.addNotification({
+        type: "batch",
+        message: notifMsg,
+        time: new Date().toISOString()
+      });
+    } catch (err) {
+      console.warn("Could not log notification:", err);
     }
 
     // Simulate quick server response
@@ -131,11 +148,7 @@ const ContactPage = ({ onNavigate }) => {
                 </div>
               </div>
 
-              <div className="success-next-steps">
-                <p>
-                  Our senior education consultant will contact you via email & WhatsApp within <strong>2 business hours</strong> to share the custom demo link.
-                </p>
-              </div>
+
 
               <div className="success-action-buttons">
                 <button 
@@ -193,7 +206,7 @@ const ContactPage = ({ onNavigate }) => {
                 <div className="direct-contact-bar">
                   <div className="direct-item">
                     <Mail size={16} className="direct-icon" />
-                    <span>support@growise.edu</span>
+                    <span>growiselearningstudio@gmail.com</span>
                   </div>
                   <div className="direct-item">
                     <Phone size={16} className="direct-icon" />

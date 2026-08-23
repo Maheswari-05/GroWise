@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Filter, Plus, Eye, Edit2, Trash2, ArrowLeft, Check, X, ShieldAlert, Award, FileText, Calendar, Mail, Phone, MapPin, Send } from "lucide-react";
 import { sendPasswordInviteEmail } from "../../../services/adminService";
 import InviteModal from "./InviteModal";
@@ -15,7 +15,9 @@ const StudentsTab = ({
   onUpdateStudent, 
   onDeleteStudent,
   initialView = "list",
-  initialEditStudentId = null
+  initialEditStudentId = null,
+  initialStudentData = null,
+  onClearInitialData = null
 }) => {
   const [view, setView] = useState(initialView); // 'list' | 'form' | 'profile'
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -50,6 +52,31 @@ const StudentsTab = ({
     password: "",
     status: "Active"
   });
+
+  // Auto-open Add Student form pre-filled when coming from Convert to Student
+  useEffect(() => {
+    if (initialStudentData) {
+      setFormData({
+        id: generateStudentId(),
+        name: initialStudentData.name || "",
+        dob: "",
+        contact: initialStudentData.contact || "",
+        email: initialStudentData.email || "",
+        address: "",
+        parentName: "",
+        parentContact: "",
+        subjects: [],
+        batchId: "",
+        teacherId: "",
+        username: "",
+        password: "Password@123",
+        status: "Active"
+      });
+      setEditMode(false);
+      setView("form");
+      if (onClearInitialData) onClearInitialData();
+    }
+  }, [initialStudentData]);
 
   const handleEditClick = (student) => {
     setFormData({

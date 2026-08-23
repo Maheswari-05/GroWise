@@ -3,14 +3,28 @@
 -- Copy and run this ENTIRE script in Supabase SQL Editor
 -- ============================================================
 
--- 1. Grant schema & table permissions to anon, authenticated & service_role
+-- 1. Create contact_inquiries table if it does not exist
+CREATE TABLE IF NOT EXISTS contact_inquiries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  full_name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT,
+  role TEXT DEFAULT 'Student',
+  preferred_date TEXT,
+  preferred_time TEXT,
+  message TEXT,
+  status TEXT DEFAULT 'New',
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 2. Grant schema & table permissions to anon, authenticated & service_role
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
 
--- 2. Drop existing policies and re-create wide open RLS policies
+-- 3. Drop existing policies and re-create wide open RLS policies
 DO $$
 DECLARE
   tbl TEXT;
@@ -19,7 +33,7 @@ BEGIN
   FOR tbl IN SELECT unnest(ARRAY[
     'subjects','teachers','students','batches','materials',
     'attendance_logs','assignments','weekly_tests','online_classes',
-    'notifications','audit_logs','settings','admin_profiles'
+    'notifications','audit_logs','settings','admin_profiles','contact_inquiries'
   ])
   LOOP
     -- Drop all existing policies on table

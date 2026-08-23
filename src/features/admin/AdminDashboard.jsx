@@ -15,6 +15,7 @@ import ClassesTab from "./components/ClassesTab";
 import ReportsTab from "./components/ReportsTab";
 import SettingsTab from "./components/SettingsTab";
 import ProfileTab from "./components/ProfileTab";
+import InquiriesTab from "./components/InquiriesTab";
 
 import avatarImg from "../../assets/courses/human2.jpg";
 import logo from "../../assets/logo.png";
@@ -43,6 +44,8 @@ const AdminDashboard = ({ onNavigate }) => {
   const [onlineClasses, setOnlineClasses] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
+  const [inquiries, setInquiries] = useState([]);
+  const [initialStudentData, setInitialStudentData] = useState(null);
   const [settings, setSettings] = useState({
     studentRestricted: true,
     teacherRestricted: true,
@@ -94,6 +97,28 @@ const AdminDashboard = ({ onNavigate }) => {
     };
   }, []);
 
+  // Realtime / cross-tab reactivity for inquiries
+  useEffect(() => {
+    const handleInquiriesUpdate = async () => {
+      try {
+        const inqs = await adminService.fetchInquiries();
+        setInquiries(inqs);
+      } catch (e) {}
+    };
+    window.addEventListener("inquiries-updated", handleInquiriesUpdate);
+    window.addEventListener("storage", handleInquiriesUpdate);
+    return () => {
+      window.removeEventListener("inquiries-updated", handleInquiriesUpdate);
+      window.removeEventListener("storage", handleInquiriesUpdate);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "Inquiries") {
+      adminService.fetchInquiries().then(setInquiries).catch(() => {});
+    }
+  }, [activeTab]);
+
   // Close notification panel on click outside
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -109,7 +134,7 @@ const AdminDashboard = ({ onNavigate }) => {
 
   const loadAllData = async () => {
     try {
-      const [stu, tch, sub, bat, mat, att, asgn, wt, oc, notif, alog, sett] =
+      const [stu, tch, sub, bat, mat, att, asgn, wt, oc, notif, alog, sett, inq] =
         await Promise.all([
           adminService.fetchStudents(),
           adminService.fetchTeachers(),
@@ -123,6 +148,7 @@ const AdminDashboard = ({ onNavigate }) => {
           adminService.fetchNotifications(),
           adminService.fetchAuditLogs(),
           adminService.fetchSettings(),
+          adminService.fetchInquiries(),
         ]);
 
       setStudents(stu);
@@ -136,6 +162,7 @@ const AdminDashboard = ({ onNavigate }) => {
       setOnlineClasses(oc);
       setNotifications(notif);
       setAuditLogs(alog);
+      setInquiries(inq);
       if (sett) setSettings(sett);
     } catch (err) {
       console.error("Failed to load admin data:", err);
@@ -207,6 +234,8 @@ const AdminDashboard = ({ onNavigate }) => {
         async () => { try { const s = await adminService.fetchSettings(); if (s) setSettings(s); } catch (e) {} })
       .on("postgres_changes", { event: "*", schema: "public", table: "admin_profiles" },
         async () => { try { const p = await adminService.fetchAdminProfile(user.id); if (p) setAdminProfile(p); } catch (e) {} })
+      .on("postgres_changes", { event: "*", schema: "public", table: "contact_inquiries" },
+        async () => { try { setInquiries(await adminService.fetchInquiries()); } catch (e) {} })
       .subscribe();
 
     return () => supabase.removeChannel(channel);
@@ -661,6 +690,34 @@ const AdminDashboard = ({ onNavigate }) => {
     setAuditLogs(await adminService.fetchAuditLogs());
   };
 
+  // Inquiries
+  const handleUpdateInquiryStatus = async (id, status) => {
+    try {
+      await adminService.updateInquiryStatus(id, status);
+      setInquiries((prev) => prev.map((inq) => inq.id === id ? { ...inq, status } : inq));
+    } catch (err) {
+      console.error("Failed to update inquiry status:", err);
+    }
+  };
+
+  const handleDeleteInquiry = async (id) => {
+    try {
+      await adminService.deleteInquiry(id);
+      setInquiries((prev) => prev.filter((inq) => inq.id !== id));
+    } catch (err) {
+      console.error("Failed to delete inquiry:", err);
+    }
+  };
+
+  const handleConvertToStudent = (inquiry) => {
+    setInitialStudentData({
+      name: inquiry.fullName || "",
+      email: inquiry.email || "",
+      contact: inquiry.phone || "",
+    });
+    setActiveTab("Students");
+  };
+
   // Quick Action navigation shortcut
   const handleQuickAction = (action) => {
     if (action === "AddStudent") {
@@ -715,6 +772,15 @@ const AdminDashboard = ({ onNavigate }) => {
   // --- 4. TAB CONTENT RENDERER ---
   const renderTabContent = () => {
     switch (activeTab) {
+      case "Inquiries":
+        return (
+          <InquiriesTab
+            inquiries={inquiries}
+            onUpdateStatus={handleUpdateInquiryStatus}
+            onDeleteInquiry={handleDeleteInquiry}
+            onConvertToStudent={handleConvertToStudent}
+          />
+        );
       case "Students":
         return (
           <StudentsTab
@@ -728,6 +794,8 @@ const AdminDashboard = ({ onNavigate }) => {
             onAddStudent={handleAddStudent}
             onUpdateStudent={handleUpdateStudent}
             onDeleteStudent={handleDeleteStudent}
+            initialStudentData={initialStudentData}
+            onClearInitialData={() => setInitialStudentData(null)}
           />
         );
       case "Teachers":

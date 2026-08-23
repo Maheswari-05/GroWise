@@ -169,6 +169,47 @@ export async function fetchAuditLogs() {
   }
 }
 
+export async function fetchInquiries() {
+  let localData = [];
+  try {
+    localData = JSON.parse(localStorage.getItem('growise_inquiries') || '[]');
+  } catch (e) {}
+
+  try {
+    const { data, error } = await supabase
+      .from('contact_inquiries')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('fetchInquiries Supabase note (falling back to local data if needed):', error.message);
+      return localData;
+    }
+
+    const camelData = (data || []).map(toCamelCase);
+    const mergedMap = new Map();
+    camelData.forEach(item => mergedMap.set(item.id, item));
+    localData.forEach(item => {
+      if (!mergedMap.has(item.id)) {
+        mergedMap.set(item.id, item);
+      }
+    });
+
+    const result = Array.from(mergedMap.values()).sort(
+      (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+    );
+
+    try {
+      localStorage.setItem('growise_inquiries', JSON.stringify(result));
+    } catch (e) {}
+
+    return result;
+  } catch (e) {
+    console.warn('fetchInquiries exception, falling back to local storage:', e);
+    return localData;
+  }
+}
+
 export async function fetchSettings() {
   try {
     const { data, error } = await supabase.from('settings').select('*').eq('id', 1).maybeSingle();
@@ -251,6 +292,43 @@ export async function addAuditLog(log) {
   delete row.id;
   const { error } = await supabase.from('audit_logs').insert(row);
   handleError(error, 'addAuditLog');
+}
+
+export async function addInquiry(inquiry) {
+  const row = toSnakeCase(inquiry);
+  if (!row.id) {
+    row.id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `inq_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  }
+  if (!row.created_at) {
+    row.created_at = new Date().toISOString();
+  }
+  if (!row.status) {
+    row.status = 'New';
+  }
+
+  const camelObj = toCamelCase(row);
+
+  // 1. Immediately cache in localStorage for instant UI updates & offline/RLS resilience
+  try {
+    const local = JSON.parse(localStorage.getItem('growise_inquiries') || '[]');
+    const updated = [camelObj, ...local.filter(i => i.id !== camelObj.id)];
+    localStorage.setItem('growise_inquiries', JSON.stringify(updated));
+    window.dispatchEvent(new Event('inquiries-updated'));
+  } catch (e) {
+    console.warn('Could not cache inquiry to localStorage:', e);
+  }
+
+  // 2. Persist to Supabase
+  try {
+    const { data, error } = await supabase.from('contact_inquiries').insert(row).select();
+    if (error) {
+      console.warn('Supabase contact_inquiries note:', error.message);
+    }
+    return data && data[0] ? toCamelCase(data[0]) : camelObj;
+  } catch (err) {
+    console.warn('Supabase insert exception:', err);
+    return camelObj;
+  }
 }
 
 // ============================================================
@@ -364,6 +442,42 @@ export async function flagMaterial(id, flagged) {
 export async function toggleUserStatus(table, id, newStatus) {
   const { error } = await supabase.from(table).update({ status: newStatus }).eq('id', id);
   handleError(error, 'toggleUserStatus');
+}
+
+export async function updateInquiryStatus(id, status) {
+  // 1. Update local storage cache immediately
+  try {
+    const local = JSON.parse(localStorage.getItem('growise_inquiries') || '[]');
+    const updated = local.map(i => i.id === id ? { ...i, status } : i);
+    localStorage.setItem('growise_inquiries', JSON.stringify(updated));
+    window.dispatchEvent(new Event('inquiries-updated'));
+  } catch (e) {}
+
+  // 2. Update Supabase
+  try {
+    const { error } = await supabase.from('contact_inquiries').update({ status }).eq('id', id);
+    if (error) console.warn('updateInquiryStatus Supabase note:', error.message);
+  } catch (e) {
+    console.warn('updateInquiryStatus exception:', e);
+  }
+}
+
+export async function deleteInquiry(id) {
+  // 1. Delete from local storage cache immediately
+  try {
+    const local = JSON.parse(localStorage.getItem('growise_inquiries') || '[]');
+    const updated = local.filter(i => i.id !== id);
+    localStorage.setItem('growise_inquiries', JSON.stringify(updated));
+    window.dispatchEvent(new Event('inquiries-updated'));
+  } catch (e) {}
+
+  // 2. Delete from Supabase
+  try {
+    const { error } = await supabase.from('contact_inquiries').delete().eq('id', id);
+    if (error) console.warn('deleteInquiry Supabase note:', error.message);
+  } catch (e) {
+    console.warn('deleteInquiry exception:', e);
+  }
 }
 
 // ============================================================

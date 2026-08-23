@@ -11,13 +11,15 @@ import {
   Settings, 
   User,
   LogOut,
-  X 
+  X,
+  MessageSquare
 } from "lucide-react";
 import logo from "../../../assets/logo.png";
 
 const Sidebar = ({ activeTab, selectTab, sidebarOpen, setSidebarOpen, onLogout, onNavigate }) => {
   const menuItems = [
     { id: "Dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "Inquiries", label: "Inquiries", icon: MessageSquare },
     { id: "Students", label: "Students", icon: Users },
     { id: "Teachers", label: "Teachers", icon: GraduationCap },
     { id: "Subjects", label: "Subjects", icon: BookOpen },
