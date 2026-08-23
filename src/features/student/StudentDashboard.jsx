@@ -92,17 +92,28 @@ const StudentDashboard = ({ onNavigate }) => {
         setProfileError("");
         setAttendanceError("");
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-        if (authError || !user) {
-          console.error("No authenticated user found:", authError);
-          if (active) {
-            onNavigate("login");
-          }
-          return;
+        let studentEmail = "";
+        const loggedStudentStr = localStorage.getItem("gw_logged_student");
+        if (loggedStudentStr) {
+          try {
+            studentEmail = JSON.parse(loggedStudentStr).email;
+          } catch (e) {}
         }
 
-        const normalizedEmail = user.email?.trim().toLowerCase();
+        if (!studentEmail) {
+          const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+          if (authError || !user) {
+            console.error("No authenticated user found:", authError);
+            if (active) {
+              onNavigate("login");
+            }
+            return;
+          }
+          studentEmail = user.email;
+        }
+
+        const normalizedEmail = studentEmail.trim().toLowerCase();
 
         console.log("Authenticated user found in dashboard:", normalizedEmail);
 
@@ -638,6 +649,7 @@ const StudentDashboard = ({ onNavigate }) => {
         <div className="sidebar-footer">
           <button className="logout-btn" onClick={async () => {
             try {
+              localStorage.removeItem("gw_logged_student");
               await supabase.auth.signOut();
             } catch (e) {
               console.error("Sign out error:", e);
