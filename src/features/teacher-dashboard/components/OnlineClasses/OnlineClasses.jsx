@@ -433,8 +433,19 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
               </div>
             ) : (
               filteredClasses.map((c) => {
-                const batch = batches.find((b) => b.id === c.batchId);
-                const statusLower = c.status.toLowerCase();
+                const batch = batches.find((b) => String(b.id) === String(c.batchId) || String(b.name) === String(c.batchId) || String(b.id) === String(c.batch) || String(b.name) === String(c.batch));
+                const batchText = batch ? `${batch.name}${batch.grade ? ` (${batch.grade})` : ""}` : (c.batch || c.batchId || "All Batches");
+                const statusLower = (c.status || "upcoming").toLowerCase();
+
+                let dateDisplay = "Today";
+                if (c.date) {
+                  const parsedDate = new Date(c.date);
+                  if (!isNaN(parsedDate.getTime())) {
+                    dateDisplay = parsedDate.toLocaleDateString("en-US", { day: 'numeric', month: 'short', year: 'numeric' });
+                  } else {
+                    dateDisplay = String(c.date);
+                  }
+                }
 
                 return (
                   <div key={c.id} className={`oc-card oc-card-status-${statusLower}`}>
@@ -451,7 +462,7 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
                           </span>
                         </div>
                         <div className="oc-card-meta">
-                          <span><strong>Batch:</strong> {batch?.name} ({batch?.grade})</span>
+                          <span><strong>Batch:</strong> {batchText}</span>
                           <span><strong>Subject:</strong> {c.subject}</span>
                         </div>
                       </div>
@@ -462,7 +473,7 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
                       <div className="oc-card-schedule">
                         <div className="oc-schedule-item">
                           <Calendar size={14} />
-                          <span>{new Date(c.date).toLocaleDateString("en-US", { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                          <span>{dateDisplay}</span>
                         </div>
                         <div className="oc-schedule-item">
                           <Clock size={14} />

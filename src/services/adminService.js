@@ -130,6 +130,64 @@ export async function fetchWeeklyTests() {
   }
 }
 
+/**
+ * Uploads a file (PDF/DOC) to Supabase Storage bucket 'weekly-tests'.
+ * @param {File} file - The file object to upload
+ * @param {string} path - Storage path, e.g. 'papers/test123.pdf' or 'submissions/s01_t1.pdf'
+ * @returns {string|null} Public URL of the uploaded file, or null on failure
+ */
+export async function uploadTestFile(file, path) {
+  try {
+    const { error: uploadError } = await supabase.storage
+      .from('weekly-tests')
+      .upload(path, file, { upsert: true });
+    if (uploadError) {
+      console.error('uploadTestFile error:', uploadError);
+      return null;
+    }
+    const { data } = supabase.storage.from('weekly-tests').getPublicUrl(path);
+    return data?.publicUrl || null;
+  } catch (e) {
+    console.error('uploadTestFile exception:', e);
+    return null;
+  }
+}
+
+/**
+ * Updates a weekly test record by ID (e.g. student_marks, status, test_pdf_url).
+ * @param {string} id - Test ID
+ * @param {object} updates - Partial camelCase object to merge
+ */
+export async function updateWeeklyTest(id, updates) {
+  try {
+    const row = toSnakeCase(updates);
+    const { error } = await supabase.from('weekly_tests').update(row).eq('id', id);
+    if (error) { console.error('updateWeeklyTest error:', error); }
+  } catch (e) {
+    console.error('updateWeeklyTest exception:', e);
+  }
+}
+
+/**
+ * Inserts a new weekly test record.
+ * @param {object} test - camelCase test object
+ * @returns {object|null} Inserted row
+ */
+export async function addWeeklyTest(test) {
+  try {
+    const row = toSnakeCase(test);
+    delete row.id;
+    delete row.created_at;
+    const { data, error } = await supabase.from('weekly_tests').insert(row).select().single();
+    if (error) { console.error('addWeeklyTest error:', error); return null; }
+    return toCamelCase(data);
+  } catch (e) {
+    console.error('addWeeklyTest exception:', e);
+    return null;
+  }
+}
+
+
 export async function fetchOnlineClasses() {
   try {
     const { data, error } = await supabase.from('online_classes').select('*');

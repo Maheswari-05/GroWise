@@ -57,9 +57,6 @@ const Sidebar = ({
           </div>
         </div>
 
-        {/* Divider */}
-        <div className="sidebar-divider" />
-
         {/* Navigation */}
         <nav className="sidebar-nav">
           {navItems.map(({ id, label, icon: Icon }) => (
@@ -75,31 +72,18 @@ const Sidebar = ({
               {id === "notifications" && hasUnreadNotifications && (
                 <span className="sidebar-notification-dot" />
               )}
-              {activeNav === id && id !== "notifications" && <span className="sidebar-nav-dot" />}
             </button>
           ))}
         </nav>
 
-        {/* Spacer */}
-        <div className="sidebar-spacer" />
-
-        {/* Divider */}
-        <div className="sidebar-divider" />
-
         {/* Logout */}
         <button className="sidebar-logout" onClick={onLogout}>
-          <span className="sidebar-nav-icon">
-            <LogOut size={18} />
-          </span>
-          <span className="sidebar-nav-label">Logout</span>
+          <LogOut size={18} />
+          <span>Logout</span>
         </button>
-
-        {/* Bottom gradient accent */}
-        <div className="sidebar-bottom-accent" />
       </aside>
     </>
   );
 };
 
 export default Sidebar;
-

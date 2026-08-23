@@ -69,17 +69,23 @@ const CircleProgress = ({ value, size = 80, stroke = 7, color }) => {
 
 /* ── Tab: Overview ──────────────────────────────────────── */
 const OverviewTab = ({ student }) => {
-  const testAvg = student.tests.length
-    ? Math.round(student.tests.reduce((s, t) => s + (t.score / t.maxScore) * 100, 0) / student.tests.length)
+  const tests = Array.isArray(student?.tests) ? student.tests : [];
+  const assignments = Array.isArray(student?.assignments) ? student.assignments : [];
+  const avgScoreVal = typeof student?.avgScore === 'number' && !isNaN(student.avgScore) ? student.avgScore : 0;
+  const attPctVal = typeof student?.attendancePercent === 'number' && !isNaN(student.attendancePercent) ? student.attendancePercent : 100;
+
+  const testAvg = tests.length
+    ? Math.round(tests.reduce((s, t) => s + (t.maxScore ? (t.score / t.maxScore) * 100 : 0), 0) / tests.length)
     : 0;
-  const assignSubmitted = student.assignments.filter(a => a.status !== "missing").length;
-  const assignTotal     = student.assignments.length;
+  const assignSubmitted = assignments.filter(a => a.status !== "missing").length;
+  const assignTotal     = assignments.length;
+  const assignPct       = assignTotal ? Math.round((assignSubmitted / assignTotal) * 100) : 0;
 
   const stats = [
-    { label: "Avg Score",          value: `${student.avgScore}%`, color: "#2D6BFF",  ring: student.avgScore,   ringColor: "#2D6BFF"  },
-    { label: "Attendance",         value: `${student.attendancePercent}%`, color: "#37C871", ring: student.attendancePercent, ringColor: "#37C871" },
+    { label: "Avg Score",          value: `${avgScoreVal}%`, color: "#2D6BFF",  ring: avgScoreVal, ringColor: "#2D6BFF"  },
+    { label: "Attendance",         value: `${attPctVal}%`, color: "#37C871", ring: attPctVal, ringColor: "#37C871" },
     { label: "Test Avg",           value: `${testAvg}%`,  color: "#8b5cf6",  ring: testAvg,    ringColor: "#8b5cf6"  },
-    { label: "Assignments Done",   value: `${assignSubmitted}/${assignTotal}`, color: "#ea580c",  ring: Math.round((assignSubmitted/assignTotal)*100), ringColor: "#ea580c" },
+    { label: "Assignments Done",   value: `${assignSubmitted}/${assignTotal}`, color: "#ea580c",  ring: assignPct, ringColor: "#ea580c" },
   ];
 
   return (
@@ -100,7 +106,7 @@ const OverviewTab = ({ student }) => {
       <div className="sp-overview-bottom">
         <div className="sp-recent-tests">
           <p className="sp-section-label">Recent Test Scores</p>
-          {student.tests.slice(-4).map((t, i) => (
+          {tests.slice(-4).map((t, i) => (
             <div key={i} className="sp-recent-test-row">
               <span className="sp-recent-test-name">{t.title}</span>
               <ScoreBar score={t.score} max={t.maxScore} />

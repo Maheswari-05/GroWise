@@ -42,6 +42,7 @@ const TeachersTab = ({
     contact: "",
     email: "",
     qualification: "",
+    experience: "",
     subjects: [],
     status: "Active"
   });
@@ -53,6 +54,7 @@ const TeachersTab = ({
       contact: "",
       email: "",
       qualification: "",
+      experience: "",
       subjects: [],
       status: "Active"
     });
@@ -67,6 +69,7 @@ const TeachersTab = ({
       contact: teacher.contact,
       email: teacher.email || "",
       qualification: teacher.qualification || "",
+      experience: teacher.experience || "",
       subjects: teacher.subjects || [],
       status: teacher.status || "Active"
     });
@@ -314,15 +317,27 @@ const TeachersTab = ({
                   />
                 </div>
 
-                <div className="form-control">
-                  <label htmlFor="tch-qual">Professional Qualification</label>
-                  <input
-                    id="tch-qual"
-                    type="text"
-                    placeholder="e.g. M.Sc. in Physics, 8 yrs exp"
-                    value={formData.qualification}
-                    onChange={(e) => setFormData({ ...formData, qualification: e.target.value })}
-                  />
+                <div className="form-control-row">
+                  <div className="form-control">
+                    <label htmlFor="tch-qual">Qualification</label>
+                    <input
+                      id="tch-qual"
+                      type="text"
+                      placeholder="e.g. M.Sc. in Physics, B.Ed."
+                      value={formData.qualification}
+                      onChange={(e) => setFormData({ ...formData, qualification: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-control">
+                    <label htmlFor="tch-exp">Experience</label>
+                    <input
+                      id="tch-exp"
+                      type="text"
+                      placeholder="e.g. 5+ Years"
+                      value={formData.experience}
+                      onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -409,7 +424,10 @@ const TeachersTab = ({
                     {selectedTeacher.status}
                   </span>
                 </div>
-                <p className="qualification-text">{selectedTeacher.qualification || "Instructor Faculty"}</p>
+                <p className="qualification-text">
+                  {selectedTeacher.qualification || "Instructor Faculty"}
+                  {selectedTeacher.experience ? ` • ${selectedTeacher.experience}` : ""}
+                </p>
                 <div className="profile-subjects-tags">
                   {selectedTeacher.subjects && selectedTeacher.subjects.map(s => (
                     <span key={s} className="badge-tag subject">{s}</span>

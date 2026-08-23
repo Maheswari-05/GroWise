@@ -58,8 +58,12 @@ const Notifications = ({ notifications, setNotifications }) => {
     }
   };
 
-  const formatTime = (dateStr) => {
+  const formatTime = (n) => {
+    // DB returns created_at → camelCase → createdAt; fallback to .date for locally-created entries
+    const dateStr = n.createdAt || n.date || n.timestamp;
+    if (!dateStr) return "";
     const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return "";
     const now = new Date();
     const diffMs = now - date;
     const diffMins = Math.floor(diffMs / 60000);
@@ -131,8 +135,8 @@ const Notifications = ({ notifications, setNotifications }) => {
                       {icon}
                     </div>
                     <div className="notif-message-area">
-                      <p className="notif-text">{n.text}</p>
-                      <span className="notif-time">{formatTime(n.date)}</span>
+                      <p className="notif-text">{n.text || n.message || n.title || "Notification"}</p>
+                      <span className="notif-time">{formatTime(n)}</span>
                     </div>
                   </div>
 

@@ -11,12 +11,11 @@ import {
   Eye,
   GraduationCap,
 } from "lucide-react";
-import { batches as fallbackBatches, students as fallbackStudents } from "./batchesData";
 import StudentProfile from "./StudentProfile";
 import AvatarPlaceholder from "./AvatarPlaceholder";
 import "./MyBatches.css";
 
-const subjectFilters = ["All Subjects", "Mathematics", "Science"];
+const subjectFilters = ["All Subjects", "Mathematics", "Science", "Physics", "Chemistry"];
 
 const batchColorMap = {
   blue:   { bg: "rgba(45,107,255,0.08)",  border: "rgba(45,107,255,0.18)", text: "#2D6BFF",  activeBg: "rgba(45,107,255,0.13)"  },
@@ -27,41 +26,94 @@ const batchColorMap = {
 const attendanceColor = (pct) =>
   pct >= 90 ? "#27a55e" : pct >= 75 ? "#2D6BFF" : "#ea580c";
 
-const MyBatches = ({ batches: propBatches, students: propStudents }) => {
-  const batches = propBatches && propBatches.length > 0 ? propBatches : fallbackBatches;
-  const students = propStudents && propStudents.length > 0 ? propStudents : fallbackStudents;
+const matchStudentBatch = (student, batch) => {
+  if (!student || !batch) return false;
+  const sBatchId = String(student.batchId || student.batch_id || "").trim().toLowerCase();
+  const sBatchName = String(student.batch || student.batchName || "").trim().toLowerCase();
+  const bId = String(batch.id || "").trim().toLowerCase();
+  const bName = String(batch.name || "").trim().toLowerCase();
 
-  const [selectedBatchId, setSelectedBatchId] = useState(batches[0]?.id || "b1");
+  if (!sBatchId && !sBatchName) return true;
+  return (
+    (bId && sBatchId === bId) ||
+    (bName && sBatchName === bName) ||
+    (bId && sBatchName === bId) ||
+    (bName && sBatchId === bName)
+  );
+};
+
+const getAttendancePct = (s) => {
+  if (typeof s?.attendancePercent === "number" && !isNaN(s.attendancePercent)) return s.attendancePercent;
+  if (typeof s?.attendance_percent === "number" && !isNaN(s.attendance_percent)) return s.attendance_percent;
+  return 100;
+};
+
+const getAvgScore = (s) => {
+  if (typeof s?.avgScore === "number" && !isNaN(s.avgScore)) return s.avgScore;
+  if (typeof s?.avg_score === "number" && !isNaN(s.avg_score)) return s.avg_score;
+  return 85;
+};
+
+const getRollNo = (s) => {
+  return s?.rollNo || s?.roll_no || s?.id || "N/A";
+};
+
+const MyBatches = ({ batches: propBatches = [], students: propStudents = [] }) => {
+  const batches = Array.isArray(propBatches) ? propBatches : [];
+  const students = Array.isArray(propStudents) ? propStudents : [];
+
+  const [selectedBatchId, setSelectedBatchId] = useState(batches[0]?.id || batches[0]?.name || "");
   const [selectedStudent, setSelectedStudent]  = useState(null);
   const [search,          setSearch]           = useState("");
   const [subjectFilter,   setSubjectFilter]    = useState("All Subjects");
   const [filterOpen,      setFilterOpen]       = useState(false);
 
-  const selectedBatch = batches.find((b) => b.id === selectedBatchId || b.name === selectedBatchId);
+  // Keep selectedBatchId valid when batches list updates
+  const effectiveBatchId = selectedBatchId || batches[0]?.id || batches[0]?.name || "";
+  const selectedBatch = useMemo(() => {
+    if (!batches.length) return null;
+    return batches.find((b) => String(b.id) === String(effectiveBatchId) || String(b.name) === String(effectiveBatchId)) || batches[0];
+  }, [batches, effectiveBatchId]);
 
-  /* Filtered students */
+  /* Batch students */
+  const batchStudents = useMemo(() => {
+    if (!selectedBatch) return students;
+    return students.filter((s) => matchStudentBatch(s, selectedBatch));
+  }, [students, selectedBatch]);
+
+  /* Filtered students for search */
   const filteredStudents = useMemo(() => {
-    let list = students.filter((s) => s.batchId === selectedBatchId);
+    let list = batchStudents;
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
         (s) =>
-          s.name.toLowerCase().includes(q) ||
-          s.rollNo.toLowerCase().includes(q)
+          (s.name && s.name.toLowerCase().includes(q)) ||
+          (getRollNo(s) && getRollNo(s).toLowerCase().includes(q))
       );
     }
     return list;
-  }, [selectedBatchId, search]);
+  }, [batchStudents, search]);
 
   /* Batch stats */
-  const batchStudents = students.filter((s) => s.batchId === selectedBatchId);
-  const avgAttendance = batchStudents.length
-    ? Math.round(batchStudents.reduce((a, s) => a + s.attendancePercent, 0) / batchStudents.length)
-    : 0;
-  const avgScore = batchStudents.length
-    ? Math.round(batchStudents.reduce((a, s) => a + s.avgScore, 0) / batchStudents.length)
-    : 0;
-  const activeCount = batchStudents.filter((s) => s.status === "active").length;
+  const activeCount = useMemo(() => {
+    return batchStudents.filter((s) => {
+      const st = String(s.status || "Active").toLowerCase();
+      return st === "active";
+    }).length;
+  }, [batchStudents]);
+
+  const avgAttendance = useMemo(() => {
+    if (!batchStudents.length) return 0;
+    const total = batchStudents.reduce((acc, s) => acc + getAttendancePct(s), 0);
+    return Math.round(total / batchStudents.length);
+  }, [batchStudents]);
+
+  const avgScore = useMemo(() => {
+    if (!batchStudents.length) return 0;
+    const total = batchStudents.reduce((acc, s) => acc + getAvgScore(s), 0);
+    return Math.round(total / batchStudents.length);
+  }, [batchStudents]);
 
   return (
     <div className="mb-page">
@@ -110,107 +162,123 @@ const MyBatches = ({ batches: propBatches, students: propStudents }) => {
         </div>
       </div>
 
-      {/* ── Main Grid ───────────────────────────────────────── */}
-      <div className="mb-grid">
+      {batches.length === 0 ? (
+        <div className="mb-empty-state" style={{ padding: "60px 24px", textAlign: "center", background: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
+          <GraduationCap size={42} style={{ color: "#94a3b8", marginBottom: "12px" }} />
+          <h2 style={{ fontSize: "18px", color: "#0f172a", fontWeight: 700, margin: "0 0 6px" }}>No Batches Found</h2>
+          <p style={{ color: "#64748b", fontSize: "14px", margin: 0 }}>There are no assigned batches or enrolled students yet.</p>
+        </div>
+      ) : (
+        /* ── Main Grid ───────────────────────────────────────── */
+        <div className="mb-grid">
 
-        {/* ── Left: Batch List ──────────────────────────────── */}
-        <aside className="mb-batch-list">
-          <p className="mb-section-label">Batches</p>
-          {batches.map((batch) => {
-            const c      = batchColorMap[batch.color] || batchColorMap.blue;
-            const active = batch.id === selectedBatchId;
-            const count  = students.filter((s) => s.batchId === batch.id || s.batch === batch.name).length;
-            return (
-              <button
-                key={batch.id}
-                className={`mb-batch-card ${active ? "active" : ""}`}
-                style={active ? { background: c.activeBg, borderColor: c.border } : {}}
-                onClick={() => { setSelectedBatchId(batch.id); setSearch(""); }}
-              >
-                <div className="mb-batch-icon" style={{ background: c.bg, color: c.text }}>
-                  <GraduationCap size={18} />
+          {/* ── Left: Batch List ──────────────────────────────── */}
+          <aside className="mb-batch-list">
+            <p className="mb-section-label">Batches</p>
+            {batches.map((batch) => {
+              const c      = batchColorMap[batch.color] || batchColorMap.blue;
+              const active = selectedBatch && (batch.id === selectedBatch.id || batch.name === selectedBatch.name);
+              const count  = students.filter((s) => matchStudentBatch(s, batch)).length;
+              return (
+                <button
+                  key={batch.id || batch.name}
+                  className={`mb-batch-card ${active ? "active" : ""}`}
+                  style={active ? { background: c.activeBg, borderColor: c.border } : {}}
+                  onClick={() => { setSelectedBatchId(batch.id || batch.name); setSearch(""); }}
+                >
+                  <div className="mb-batch-icon" style={{ background: c.bg, color: c.text }}>
+                    <GraduationCap size={18} />
+                  </div>
+                  <div className="mb-batch-info">
+                    <p className="mb-batch-name">{batch.name}</p>
+                    <p className="mb-batch-subject" style={{ color: c.text }}>{batch.subject || "General"}</p>
+                    <p className="mb-batch-grade">{batch.grade || "All Grades"}</p>
+                  </div>
+                  <div className="mb-batch-right">
+                    <span className="mb-batch-count">
+                      <Users size={12} /> {count}
+                    </span>
+                    {active && <ChevronRight size={16} style={{ color: c.text }} />}
+                  </div>
+                </button>
+              );
+            })}
+          </aside>
+
+          {/* ── Right: Students Panel ────────────────────────── */}
+          <div className="mb-students-panel">
+
+            {/* Batch Stats Bar */}
+            {selectedBatch && (
+              <div className="mb-stats-bar">
+                <div className="mb-stats-bar-left">
+                  <span className="mb-stats-batch-name">{selectedBatch.name}</span>
+                  <span className="mb-stats-separator">·</span>
+                  <span className="mb-stats-subject">{selectedBatch.subject || "General"}</span>
+                  {selectedBatch.schedule && (
+                    <>
+                      <span className="mb-stats-separator">·</span>
+                      <span className="mb-stats-schedule">{selectedBatch.schedule}</span>
+                    </>
+                  )}
                 </div>
-                <div className="mb-batch-info">
-                  <p className="mb-batch-name">{batch.name}</p>
-                  <p className="mb-batch-subject" style={{ color: c.text }}>{batch.subject}</p>
-                  <p className="mb-batch-grade">{batch.grade}</p>
-                </div>
-                <div className="mb-batch-right">
-                  <span className="mb-batch-count">
-                    <Users size={12} /> {count}
+                <div className="mb-stats-pills">
+                  <span className="mb-stat-pill mb-stat-pill--green">
+                    <Users size={12} /> {activeCount} active
                   </span>
-                  {active && <ChevronRight size={16} style={{ color: c.text }} />}
+                  <span className="mb-stat-pill mb-stat-pill--blue">
+                    <CalendarCheck size={12} /> Avg Attendance: {avgAttendance}%
+                  </span>
+                  <span className="mb-stat-pill mb-stat-pill--purple">
+                    <Award size={12} /> Avg Score: {avgScore}%
+                  </span>
                 </div>
-              </button>
-            );
-          })}
-        </aside>
-
-        {/* ── Right: Students Panel ────────────────────────── */}
-        <div className="mb-students-panel">
-
-          {/* Batch Stats Bar */}
-          {selectedBatch && (
-            <div className="mb-stats-bar">
-              <div className="mb-stats-bar-left">
-                <span className="mb-stats-batch-name">{selectedBatch.name}</span>
-                <span className="mb-stats-separator">·</span>
-                <span className="mb-stats-subject">{selectedBatch.subject}</span>
-                <span className="mb-stats-separator">·</span>
-                <span className="mb-stats-schedule">{selectedBatch.schedule}</span>
               </div>
-              <div className="mb-stats-pills">
-                <span className="mb-stat-pill mb-stat-pill--green">
-                  <Users size={12} /> {activeCount} active
-                </span>
-                <span className="mb-stat-pill mb-stat-pill--blue">
-                  <CalendarCheck size={12} /> Avg Attendance: {avgAttendance}%
-                </span>
-                <span className="mb-stat-pill mb-stat-pill--purple">
-                  <Award size={12} /> Avg Score: {avgScore}%
-                </span>
-              </div>
+            )}
+
+            {/* Column Headers */}
+            <div className="mb-student-list-header">
+              <span>Student</span>
+              <span>Roll No</span>
+              <span>Attendance</span>
+              <span>Avg Score</span>
+              <span>Status</span>
+              <span>Action</span>
             </div>
-          )}
 
-          {/* Column Headers */}
-          <div className="mb-student-list-header">
-            <span>Student</span>
-            <span>Roll No</span>
-            <span>Attendance</span>
-            <span>Avg Score</span>
-            <span>Status</span>
-            <span>Action</span>
-          </div>
-
-          {/* Student Rows */}
-          <div className="mb-student-list">
-            {filteredStudents.length === 0 ? (
-              <div className="mb-empty">
-                <Search size={32} />
-                <p>No students found for "{search}"</p>
-              </div>
-            ) : (
-              filteredStudents
-                .map((student) => {
-                  const attColor  = attendanceColor(student.attendancePercent);
+            {/* Student Rows */}
+            <div className="mb-student-list">
+              {filteredStudents.length === 0 ? (
+                <div className="mb-empty">
+                  <Search size={32} />
+                  <p>{search ? `No students found for "${search}"` : "No students in this batch"}</p>
+                </div>
+              ) : (
+                filteredStudents.map((student) => {
+                  const attPct     = getAttendancePct(student);
+                  const scoreVal   = getAvgScore(student);
+                  const roll       = getRollNo(student);
+                  const attColor   = attendanceColor(attPct);
                   const scoreColor =
-                    student.avgScore >= 80 ? "#27a55e"
-                    : student.avgScore >= 60 ? "#2D6BFF"
+                    scoreVal >= 80 ? "#27a55e"
+                    : scoreVal >= 60 ? "#2D6BFF"
                     : "#ea580c";
+                  const statusLabel = String(student.status || "Active").toLowerCase() === "active" ? "Active" : "Inactive";
+                  const isAct       = statusLabel === "Active";
+
                   return (
-                    <div key={student.id} className="mb-student-row">
+                    <div key={student.id || student.name} className="mb-student-row">
                       {/* Avatar + Name */}
                       <div className="mb-student-cell mb-student-name-cell">
                         <AvatarPlaceholder src={student.avatar} name={student.name} size={36} className="mb-student-avatar" />
                         <div>
                           <p className="mb-student-name">{student.name}</p>
-                          <p className="mb-student-joined">Since {student.joinedOn}</p>
+                          <p className="mb-student-joined">{student.joinedOn ? `Since ${student.joinedOn}` : student.email || ""}</p>
                         </div>
                       </div>
 
                       {/* Roll No */}
-                      <span className="mb-student-cell mb-roll-no">{student.rollNo}</span>
+                      <span className="mb-student-cell mb-roll-no">{roll}</span>
 
                       {/* Attendance */}
                       <div className="mb-student-cell mb-att-cell">
@@ -218,11 +286,11 @@ const MyBatches = ({ batches: propBatches, students: propStudents }) => {
                           <div className="mb-att-bar-bg">
                             <div
                               className="mb-att-bar-fill"
-                              style={{ width: `${student.attendancePercent}%`, background: attColor }}
+                              style={{ width: `${attPct}%`, background: attColor }}
                             />
                           </div>
                           <span className="mb-att-pct" style={{ color: attColor }}>
-                            {student.attendancePercent}%
+                            {attPct}%
                           </span>
                         </div>
                       </div>
@@ -230,37 +298,46 @@ const MyBatches = ({ batches: propBatches, students: propStudents }) => {
                       {/* Avg Score */}
                       <div className="mb-student-cell mb-score-cell">
                         <span className="mb-score-badge" style={{ color: scoreColor, background: `${scoreColor}18` }}>
-                          {student.avgScore >= 80 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                          {student.avgScore}%
+                          {scoreVal >= 80 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                          {scoreVal}%
                         </span>
                       </div>
 
                       {/* Status */}
                       <span className="mb-student-cell">
-                        <span className={`mb-status-dot mb-status-dot--${student.status}`} />
-                        <span className="mb-status-text">{student.status === "active" ? "Active" : "Inactive"}</span>
+                        <span className={`mb-status-dot mb-status-dot--${isAct ? "active" : "inactive"}`} />
+                        <span className="mb-status-text">{statusLabel}</span>
                       </span>
 
                       {/* Action */}
                       <button
                         className="mb-student-cell mb-view-btn"
-                        onClick={() => setSelectedStudent(student)}
+                        onClick={() => setSelectedStudent({
+                          ...student,
+                          attendancePercent: attPct,
+                          avgScore: scoreVal,
+                          rollNo: roll,
+                          attendance: student.attendance || [],
+                          assignments: student.assignments || [],
+                          tests: student.tests || [],
+                        })}
                       >
                         <Eye size={14} /> View Profile
                       </button>
                     </div>
                   );
                 })
-            )}
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ── Student Profile Overlay ─────────────────────────── */}
       {selectedStudent && (
         <StudentProfile
           student={selectedStudent}
-          batchName={`${selectedBatch?.name} · ${selectedBatch?.subject}`}
+          batchName={`${selectedBatch?.name || "Batch"} · ${selectedBatch?.subject || "General"}`}
           onClose={() => setSelectedStudent(null)}
         />
       )}

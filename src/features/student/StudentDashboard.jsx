@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   LayoutDashboard,
   CalendarDays,
@@ -164,62 +164,88 @@ const StudentDashboard = ({ onNavigate }) => {
   const [testSearch, setTestSearch] = useState("");
   const [testSubject, setTestSubject] = useState("All Subjects");
   const [activeTestResult, setActiveTestResult] = useState(null);
+  const [weeklyTests, setWeeklyTests] = useState([]);
+  const [weeklyTestsLoading, setWeeklyTestsLoading] = useState(false);
+  const [testSubmissions, setTestSubmissions] = useState({}); // testId -> { uploading, url }
+  const submissionInputRefs = useRef({});
 
-  const [weeklyTests, setWeeklyTests] = useState([
-    {
-      id: 1,
-      subject: "Mathematics",
-      title: "Algebra Test",
-      teacher: "Mr. Rajesh",
-      date: "12 Jun 2026",
-      status: "Published",
-      marksObtained: 18,
-      totalMarks: 20,
-      percent: 90,
-      questions: [
-        { q: "Solve for x: 2x + 5 = 15", studentAnswer: "2x = 10 => x = 5", correctAnswer: "x = 5", isCorrect: true, marks: "5/5" },
-        { q: "Find the roots of x^2 - 5x + 6 = 0", studentAnswer: "(x-2)(x-3) = 0 => x = 2, 3", correctAnswer: "x = 2, 3", isCorrect: true, marks: "5/5" },
-        { q: "Solve the inequality: 3x - 4 < 5", studentAnswer: "3x < 9 => x < 3", correctAnswer: "x < 3", isCorrect: true, marks: "5/5" },
-        { q: "Expand and simplify: (x + 3)(x - 3)", studentAnswer: "x^2 - 9", correctAnswer: "x^2 - 9", isCorrect: true, marks: "3/5" }
-      ]
-    },
-    {
-      id: 2,
-      subject: "Physics",
-      title: "Quantum Mechanics Test",
-      teacher: "Mrs. Anita",
-      date: "19 Jun 2026",
-      status: "Published",
-      marksObtained: 16,
-      totalMarks: 20,
-      percent: 80,
-      questions: [
-        { q: "What is the formula for Planck's relation?", studentAnswer: "E = hf", correctAnswer: "E = hν (or E = hf)", isCorrect: true, marks: "5/5" },
-        { q: "State Heisenberg's Uncertainty Principle formula.", studentAnswer: "Δx * Δp >= h / (4π)", correctAnswer: "Δx * Δp >= ℏ / 2 (or h / 4π)", isCorrect: true, marks: "5/5" },
-        { q: "Define the term 'Quantum entanglement'.", studentAnswer: "Spooky action at a distance.", correctAnswer: "A physical phenomenon that occurs when a pair or group of particles are generated, interact, or share spatial proximity in a way such that the quantum state of each particle cannot be described independently of the state of the others.", isCorrect: false, marks: "1/5" },
-        { q: "Calculate the energy of a photon of wavelength 500 nm.", studentAnswer: "E = hc/λ = 3.97e-19 J", correctAnswer: "3.97 x 10^-19 Joules", isCorrect: true, marks: "5/5" }
-      ]
-    },
-    {
-      id: 3,
-      subject: "Chemistry",
-      title: "Aldehydes Test",
-      teacher: "Mr. Kumar",
-      date: "26 Jun 2026",
-      status: "Result Pending",
-      marksObtained: null,
-      totalMarks: 20,
-      percent: null,
-      questions: []
+  // Fetch weekly tests for this student's batch from Supabase
+  useEffect(() => {
+    if (!studentProfile?.batch_id) return;
+    setWeeklyTestsLoading(true);
+    supabase
+      .from("weekly_tests")
+      .select("*")
+      .then(({ data, error }) => {
+        setWeeklyTestsLoading(false);
+        if (error || !data) return;
+        // Filter tests for this student's batch
+        const studentBatchId = String(studentProfile.batch_id);
+        const myTests = data.filter(
+          (t) => String(t.batch_id) === studentBatchId
+        );
+        setWeeklyTests(myTests);
+      });
+  }, [studentProfile]);
+
+  const handleSubmitTestAnswer = async (test) => {
+    const fileInput = submissionInputRefs.current[test.id];
+    if (!fileInput || !fileInput.files[0]) return;
+    const file = fileInput.files[0];
+    const studentId = studentProfile?.id || studentProfile?.student_id;
+    if (!studentId) return;
+
+    setTestSubmissions((prev) => ({ ...prev, [test.id]: { uploading: true, url: null } }));
+    try {
+      // Upload file to Supabase Storage
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const path = `submissions/${test.id}_${studentId}_${Date.now()}_${safeName}`;
+      const { error: uploadError } = await supabase.storage
+        .from("weekly-tests")
+        .upload(path, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage.from("weekly-tests").getPublicUrl(path);
+      const submissionUrl = urlData?.publicUrl;
+
+      // Update the studentMarks JSONB in weekly_tests to record submission
+      const currentMarks = test.student_marks || {};
+      const updatedMarks = {
+        ...currentMarks,
+        [studentId]: {
+          ...(currentMarks[studentId] || {}),
+          submissionUrl,
+          submittedAt: new Date().toISOString(),
+        },
+      };
+      await supabase
+        .from("weekly_tests")
+        .update({ student_marks: updatedMarks })
+        .eq("id", test.id);
+
+      setTestSubmissions((prev) => ({ ...prev, [test.id]: { uploading: false, url: submissionUrl } }));
+      // Refresh the test list
+      setWeeklyTests((prev) =>
+        prev.map((t) => t.id === test.id ? { ...t, student_marks: updatedMarks } : t)
+      );
+    } catch (err) {
+      console.error("Submission upload failed:", err);
+      setTestSubmissions((prev) => ({ ...prev, [test.id]: { uploading: false, url: null } }));
+      alert("Upload failed. Please try again.");
     }
-  ]);
+  };
 
   const filteredWeeklyTests = weeklyTests.filter((test) => {
-    const matchesSearch = test.title.toLowerCase().includes(testSearch.toLowerCase()) ||
-      test.subject.toLowerCase().includes(testSearch.toLowerCase());
-    const matchesSubject = testSubject === "All Subjects" || test.subject === testSubject;
+    const title = test.title || "";
+    const subject = test.subject || "";
+    const matchesSearch =
+      title.toLowerCase().includes(testSearch.toLowerCase()) ||
+      subject.toLowerCase().includes(testSearch.toLowerCase());
+    const matchesSubject = testSubject === "All Subjects" || subject === testSubject;
     return matchesSearch && matchesSubject;
   });
+
 
   const [onlineClassSearch, setOnlineClassSearch] = useState("");
   const [onlineClassSubject, setOnlineClassSubject] = useState("All Subjects");
@@ -1380,83 +1406,191 @@ const StudentDashboard = ({ onNavigate }) => {
               </section>
 
               <section className="tests-list-container">
-                {filteredWeeklyTests.length > 0 ? (
+                {weeklyTestsLoading ? (
+                  <div className="no-tests-card" style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
+                    Loading tests...
+                  </div>
+                ) : filteredWeeklyTests.length > 0 ? (
                   filteredWeeklyTests.map((test) => {
-                    let IconComponent = BookOpen;
-                    let iconClass = "chem-icon";
-                    if (test.subject === "Mathematics") {
-                      IconComponent = Calculator;
-                      iconClass = "math-icon";
-                    } else if (test.subject === "Physics") {
-                      IconComponent = FlaskConical;
-                      iconClass = "phys-icon";
+                    const subject = test.subject || "";
+                    const title = test.title || "Untitled Test";
+                    const status = test.status || "Result Pending";
+                    const maxScore = test.max_score || test.maxScore || 20;
+                    const testPdfUrl = test.test_pdf_url || test.testPdfUrl;
+
+                    // Find this student's marks from the JSONB column
+                    const studentId = studentProfile?.id;
+                    const studentMark = (test.student_marks || test.studentMarks || {})[studentId];
+                    const score = studentMark?.score ?? null;
+                    const remarks = studentMark?.remarks || "";
+                    const submissionUrl = studentMark?.submissionUrl || testSubmissions[test.id]?.url;
+                    const isPublished = status === "Published";
+                    const percent = score !== null ? Math.round((score / maxScore) * 100) : null;
+                    const isPass = percent !== null ? percent >= 50 : false;
+
+                    const subState = testSubmissions[test.id];
+                    const isUploading = subState?.uploading;
+
+                    let dateDisplay = "";
+                    if (test.date) {
+                      const d = new Date(test.date);
+                      dateDisplay = isNaN(d.getTime()) ? test.date : d.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
                     }
 
-                    const isPublished = test.status === "Published";
+                    let IconComponent = BookOpen;
+                    let iconClass = "chem-icon";
+                    if (subject === "Mathematics") { IconComponent = Calculator; iconClass = "math-icon"; }
+                    else if (subject === "Physics") { IconComponent = FlaskConical; iconClass = "phys-icon"; }
 
                     return (
-                      <div key={test.id} className="test-card">
-                        <div className="test-card-left">
+                      <div key={test.id} className="test-card" style={{ flexDirection: "column", gap: "16px", alignItems: "stretch" }}>
+                        {/* Top row: info + status badge */}
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: "14px", flexWrap: "wrap" }}>
                           <div className={`test-icon-wrap ${iconClass}`}>
                             <IconComponent size={22} />
                           </div>
-                          <div className="test-info-wrap">
+                          <div className="test-info-wrap" style={{ flex: 1 }}>
                             <div className="test-title-row">
-                              <h4>
-                                {test.subject} - {test.title}
-                              </h4>
-                              <span className={`test-badge ${test.status.replace(/\s+/g, "-").toLowerCase()}`}>
-                                {test.status}
-                              </span>
+                              <h4>{subject} — {title}</h4>
+                              <span className={`test-badge ${status.replace(/\s+/g, "-").toLowerCase()}`}>{status}</span>
                             </div>
                             <div className="test-metadata">
-                              <span className="meta-item">
-                                <User size={14} className="meta-icon" />
-                                {test.teacher}
-                              </span>
-                              <span className="meta-item">
-                                <CalendarDays size={14} className="meta-icon" />
-                                {test.date}
-                              </span>
+                              {dateDisplay && (
+                                <span className="meta-item">
+                                  <CalendarDays size={14} className="meta-icon" /> {dateDisplay}
+                                </span>
+                              )}
+                              <span className="meta-item">Max Marks: {maxScore}</span>
                             </div>
                           </div>
                         </div>
 
-                        <div className="test-card-right">
-                          <div className="test-marks-section">
-                            <div className="metrics-column divider-left">
-                              <span className="metrics-label">MARKS</span>
-                              <span className={`metrics-val ${isPublished ? "bold-blue" : "gray"}`}>
-                                {isPublished ? `${test.marksObtained} ` : "-- "}
-                                <span className="slash-total">/ {test.totalMarks}</span>
-                              </span>
-                            </div>
-                            <div className="metrics-column">
-                              <span className="metrics-label">PERCENT</span>
-                              <span className={`metrics-val ${isPublished ? "bold-green" : "gray"}`}>
-                                {isPublished ? `${test.percent}%` : "--%"}
-                              </span>
-                            </div>
-                          </div>
-                          <button
-                            className="test-view-result-btn"
-                            disabled={!isPublished}
-                            onClick={() => setActiveTestResult(test)}
+                        {/* Test paper download */}
+                        {testPdfUrl && (
+                          <a
+                            href={testPdfUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: "inline-flex", alignItems: "center", gap: "6px",
+                              padding: "6px 14px", borderRadius: "8px",
+                              background: "#eff6ff", border: "1px solid #bfdbfe",
+                              color: "#2563eb", fontSize: "13px", fontWeight: 500,
+                              textDecoration: "none", width: "fit-content"
+                            }}
                           >
-                            View Result
-                          </button>
+                            <Download size={14} /> Download Test Paper (PDF)
+                          </a>
+                        )}
+
+                        {/* Submission area */}
+                        <div style={{
+                          background: "#f8fafc", border: "1px solid #e2e8f0",
+                          borderRadius: "10px", padding: "14px 16px"
+                        }}>
+                          {submissionUrl ? (
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                              <CheckCircle size={16} style={{ color: "#22c55e" }} />
+                              <span style={{ fontSize: "13px", fontWeight: 500, color: "#166534" }}>Answer Submitted</span>
+                              <a
+                                href={submissionUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  fontSize: "12px", color: "#2563eb", textDecoration: "underline"
+                                }}
+                              >
+                                View my submission
+                              </a>
+                            </div>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                              <p style={{ fontSize: "13px", fontWeight: 500, color: "#475569", margin: 0 }}>
+                                Submit your answer:
+                              </p>
+                              <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                                <input
+                                  type="file"
+                                  accept=".pdf,.doc,.docx"
+                                  ref={(el) => { submissionInputRefs.current[test.id] = el; }}
+                                  style={{ fontSize: "13px", flex: 1, minWidth: "180px" }}
+                                  disabled={isUploading}
+                                />
+                                <button
+                                  onClick={() => handleSubmitTestAnswer(test)}
+                                  disabled={isUploading}
+                                  style={{
+                                    padding: "7px 18px", borderRadius: "8px",
+                                    background: isUploading ? "#94a3b8" : "#2563eb",
+                                    color: "#fff", border: "none", cursor: isUploading ? "not-allowed" : "pointer",
+                                    fontSize: "13px", fontWeight: 600
+                                  }}
+                                >
+                                  {isUploading ? "Uploading..." : "Submit"}
+                                </button>
+                              </div>
+                              <p style={{ fontSize: "11px", color: "#94a3b8", margin: 0 }}>PDF, DOC or DOCX accepted</p>
+                            </div>
+                          )}
                         </div>
+
+                        {/* Result block — only show when published */}
+                        {isPublished && score !== null && (
+                          <div style={{
+                            background: isPass ? "#f0fdf4" : "#fef2f2",
+                            border: `1px solid ${isPass ? "#bbf7d0" : "#fecaca"}`,
+                            borderRadius: "10px", padding: "14px 16px",
+                            display: "flex", gap: "20px", flexWrap: "wrap", alignItems: "center"
+                          }}>
+                            <div>
+                              <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Marks</span>
+                              <p style={{ fontSize: "22px", fontWeight: 700, color: "#0f172a", margin: "2px 0 0" }}>
+                                {score} <span style={{ fontSize: "14px", color: "#94a3b8" }}>/ {maxScore}</span>
+                              </p>
+                            </div>
+                            <div>
+                              <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Percentage</span>
+                              <p style={{ fontSize: "22px", fontWeight: 700, color: isPass ? "#16a34a" : "#dc2626", margin: "2px 0 0" }}>
+                                {percent}%
+                              </p>
+                            </div>
+                            <div>
+                              <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Result</span>
+                              <p style={{ margin: "4px 0 0" }}>
+                                <span style={{
+                                  display: "inline-block", padding: "3px 12px", borderRadius: "20px",
+                                  fontSize: "13px", fontWeight: 600,
+                                  background: isPass ? "#dcfce7" : "#fee2e2",
+                                  color: isPass ? "#166534" : "#991b1b"
+                                }}>
+                                  {isPass ? "Pass" : "Fail"}
+                                </span>
+                              </p>
+                            </div>
+                            {remarks && (
+                              <div style={{ flex: 1, minWidth: "200px" }}>
+                                <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Teacher Remarks</span>
+                                <p style={{ fontSize: "13px", color: "#334155", margin: "2px 0 0", fontStyle: "italic" }}>"{remarks}"</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {isPublished && score === null && (
+                          <p style={{ fontSize: "13px", color: "#94a3b8", margin: 0 }}>Result not yet entered for you.</p>
+                        )}
                       </div>
                     );
                   })
                 ) : (
                   <div className="no-tests-card">
-                    <p>No weekly tests found matching criteria.</p>
+                    <p>No weekly tests assigned to your batch yet.</p>
                   </div>
                 )}
               </section>
             </div>
           )}
+
 
           {activeTab === "Online Classes" && (
             <div className="online-classes-view-container">

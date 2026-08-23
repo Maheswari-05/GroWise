@@ -3,9 +3,9 @@ import AvatarPlaceholder from "../MyBatches/AvatarPlaceholder";
 import "./RecentSubmissions.css";
 
 const statusConfig = {
-  submitted: { label: "Submitted",  icon: CheckCircle2, color: "#2D6BFF", bg: "rgba(45,107,255,0.10)" },
-  reviewed:  { label: "Reviewed",   icon: CheckCircle2, color: "#27a55e", bg: "rgba(55,200,113,0.12)" },
-  pending:   { label: "Pending",    icon: Clock3,       color: "#ea580c", bg: "rgba(234,88,12,0.10)"  },
+  submitted: { label: "Submitted",  icon: CheckCircle2, color: "#2563eb", bg: "rgba(37,99,235,0.08)"  },
+  reviewed:  { label: "Reviewed",   icon: CheckCircle2, color: "#16a34a", bg: "rgba(22,163,74,0.08)"  },
+  pending:   { label: "Pending",    icon: Clock3,       color: "#d97706", bg: "rgba(217,119,6,0.08)"  },
 };
 
 const RecentSubmissions = ({ assignments = [], students = [], setActiveNav }) => {

@@ -8,6 +8,7 @@ import RecentSubmissions from "./components/RecentSubmissions/RecentSubmissions"
 import NotificationsCard from "./components/NotificationsCard/NotificationsCard";
 import QuickActions from "./components/QuickActions/QuickActions";
 import DashboardFooter from "./components/DashboardFooter/DashboardFooter";
+import * as adminService from "../../services/adminService";
 
 class DashboardErrorBoundary extends Component {
   constructor(props) {
@@ -176,23 +177,56 @@ const TeacherDashboard = ({ onNavigate }) => {
   };
 
   // Shared state initialized from LocalStorage
-  const [weeklyTests, setWeeklyTests] = useState(() => loadFromStorage("gw_weeklytests_v3", initialWeeklyTests));
-  const [onlineClasses, setOnlineClasses] = useState(() => loadFromStorage("gw_classes_v2", initialOnlineClasses));
+  const [weeklyTests, setWeeklyTests] = useState(() => loadFromStorage("gw_weeklytests_v4", []));
+  const [onlineClasses, setOnlineClasses] = useState(() => loadFromStorage("gw_classes_v3", []));
   const [attendanceRecords, setAttendanceRecords] = useState(() => loadFromStorage("gw_attendance_v2", initialAttendanceRecords));
-  const [notifications, setNotifications] = useState(() => loadFromStorage("gw_notifications_v2", initialNotifications));
+  const [notifications, setNotifications] = useState(() => loadFromStorage("gw_notifications_v3", []));
   const [teacherProfile, setTeacherProfile] = useState(loadLoggedTeacherProfile);
-  const [students, setStudents] = useState(() => loadFromStorage("gw_students_v2", initialStudents));
-  const [batches, setBatches] = useState(() => loadFromStorage("gw_batches_v2", initialBatches));
+  const [students, setStudents] = useState(() => loadFromStorage("gw_students_v2", []));
+  const [batches, setBatches] = useState(() => loadFromStorage("gw_batches_v2", []));
   const [assignments, setAssignments] = useState(() => loadFromStorage("gw_assignments_v2", []));
   const [materials, setMaterials] = useState(() => loadFromStorage("gw_materials_v2", []));
 
-  // One-time migration: wipe old cached weekly tests so stale data doesn't appear
+  // Fetch live students, batches, notifications, and online classes from Supabase database
+  useEffect(() => {
+    let isMounted = true;
+    const fetchLiveData = async () => {
+      try {
+        const [dbStudents, dbBatches, dbNotifs, dbClasses, dbTests] = await Promise.all([
+          adminService.fetchStudents(),
+          adminService.fetchBatches(),
+          adminService.fetchNotifications(),
+          adminService.fetchOnlineClasses(),
+          adminService.fetchWeeklyTests(),
+        ]);
+        if (isMounted) {
+          if (Array.isArray(dbStudents) && dbStudents.length > 0) setStudents(dbStudents);
+          if (Array.isArray(dbBatches) && dbBatches.length > 0) setBatches(dbBatches);
+          if (Array.isArray(dbNotifs) && dbNotifs.length > 0) setNotifications(dbNotifs);
+          if (Array.isArray(dbClasses) && dbClasses.length > 0) setOnlineClasses(dbClasses);
+          if (Array.isArray(dbTests)) setWeeklyTests(dbTests);
+        }
+      } catch (err) {
+        console.warn("Could not fetch live data:", err);
+      }
+    };
+    fetchLiveData();
+    return () => { isMounted = false; };
+  }, []);
+
+  // One-time migration: wipe old cached mock data so hardcoded stale entries don't appear
   useEffect(() => {
     try {
       localStorage.removeItem("gw_weeklytests_v1");
       localStorage.removeItem("gw_weeklytests_v2");
+      localStorage.removeItem("gw_notifications_v1");
+      localStorage.removeItem("gw_notifications_v2");
+      localStorage.removeItem("gw_classes_v1");
+      localStorage.removeItem("gw_classes_v2");
+      localStorage.removeItem("gw_weeklytests_v1");
+      localStorage.removeItem("gw_weeklytests_v2");
+      localStorage.removeItem("gw_weeklytests_v3");
     } catch {}
-    setWeeklyTests([]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -200,13 +234,13 @@ const TeacherDashboard = ({ onNavigate }) => {
   // Sync state changes to LocalStorage
   useEffect(() => {
     try {
-      localStorage.setItem("gw_weeklytests_v3", JSON.stringify(weeklyTests));
+      localStorage.setItem("gw_weeklytests_v4", JSON.stringify(weeklyTests));
     } catch {}
   }, [weeklyTests]);
 
   useEffect(() => {
     try {
-      localStorage.setItem("gw_classes_v2", JSON.stringify(onlineClasses));
+      localStorage.setItem("gw_classes_v3", JSON.stringify(onlineClasses));
     } catch {}
   }, [onlineClasses]);
 
@@ -309,15 +343,15 @@ const TeacherDashboard = ({ onNavigate }) => {
               assignments={assignments}
               setActiveNav={handleSetActiveNav}
             />
+            <QuickActions setActiveNav={handleSetActiveNav} />
             <div className="td-row-two">
               <TodaySchedule onlineClasses={onlineClasses} batches={batches} setActiveNav={handleSetActiveNav} />
               <UpcomingTests weeklyTests={weeklyTests} batches={batches} setActiveNav={handleSetActiveNav} />
             </div>
             <div className="td-row-three">
               <RecentSubmissions assignments={assignments} students={students} setActiveNav={handleSetActiveNav} />
-              <NotificationsCard setActiveNav={handleSetActiveNav} />
+              <NotificationsCard notifications={notifications} setActiveNav={handleSetActiveNav} />
             </div>
-            <QuickActions setActiveNav={handleSetActiveNav} />
           </>
         );
     }

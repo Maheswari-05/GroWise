@@ -1,6 +1,5 @@
 /* ============================================================
-   SIDEBAR — Colors match GroWise landing page exactly
-   Blue:  #2D6BFF  |  Green: #37C871  |  Dark: #1e2a46
+   SIDEBAR — Admin-style design matching AdminDashboard.css
 ============================================================ */
 
 .sidebar {
@@ -10,10 +9,10 @@
   width: var(--sidebar-w);
   height: 100vh;
   background: #ffffff;
-  border-right: 1px solid var(--border);
+  border-right: 1.5px solid rgba(226, 232, 240, 0.8);
   display: flex;
   flex-direction: column;
-  padding: 0 0 16px;
+  padding: 0;
   z-index: 100;
   overflow-y: auto;
   overflow-x: hidden;
@@ -25,35 +24,33 @@
 /* ── Logo ─────────────────────────────────────────────────── */
 
 .sidebar-logo {
+  height: 80px;
+  padding: 0 24px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px 16px 12px;
+  gap: 10px;
+  border-bottom: 1.5px solid rgba(226, 232, 240, 0.8);
 }
 
-/* Same logo.png used in the landing page Navbar */
 .sidebar-logo-img {
-  height: 32px;
+  height: 38px;
   width: auto;
   flex-shrink: 0;
 }
 
-/* Wordmark: "Gro" in blue, "Wise" in green — mirrors landing page */
 .sidebar-logo-wordmark {
   display: flex;
   font-family: "Manrope", sans-serif;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 800;
   letter-spacing: -0.5px;
   line-height: 1;
 }
 
-/* Exact landing page primary blue */
 .sidebar-logo-gro {
   color: #2D6BFF;
 }
 
-/* Exact landing page primary green */
 .sidebar-logo-wise {
   color: #37C871;
 }
@@ -62,8 +59,7 @@
 
 .sidebar-divider {
   height: 1px;
-  margin: 0 14px;
-  background: var(--border);
+  background: rgba(226, 232, 240, 0.8);
 }
 
 /* ── Navigation ──────────────────────────────────────────── */
@@ -71,8 +67,8 @@
 .sidebar-nav {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 8px 8px;
+  gap: 6px;
+  padding: 24px 16px;
   flex: 1;
 }
 
@@ -80,46 +76,45 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: var(--radius-md);
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
   border: none;
   background: transparent;
-  color: #475569;
+  color: #64748b;
   font-family: "Manrope", sans-serif;
-  font-size: 13px;
+  font-size: 14.5px;
   font-weight: 600;
   cursor: pointer;
   text-align: left;
-  transition: all 0.22s ease;
+  transition: all 0.25s ease;
   width: 100%;
 }
 
 .sidebar-nav-item:hover {
-  background: #f1f5f9;
-  color: #0f172a;
+  color: #2D6BFF;
+  background-color: #f5f9ff;
 }
 
-/* Active: light blue/lavender pill with blue text */
 .sidebar-nav-item.active {
-  background: #eef2ff;
-  color: #2563eb;
+  color: #2D6BFF;
+  background-color: rgba(45, 107, 255, 0.08);
 }
 
 .sidebar-nav-item.active .sidebar-nav-icon {
-  color: #2563eb;
+  color: #2D6BFF;
 }
 
 .sidebar-nav-icon {
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  transition: color 0.22s;
+  transition: color 0.25s;
   color: #64748b;
 }
 
-.sidebar-nav-item.active .sidebar-nav-icon {
-  color: #2563eb;
+.sidebar-nav-item:hover .sidebar-nav-icon {
+  color: #2D6BFF;
 }
 
 .sidebar-nav-label {
@@ -130,53 +125,51 @@
 }
 
 .sidebar-nav-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #2563eb;
-  flex-shrink: 0;
+  display: none;
 }
 
 .sidebar-notification-dot {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: #ef4444;
-  margin-left: 6px;
-  flex-shrink: 0;
+  position: absolute;
+  right: 16px;
 }
 
 /* ── Spacer ──────────────────────────────────────────────── */
 
 .sidebar-spacer {
-  height: 8px;
+  flex: 1;
 }
 
-/* ── Logout ──────────────────────────────────────────────── */
+/* ── Footer / Logout ──────────────────────────────────────── */
 
 .sidebar-logout {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  margin: 4px 8px 0;
-  padding: 8px 12px;
-  border-radius: var(--radius-md);
+  margin: 0 16px 16px;
+  padding: 12px;
+  border-radius: 12px;
   border: none;
-  background: #fef2f2;
-  color: #dc2626;
+  background-color: #dc2626;
+  color: #ffffff;
   font-family: "Manrope", sans-serif;
-  font-size: 13px;
+  font-size: 14.5px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.22s ease;
-  text-align: center;
-  width: calc(100% - 16px);
+  transition: all 0.25s ease;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+  width: calc(100% - 32px);
 }
 
 .sidebar-logout:hover {
-  background: #fee2e2;
-  color: #b91c1c;
+  background-color: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.15);
 }
 
 /* ── Bottom Accent ───────────────────────────────────────── */
@@ -191,7 +184,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: rgba(30, 42, 70, 0.4);
   backdrop-filter: blur(4px);
   z-index: 99;
 }

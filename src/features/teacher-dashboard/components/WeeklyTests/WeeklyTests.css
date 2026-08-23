@@ -704,3 +704,173 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── PDF Upload Zone ─────────────────────────────────────── */
+
+.wt-pdf-upload-zone {
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 28px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  background: #f8fafc;
+  min-height: 110px;
+}
+
+.wt-pdf-upload-zone:hover {
+  border-color: #2D6BFF;
+  background: #f0f5ff;
+}
+
+.wt-pdf-upload-zone.has-file {
+  border-color: #22c55e;
+  background: #f0fdf4;
+}
+
+.wt-pdf-upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: #64748b;
+  text-align: center;
+}
+
+.wt-pdf-upload-placeholder span {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.wt-pdf-upload-placeholder small {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.wt-pdf-file-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #166534;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.wt-pdf-remove-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.wt-optional-tag {
+  font-size: 11px;
+  font-weight: 400;
+  color: #94a3b8;
+  text-transform: lowercase;
+  margin-left: 4px;
+}
+
+/* ── Submission Badge ────────────────────────────────────── */
+
+.wt-submission-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #475569;
+}
+
+/* ── View Submission / Paper Link ────────────────────────── */
+
+.wt-view-submission-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #2D6BFF;
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid #bfdbfe;
+  transition: background 0.18s;
+  white-space: nowrap;
+}
+
+.wt-view-submission-btn:hover {
+  background: #dbeafe;
+}
+
+.wt-no-submission {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.wt-paper-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #2D6BFF;
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  transition: background 0.18s;
+}
+
+.wt-paper-link:hover {
+  background: #dbeafe;
+}
+
+.wt-pdf-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #2D6BFF;
+  text-decoration: none;
+  margin-top: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  transition: background 0.18s;
+}
+
+.wt-pdf-link:hover {
+  background: #dbeafe;
+}
+
+/* ── Submission column ────────────────────────────────────── */
+.wt-col-submission {
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* ── Spin animation for loader ───────────────────────────── */
+@keyframes wt-spin {
+  to { transform: rotate(360deg); }
+}
+.wt-spin {
+  animation: wt-spin 0.8s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+}
+

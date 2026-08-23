@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { User, Mail, Phone, BookOpen, GraduationCap, Calendar, Shield, Edit3, Key, X, Check } from "lucide-react";
+import { User, Mail, Phone, BookOpen, GraduationCap, Shield, Edit3, Key, X } from "lucide-react";
 import "./Profile.css";
 
 const Profile = ({ teacherProfile, setTeacherProfile }) => {
@@ -7,10 +7,11 @@ const Profile = ({ teacherProfile, setTeacherProfile }) => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   // Edit fields state
-  const [editName, setEditName] = useState(teacherProfile.name);
-  const [editEmail, setEditEmail] = useState(teacherProfile.email);
-  const [editPhone, setEditPhone] = useState(teacherProfile.phone);
-  const [editQualification, setEditQualification] = useState(teacherProfile.qualification);
+  const [editName, setEditName] = useState(teacherProfile.name || "");
+  const [editEmail, setEditEmail] = useState(teacherProfile.email || "");
+  const [editPhone, setEditPhone] = useState(teacherProfile.phone || "");
+  const [editQualification, setEditQualification] = useState(teacherProfile.qualification || "");
+  const [editExperience, setEditExperience] = useState(teacherProfile.experience || "");
   const [editAvatar, setEditAvatar] = useState(teacherProfile.avatar || "");
 
   // Password fields state
@@ -26,6 +27,7 @@ const Profile = ({ teacherProfile, setTeacherProfile }) => {
       email: editEmail,
       phone: editPhone,
       qualification: editQualification,
+      experience: editExperience,
       avatar: editAvatar,
     };
     setTeacherProfile(updated);
@@ -35,9 +37,18 @@ const Profile = ({ teacherProfile, setTeacherProfile }) => {
       const teachersRaw = localStorage.getItem("gw_teachers_v2");
       if (teachersRaw) {
         const teachers = JSON.parse(teachersRaw);
-        const idx = teachers.findIndex((t) => t.id === updated.id || t.email === updated.email);
+        const idx = teachers.findIndex((t) => String(t.id) === String(updated.id) || t.email === updated.email);
         if (idx !== -1) {
-          teachers[idx] = { ...teachers[idx], name: editName, email: editEmail, contact: editPhone, phone: editPhone, avatar: editAvatar };
+          teachers[idx] = {
+            ...teachers[idx],
+            name: editName,
+            email: editEmail,
+            contact: editPhone,
+            phone: editPhone,
+            qualification: editQualification,
+            experience: editExperience,
+            avatar: editAvatar,
+          };
           localStorage.setItem("gw_teachers_v2", JSON.stringify(teachers));
         }
       }
@@ -79,7 +90,6 @@ const Profile = ({ teacherProfile, setTeacherProfile }) => {
 
           <h2 className="profile-summary-name">{teacherProfile.name}</h2>
           <span className="profile-summary-role">Professional Educator</span>
-          <span className="profile-id-badge">ID: {teacherProfile.id}</span>
 
           <div className="profile-summary-divider"></div>
 
@@ -129,7 +139,7 @@ const Profile = ({ teacherProfile, setTeacherProfile }) => {
                 <div className="profile-icon-box"><GraduationCap size={16} /></div>
                 <div className="profile-detail-text">
                   <span className="detail-label">Qualifications</span>
-                  <span className="detail-value">{teacherProfile.qualification}</span>
+                  <span className="detail-value">{teacherProfile.qualification || "Not specified"}</span>
                 </div>
               </div>
 
@@ -137,15 +147,7 @@ const Profile = ({ teacherProfile, setTeacherProfile }) => {
                 <div className="profile-icon-box"><Shield size={16} /></div>
                 <div className="profile-detail-text">
                   <span className="detail-label">Experience</span>
-                  <span className="detail-value">{teacherProfile.experience}</span>
-                </div>
-              </div>
-
-              <div className="profile-detail-item">
-                <div className="profile-icon-box"><Calendar size={16} /></div>
-                <div className="profile-detail-text">
-                  <span className="detail-label">Joining Date</span>
-                  <span className="detail-value">{teacherProfile.joiningDate}</span>
+                  <span className="detail-value">{teacherProfile.experience || "Not specified"}</span>
                 </div>
               </div>
             </div>
@@ -160,22 +162,30 @@ const Profile = ({ teacherProfile, setTeacherProfile }) => {
               <div className="workload-section">
                 <span className="workload-title">Subjects Taught</span>
                 <div className="workload-tags">
-                  {teacherProfile.subjects.map((sub, i) => (
-                    <span key={i} className="workload-tag sub-tag">
-                      <BookOpen size={13} /> {sub}
-                    </span>
-                  ))}
+                  {Array.isArray(teacherProfile.subjects) && teacherProfile.subjects.length > 0 ? (
+                    teacherProfile.subjects.map((sub, i) => (
+                      <span key={i} className="workload-tag sub-tag">
+                        <BookOpen size={13} /> {sub}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="detail-value text-muted" style={{ fontSize: "13px" }}>No subjects assigned</span>
+                  )}
                 </div>
               </div>
 
               <div className="workload-section">
                 <span className="workload-title">Active Batches</span>
                 <div className="workload-tags">
-                  {teacherProfile.batches.map((batch, i) => (
-                    <span key={i} className="workload-tag batch-tag">
-                      <GraduationCap size={13} /> {batch}
-                    </span>
-                  ))}
+                  {Array.isArray(teacherProfile.batches) && teacherProfile.batches.length > 0 ? (
+                    teacherProfile.batches.map((batch, i) => (
+                      <span key={i} className="workload-tag batch-tag">
+                        <GraduationCap size={13} /> {batch}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="detail-value text-muted" style={{ fontSize: "13px" }}>No batches assigned</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -305,9 +315,19 @@ const Profile = ({ teacherProfile, setTeacherProfile }) => {
                 <label>Qualifications</label>
                 <input
                   type="text"
-                  required
+                  placeholder="e.g. M.Sc. in Mathematics, B.Ed."
                   value={editQualification}
                   onChange={(e) => setEditQualification(e.target.value)}
+                />
+              </div>
+
+              <div className="profile-form-group">
+                <label>Experience</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 5+ Years"
+                  value={editExperience}
+                  onChange={(e) => setEditExperience(e.target.value)}
                 />
               </div>
 

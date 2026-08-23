@@ -10,23 +10,23 @@ const Header = ({ activeNav = "dashboard", setActiveNav, unreadCount = 0, profil
       : profile.role || "Teacher";
 
   const PAGE_TITLES = {
-    dashboard:     { title: `Good Morning, ${name}!`, sub: "Here's what's happening today." },
-    batches:       { title: "My Batches & Students",      sub: "View and manage your assigned batches and students." },
-    materials:     { title: "Study Materials",            sub: "Upload and manage learning resources." },
-    assignments:   { title: "Assignments",               sub: "Create and review student assignments." },
-    tests:         { title: "Weekly Tests",              sub: "Schedule and evaluate weekly assessments." },
-    classes:       { title: "Online Classes",            sub: "Schedule and join live sessions." },
-    attendance:    { title: "Attendance",                sub: "Track and manage student attendance." },
-    reports:       { title: "Reports & Analytics",       sub: "Insights on student performance." },
-    notifications: { title: "Notifications",            sub: "Stay updated with latest activity." },
-    profile:       { title: "My Profile",               sub: "Manage your account information." },
+    dashboard:     "Teacher Dashboard",
+    batches:       "My Batches & Students",
+    materials:     "Study Materials",
+    assignments:   "Assignments",
+    tests:         "Weekly Tests",
+    classes:       "Online Classes",
+    attendance:    "Attendance",
+    reports:       "Reports & Analytics",
+    notifications: "Notifications",
+    profile:       "My Profile",
   };
 
-  const page = PAGE_TITLES[activeNav] || PAGE_TITLES.dashboard;
+  const pageTitle = PAGE_TITLES[activeNav] || "Teacher Dashboard";
 
   return (
     <header className="td-header">
-      {/* Left: Greeting / Page Title */}
+      {/* Left: Page Title */}
       <div className="td-header-left">
         {onToggleMobile && (
           <button className="td-header-menu-btn" onClick={onToggleMobile} aria-label="Toggle Navigation">
@@ -34,8 +34,7 @@ const Header = ({ activeNav = "dashboard", setActiveNav, unreadCount = 0, profil
           </button>
         )}
         <div>
-          <h1 className="td-header-greeting">{page.title}</h1>
-          <p className="td-header-subtitle">{page.sub}</p>
+          <h1 className="td-header-greeting">{pageTitle}</h1>
         </div>
       </div>
 
