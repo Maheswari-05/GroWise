@@ -466,44 +466,79 @@ const StudentDashboard = ({ onNavigate }) => {
   const [notificationSearch, setNotificationSearch] = useState("");
   const [notificationFilter, setNotificationFilter] = useState("All");
 
-  const [notificationsList, setNotificationsList] = useState([
-    {
-      id: 1,
-      type: "study-material",
-      title: "New Study Material: Physics Notes - Chapter 5",
-      time: "10:30 AM",
-      group: "TODAY",
-      detail: "The comprehensive notes for quantum mechanics are now available for download. Please review them before tomorrow's lecture.",
-      unread: true
-    },
-    {
-      id: 2,
-      type: "class-reminder",
-      title: "Online Class Reminder: Physics starts at 4:00 PM",
-      time: "3:30 PM",
-      group: "TODAY",
-      detail: "",
-      unread: true
-    },
-    {
-      id: 3,
-      type: "assignment",
-      title: "New Assignment: Mathematics Assignment 6",
-      time: "4:15 PM",
-      group: "YESTERDAY",
-      detail: "Topic: Calculus - Integral Applications. Submission deadline: Friday, 6:00 PM.",
-      unread: true
-    },
-    {
-      id: 4,
-      type: "test-results",
-      title: "Weekly Test Results: Test 4 Published",
-      time: "2 Days Ago",
-      group: "EARLIER",
-      detail: "Mathematics Unit Test - Calculus I. Your performance report is ready.",
-      unread: true
+  const [notificationsList, setNotificationsList] = useState([]);
+
+  // Fetch real-time student notifications from Supabase table
+  useEffect(() => {
+    let active = true;
+
+    const fetchNotifications = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("notifications")
+          .select("*")
+          .order("id", { ascending: false });
+
+        if (!error && data && active) {
+          const dbNotifs = data.map((n) => ({
+            id: n.id + 100, // offset id to prevent collisions
+            type: n.type || "study-material",
+            title: n.message,
+            time: n.time || "Just Now",
+            group: "TODAY",
+            detail: "",
+            unread: true
+          }));
+
+          const studentSubjects = studentProfile?.subjects || [];
+          const filteredDbNotifs = dbNotifs.filter((notif) => {
+            // Scope notifications to only the subjects this student is enrolled in
+            return studentSubjects.some((sub) => notif.title.includes(`(${sub})`));
+          });
+
+          setNotificationsList((prev) => {
+            const filteredPrev = prev.filter(p => p.id < 100);
+            return [...filteredDbNotifs, ...filteredPrev];
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching notifications:", err);
+      }
+    };
+
+    if (studentProfile?.subjects) {
+      fetchNotifications();
     }
-  ]);
+
+    // Subscribe to new notifications
+    const channel = supabase
+      .channel("student-notifications-channel")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications" }, (payload) => {
+        if (payload.new && active) {
+          const studentSubjects = studentProfile?.subjects || [];
+          const isRelevant = studentSubjects.some((sub) => payload.new.message?.includes(`(${sub})`));
+          
+          if (isRelevant) {
+            const newNotif = {
+              id: payload.new.id + 100,
+              type: payload.new.type || "study-material",
+              title: payload.new.message,
+              time: payload.new.time || "Just Now",
+              group: "TODAY",
+              detail: "",
+              unread: true
+            };
+            setNotificationsList((prev) => [newNotif, ...prev]);
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
+  }, [studentProfile]);
 
   const filteredNotifications = notificationsList.filter((notif) => {
     const matchesSearch = notif.title.toLowerCase().includes(notificationSearch.toLowerCase()) ||

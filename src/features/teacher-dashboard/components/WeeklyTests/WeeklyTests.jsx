@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Search, Plus, Filter, BookOpen, FlaskConical, User, Calendar, CheckCircle2, AlertCircle, TrendingUp, BarChart2, Check, X, ArrowLeft } from "lucide-react";
+import supabase from "../../../../lib/supabase";
 import "./WeeklyTests.css";
 
 const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
@@ -79,7 +80,7 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
     setActiveTestId(null);
   };
 
-  const handleCreateTest = (e) => {
+  const handleCreateTest = async (e) => {
     e.preventDefault();
     if (!newTestTitle.trim()) return;
 
@@ -103,6 +104,23 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
     setWeeklyTests([newTest, ...(weeklyTests || [])]);
     setShowCreateModal(false);
     setNewTestTitle("");
+
+    // Insert notification for the student along with the current time
+    try {
+      const currentTime = new Date().toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
+
+      await supabase.from("notifications").insert({
+        type: "weekly-test",
+        message: `New Test Scheduled: ${newTestTitle} (${newTestSubject})`,
+        time: currentTime,
+      });
+    } catch (err) {
+      console.error("Failed to insert test notification:", err);
+    }
   };
 
   // Get test stats for analysis

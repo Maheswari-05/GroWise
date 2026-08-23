@@ -20,6 +20,8 @@ import {
   HardDrive,
 } from "lucide-react";
 import { initialMaterials, SUBJECTS, generateId } from "./materialsData";
+import supabase from "../../../../lib/supabase";
+import { useEffect } from "react";
 import "./StudyMaterials.css";
 
 /* ── File type config ──────────────────────────────────────── */
@@ -336,15 +338,62 @@ const DeleteModal = ({ material, onClose, onConfirm }) => (
 
 /* ── Main Component ────────────────────────────────────────── */
 const StudyMaterials = () => {
-  const [materials, setMaterials] = useState(() => {
-    try {
-      const stored = localStorage.getItem("gw_materials_v2");
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error(e);
-    }
-    return initialMaterials;
-  });
+  const [materials, setMaterials] = useState([]);
+
+  // Fetch materials dynamically from Supabase
+  useEffect(() => {
+    const loadMaterials = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("materials")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (!error && data) {
+          const parsed = data.map((row) => {
+            try {
+              if (row.title.startsWith("{")) {
+                const parsedTitle = JSON.parse(row.title);
+                return {
+                  id: row.id,
+                  subject: row.subject,
+                  teacher: row.teacher,
+                  flagged: row.flagged,
+                  created_at: row.created_at,
+                  ...parsedTitle,
+                };
+              }
+            } catch (e) {}
+            return {
+              id: row.id,
+              title: row.title,
+              subject: row.subject,
+              teacher: row.teacher,
+              flagged: row.flagged,
+              uploadDate: new Date(row.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+              fileType: "pdf",
+              fileName: row.title,
+              fileSize: "1.2 MB",
+              description: "Course study material.",
+              batch: "All Batches",
+              grade: "All Grades",
+              downloads: 0,
+            };
+          });
+
+          if (parsed.length > 0) {
+            setMaterials(parsed);
+          } else {
+            setMaterials(initialMaterials);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load materials:", err);
+      }
+    };
+
+    loadMaterials();
+  }, []);
 
   const saveMaterials = (newMaterials) => {
     setMaterials(newMaterials);
@@ -397,20 +446,86 @@ const StudyMaterials = () => {
   }, [filtered]);
 
   /* CRUD handlers */
-  const handleSave = (data) => {
+  const handleSave = async (data) => {
+    // Resolve logged in teacher name
+    const loggedTeacherStr = localStorage.getItem("gw_logged_teacher");
+    let teacherName = "Alice";
+    if (loggedTeacherStr) {
+      try {
+        teacherName = JSON.parse(loggedTeacherStr).name;
+      } catch (e) {}
+    }
+
+    const payload = {
+      id: data.id,
+      title: JSON.stringify({
+        title: data.title,
+        description: data.description,
+        fileName: data.fileName,
+        fileSize: data.fileSize,
+        fileType: data.fileType,
+        fileUrl: data.fileUrl,
+        batch: data.batch,
+        grade: data.grade,
+        uploadDate: data.uploadDate,
+        downloads: data.downloads,
+      }),
+      subject: data.subject,
+      teacher: teacherName,
+      flagged: false,
+    };
+
     if (modal === "upload") {
       saveMaterials([data, ...materials]);
       showToast("Material uploaded successfully!");
+
+      try {
+        await supabase.from("materials").insert(payload);
+
+        // Insert notification for the student along with the current time
+        const currentTime = new Date().toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        });
+
+        await supabase.from("notifications").insert({
+          type: "study-material",
+          message: `New Study Material: ${data.title} (${data.subject})`,
+          time: currentTime,
+        });
+      } catch (err) {
+        console.error("Failed to insert material/notification:", err);
+      }
     } else {
       saveMaterials(materials.map((m) => (m.id === data.id ? data : m)));
       showToast("Material updated successfully!");
+
+      try {
+        await supabase
+          .from("materials")
+          .update(payload)
+          .eq("id", data.id);
+      } catch (err) {
+        console.error("Failed to update database material:", err);
+      }
     }
     setModal(null);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     saveMaterials(materials.filter((m) => m.id !== deleteTarget.id));
     showToast(`"${deleteTarget.title}" deleted.`, "warning");
+
+    try {
+      await supabase
+        .from("materials")
+        .delete()
+        .eq("id", deleteTarget.id);
+    } catch (err) {
+      console.error("Failed to delete material from DB:", err);
+    }
+
     setDeleteTarget(null);
   };
 

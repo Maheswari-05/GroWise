@@ -31,6 +31,7 @@ import {
   dueDateLabel,
 } from "./assignmentsData";
 import AvatarPlaceholder from "../MyBatches/AvatarPlaceholder";
+import supabase from "../../../../lib/supabase";
 import "./Assignments.css";
 
 /* ── Constants ─────────────────────────────────────────────── */
@@ -627,10 +628,27 @@ const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssi
   const overdue          = assignments.filter(a => assignmentStatus(a) === "overdue").length;
 
   /* CRUD */
-  const handleSave = (data) => {
+  const handleSave = async (data) => {
     if (modal === "create") {
       setAssignments(p => [data, ...p]);
       showToast("Assignment created successfully!");
+
+      // Insert notification for the student along with the current time
+      try {
+        const currentTime = new Date().toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        });
+
+        await supabase.from("notifications").insert({
+          type: "assignment",
+          message: `New Assignment: ${data.title} (${data.subject})`,
+          time: currentTime,
+        });
+      } catch (err) {
+        console.error("Failed to insert assignment notification:", err);
+      }
     } else {
       setAssignments(p => p.map(a => a.id === data.id ? data : a));
       showToast("Assignment updated successfully!");

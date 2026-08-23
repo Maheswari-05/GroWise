@@ -15,24 +15,23 @@ const renderSubjectIcon = (subject, colorText) => {
   return <FileText size={18} style={{ color: colorText }} />;
 };
 
-const UpcomingTests = ({ weeklyTests = [], batches = [], setActiveNav }) => {
+const UpcomingTests = ({ weeklyTests = [], batches = [], teacherProfile = {}, setActiveNav }) => {
   const getBatch = (bId) => batches.find((b) => b.id === bId || b.name === bId);
   const colors = ["blue", "green", "purple"];
+  const subjects = teacherProfile.subjects || ["Mathematics", "Science"];
 
-  const tests = weeklyTests.length > 0
-    ? weeklyTests.slice(0, 3).map((t, i) => {
-        const batchObj = getBatch(t.batchId);
-        return {
-          subject: t.subject || t.title || "Test",
-          when: t.date || "Upcoming",
-          grade: batchObj?.grade || batchObj?.name || "All Grades",
-          color: colors[i % colors.length],
-        };
-      })
-    : [
-        { subject: "Mathematics", when: "Tomorrow", grade: "Grade 10", color: "blue" },
-        { subject: "Science", when: "Friday", grade: "Grade 9", color: "green" },
-      ];
+  // Generate one upcoming test for each subject the teacher teaches
+  const tests = subjects.map((sub, i) => {
+    const matchingTest = weeklyTests.find(t => t.subject === sub);
+    const batchObj = batches.find(b => b.subject === sub) || batches[0];
+
+    return {
+      subject: sub,
+      when: matchingTest?.date || (i === 0 ? "Tomorrow" : i === 1 ? "Friday" : "Next Monday"),
+      grade: batchObj?.grade || "All Grades",
+      color: colors[i % colors.length],
+    };
+  });
   return (
     <div className="td-card upcoming-tests">
       <div className="td-card-header">
