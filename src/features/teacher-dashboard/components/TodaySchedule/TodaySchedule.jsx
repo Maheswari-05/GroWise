@@ -1,7 +1,7 @@
 import { Video } from "lucide-react";
 import "./TodaySchedule.css";
 
-const TodaySchedule = ({ onlineClasses = [], batches = [], setActiveNav }) => {
+const TodaySchedule = ({ onlineClasses = [], batches = [], teacherProfile = {}, setActiveNav }) => {
   const getBatch = (bId) => batches.find((b) => b.id === bId || b.name === bId);
 
   const schedule = onlineClasses.length > 0
@@ -18,7 +18,6 @@ const TodaySchedule = ({ onlineClasses = [], batches = [], setActiveNav }) => {
         { time: "09:00 AM", subject: "Mathematics", grade: "Grade 10", batch: "Batch A" },
         { time: "11:00 AM", subject: "Science", grade: "Grade 9", batch: "Batch C" },
       ];
-
   return (
     <div className="td-card today-schedule">
       <div className="td-card-header">

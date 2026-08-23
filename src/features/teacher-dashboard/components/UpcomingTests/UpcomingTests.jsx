@@ -1,7 +1,7 @@
 import { CalendarClock, FileText } from "lucide-react";
 import "./UpcomingTests.css";
 
-const UpcomingTests = ({ weeklyTests = [], batches = [], setActiveNav }) => {
+const UpcomingTests = ({ weeklyTests = [], batches = [], teacherProfile = {}, setActiveNav }) => {
   const getBatch = (bId) => batches.find((b) => b.id === bId || b.name === bId);
 
   const tests = weeklyTests.length > 0
@@ -17,7 +17,6 @@ const UpcomingTests = ({ weeklyTests = [], batches = [], setActiveNav }) => {
         { subject: "Mathematics", when: "Tomorrow", grade: "Grade 10" },
         { subject: "Science", when: "Friday", grade: "Grade 9" },
       ];
-
   return (
     <div className="td-card upcoming-tests">
       <div className="td-card-header">

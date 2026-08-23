@@ -1,7 +1,7 @@
 import { GraduationCap, Users, Video, ClipboardCheck } from "lucide-react";
 import "./SummaryCards.css";
 
-const SummaryCards = ({ batches = [], students = [], onlineClasses = [], assignments = [], setActiveNav }) => {
+const SummaryCards = ({ batches = [], students = [], onlineClasses = [], assignments = [], teacherProfile = {}, setActiveNav }) => {
   const batchCount = batches.length;
   const studentCount = students.length;
 

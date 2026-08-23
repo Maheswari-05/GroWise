@@ -187,9 +187,9 @@ const Profile = ({ teacherProfile, setTeacherProfile }) => {
                     <span className="detail-value text-muted" style={{ fontSize: "13px" }}>No batches assigned</span>
                   )}
                 </div>
-              </div>
             </div>
           </div>
+        </div>
         </div>
       </div>
 

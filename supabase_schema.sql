@@ -55,6 +55,7 @@ CREATE TABLE students (
   parent_contact TEXT,
   subjects TEXT[] DEFAULT '{}',
   batch_id TEXT,
+  teacher_id TEXT,
   username TEXT,
   password TEXT,
   status TEXT DEFAULT 'Active',

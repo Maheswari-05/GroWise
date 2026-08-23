@@ -26,6 +26,23 @@ const Login = ({ onNavigate }) => {
       const normalizedEmail = email.trim().toLowerCase();
       console.log("🔐 Student login attempt with email:", normalizedEmail);
       
+      // Bypass login for student Kalpana if password is forgotten
+      if (normalizedEmail === "snehar20067@gmail.com") {
+        if (password.trim() === "Sneha!1234") {
+          const demoStudentObj = {
+            email: "snehar20067@gmail.com",
+            name: "Kalpana Raj"
+          };
+          localStorage.setItem("gw_logged_student", JSON.stringify(demoStudentObj));
+          onNavigate("dashboard");
+          return;
+        } else {
+          setError("Invalid email or password. Please check and try again.");
+          setIsLoading(false);
+          return;
+        }
+      }
+
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
         password: password.trim(),

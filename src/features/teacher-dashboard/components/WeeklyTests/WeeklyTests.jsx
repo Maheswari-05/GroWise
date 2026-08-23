@@ -5,6 +5,7 @@ import {
   ArrowLeft, Upload, FileText, Eye, Download, Loader2
 } from "lucide-react";
 import * as adminService from "../../../../services/adminService";
+import supabase from "../../../../lib/supabase";
 import "./WeeklyTests.css";
 
 const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
@@ -163,6 +164,28 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
       setShowCreateModal(false);
       setNewTestTitle("");
       setTestPdfFile(null);
+
+      // Send notification for new test
+      try {
+        const loggedTeacherStr = localStorage.getItem("gw_logged_teacher");
+        let teacherName = "Teacher";
+        if (loggedTeacherStr) {
+          try { teacherName = JSON.parse(loggedTeacherStr).name; } catch (e) {}
+        }
+        const currentTime = new Date().toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        });
+
+        await supabase.from("notifications").insert({
+          type: `weekly-test:${teacherName}`,
+          message: `New Test Scheduled: ${newTestTitle} (${newTestSubject})`,
+          time: currentTime,
+        });
+      } catch (err) {
+        console.error("Failed to insert test notification:", err);
+      }
     } finally {
       setUploading(false);
     }

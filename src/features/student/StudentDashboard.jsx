@@ -44,6 +44,9 @@ const StudentDashboard = ({ onNavigate }) => {
   const [studentProfile, setStudentProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState("");
+  const [attendanceLogs, setAttendanceLogs] = useState([]);
+  const [loadingAttendance, setLoadingAttendance] = useState(true);
+  const [attendanceError, setAttendanceError] = useState("");
 
   const getDisplayValue = (value, fallback = "—") => {
     if (value === null || value === undefined) return fallback;
@@ -51,7 +54,7 @@ const StudentDashboard = ({ onNavigate }) => {
     return text ? value : fallback;
   };
 
-  const normalizeStudentProfile = (student, batchName, assignedTeachers) => ({
+  const normalizeStudentProfile = (student, batchName, assignedTeachers, batchSchedule = "—") => ({
     ...student,
     name: student?.name || "",
     email: student?.email || "",
@@ -59,6 +62,7 @@ const StudentDashboard = ({ onNavigate }) => {
     dob: student?.dob || "",
     address: student?.address || "",
     batchName,
+    batchSchedule,
     assignedTeachers,
     admissionDate: student?.created_at || "",
   });
@@ -84,19 +88,32 @@ const StudentDashboard = ({ onNavigate }) => {
     const fetchStudentProfile = async () => {
       try {
         setLoadingProfile(true);
+        setLoadingAttendance(true);
         setProfileError("");
+        setAttendanceError("");
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-        if (authError || !user) {
-          console.error("No authenticated user found:", authError);
-          if (active) {
-            onNavigate("login");
-          }
-          return;
+        let studentEmail = "";
+        const loggedStudentStr = localStorage.getItem("gw_logged_student");
+        if (loggedStudentStr) {
+          try {
+            studentEmail = JSON.parse(loggedStudentStr).email;
+          } catch (e) {}
         }
 
-        const normalizedEmail = user.email?.trim().toLowerCase();
+        if (!studentEmail) {
+          const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+          if (authError || !user) {
+            console.error("No authenticated user found:", authError);
+            if (active) {
+              onNavigate("login");
+            }
+            return;
+          }
+          studentEmail = user.email;
+        }
+
+        const normalizedEmail = studentEmail.trim().toLowerCase();
 
         console.log("Authenticated user found in dashboard:", normalizedEmail);
 
@@ -115,11 +132,14 @@ const StudentDashboard = ({ onNavigate }) => {
           if (active) {
             setProfileError("Student profile not found in database.");
             setLoadingProfile(false);
+            setLoadingAttendance(false);
           }
           return;
         }
 
         let batchName = "Not Assigned";
+        let batchSchedule = "—";
+        let assignedTeachers = [];
 
         if (student.batch_id) {
           const { data: batchData, error: batchError } = await supabase
@@ -130,11 +150,39 @@ const StudentDashboard = ({ onNavigate }) => {
 
           if (!batchError && batchData) {
             batchName = batchData.name;
+            batchSchedule = batchData.schedule || "—";
+            if (batchData.teacher) {
+              assignedTeachers = [batchData.teacher];
+            }
           }
         }
 
+        // Fetch attendance logs for this student name
+        let attLogs = [];
+        let attError = null;
+        try {
+          const { data, error } = await supabase
+            .from("attendance_logs")
+            .select("*")
+            .eq("student", student.name)
+            .order("date", { ascending: false });
+          if (error) {
+            attError = error;
+          } else {
+            attLogs = data || [];
+          }
+        } catch (e) {
+          console.error("Exception fetching attendance logs:", e);
+          attError = e;
+        }
+
         if (active) {
-          setStudentProfile(normalizeStudentProfile(student, batchName, []));
+          setStudentProfile(normalizeStudentProfile(student, batchName, assignedTeachers, batchSchedule));
+          setAttendanceLogs(attLogs);
+          if (attError) {
+            setAttendanceError("Failed to load attendance logs.");
+          }
+          setLoadingAttendance(false);
           setLoadingProfile(false);
         }
       } catch (err) {
@@ -142,6 +190,7 @@ const StudentDashboard = ({ onNavigate }) => {
         if (active) {
           setProfileError(err.message || "Failed to load student profile.");
           setLoadingProfile(false);
+          setLoadingAttendance(false);
         }
       }
     };
@@ -401,59 +450,283 @@ const StudentDashboard = ({ onNavigate }) => {
     setActiveDetailsAssignment(asgn);
   };
 
-  const attendanceHistory = [
-    { date: "Oct 06, 2023", subject: "Mathematics", teacher: "Alan Turing", batch: "Morning B1", time: "09:00 - 10:30", status: "Present" },
-    { date: "Oct 05, 2023", subject: "Physics", teacher: "Richard Feynman", batch: "Morning B1", time: "11:00 - 12:30", status: "Present" },
-    { date: "Oct 03, 2023", subject: "Chemistry", teacher: "Marie Curie", batch: "Evening C2", time: "16:00 - 17:30", status: "Absent" },
-    { date: "Oct 02, 2023", subject: "Chemistry", teacher: "Marie Curie", batch: "Evening C2", time: "16:00 - 17:30", status: "Present" },
-    { date: "Oct 01, 2023", subject: "Mathematics", teacher: "Alan Turing", batch: "Morning B1", time: "09:00 - 10:30", status: "Present" },
-  ];
+  const attendanceHistory = attendanceLogs;
 
   const filteredHistory = attendanceHistory.filter((record) => {
     return historyFilter === "All Subjects" || record.subject === historyFilter;
   });
 
+  const totalLogs = attendanceLogs.length;
+  const presentLogsCount = attendanceLogs.filter(log => {
+    const statusLower = log.status?.toLowerCase();
+    return statusLower === "present" || statusLower === "late";
+  }).length;
+  const overallPercentage = totalLogs > 0 ? Math.round((presentLogsCount / totalLogs) * 100) : 0;
+
+  const subjectsList = Array.from(new Set([
+    ...(Array.isArray(studentProfile?.subjects) ? studentProfile.subjects : []),
+    ...attendanceLogs.map(l => l.subject).filter(Boolean)
+  ]));
+
+  const subjectAttendance = subjectsList.map(subjectName => {
+    const logsForSubject = attendanceLogs.filter(l => l.subject === subjectName);
+    const totalForSubject = logsForSubject.length;
+    const presentForSubject = logsForSubject.filter(log => {
+      const statusLower = log.status?.toLowerCase();
+      return statusLower === "present" || statusLower === "late";
+    }).length;
+    const rateForSubject = totalForSubject > 0 ? Math.round((presentForSubject / totalForSubject) * 100) : 100;
+    
+    const firstLogWithTeacher = logsForSubject.find(l => l.teacher);
+    const teacherName = firstLogWithTeacher?.teacher || "TBD";
+
+    return {
+      subject: subjectName,
+      total: totalForSubject,
+      present: presentForSubject,
+      rate: rateForSubject,
+      teacher: teacherName
+    };
+  });
+
   const [notificationSearch, setNotificationSearch] = useState("");
   const [notificationFilter, setNotificationFilter] = useState("All");
 
-  const [notificationsList, setNotificationsList] = useState([
-    {
-      id: 1,
-      type: "study-material",
-      title: "New Study Material: Physics Notes - Chapter 5",
-      time: "10:30 AM",
-      group: "TODAY",
-      detail: "The comprehensive notes for quantum mechanics are now available for download. Please review them before tomorrow's lecture.",
-      unread: true
-    },
-    {
-      id: 2,
-      type: "class-reminder",
-      title: "Online Class Reminder: Physics starts at 4:00 PM",
-      time: "3:30 PM",
-      group: "TODAY",
-      detail: "",
-      unread: true
-    },
-    {
-      id: 3,
-      type: "assignment",
-      title: "New Assignment: Mathematics Assignment 6",
-      time: "4:15 PM",
-      group: "YESTERDAY",
-      detail: "Topic: Calculus - Integral Applications. Submission deadline: Friday, 6:00 PM.",
-      unread: true
-    },
-    {
-      id: 4,
-      type: "test-results",
-      title: "Weekly Test Results: Test 4 Published",
-      time: "2 Days Ago",
-      group: "EARLIER",
-      detail: "Mathematics Unit Test - Calculus I. Your performance report is ready.",
-      unread: true
+  const [notificationsList, setNotificationsList] = useState([]);
+
+  // Fetch real-time student notifications from Supabase table
+  useEffect(() => {
+    let active = true;
+
+    const fetchNotifications = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("notifications")
+          .select("*")
+          .order("id", { ascending: false });
+
+        if (!error && data && active) {
+          const dbNotifs = data.map((n) => {
+            const rawType = n.type || "study-material";
+            const uiType = rawType.includes(":") ? rawType.split(":")[0] : rawType;
+            return {
+              id: n.id + 100, // offset id to prevent collisions
+              type: uiType,
+              rawType: rawType,
+              title: n.message,
+              time: n.time || "Just Now",
+              group: "TODAY",
+              detail: "",
+              unread: true
+            };
+          });
+
+          const studentSubjects = studentProfile?.subjects || [];
+          const assignedTeachers = studentProfile?.assignedTeachers || [];
+
+          const filteredDbNotifs = dbNotifs.filter((notif) => {
+            // Scope notifications to only the subjects this student is enrolled in
+            if (!notif.title) return false;
+            const match = notif.title.match(/\(([^)]+)\)/);
+            if (!match) return false;
+            const notifSubject = match[1].toLowerCase().trim();
+            const isSubjectMatched = studentSubjects.some((sub) => {
+              if (!sub) return false;
+              return sub.toLowerCase().trim() === notifSubject;
+            });
+            if (!isSubjectMatched) return false;
+
+            // If type has a teacher suffix, match loosely
+            if (notif.rawType && notif.rawType.includes(":")) {
+              const notifTeacher = notif.rawType.split(":")[1];
+              return assignedTeachers.some(tName => {
+                if (!tName || !notifTeacher) return false;
+                const n1 = tName.toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim();
+                const n2 = notifTeacher.toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim();
+                return n1 === n2 || n1.includes(n2) || n2.includes(n1);
+              });
+            }
+            return true;
+          });
+
+          setNotificationsList((prev) => {
+            const filteredPrev = prev.filter(p => p.id < 100);
+            return [...filteredDbNotifs, ...filteredPrev];
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching notifications:", err);
+      }
+    };
+
+    if (studentProfile?.subjects) {
+      fetchNotifications();
     }
-  ]);
+
+    // Subscribe to new notifications
+    const channel = supabase
+      .channel("student-notifications-channel")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications" }, (payload) => {
+        if (payload.new && active) {
+          const studentSubjects = studentProfile?.subjects || [];
+          const assignedTeachers = studentProfile?.assignedTeachers || [];
+          
+          const match = payload.new.message?.match(/\(([^)]+)\)/);
+          if (!match) return;
+          const notifSubject = match[1].toLowerCase().trim();
+          const isSubjectMatched = studentSubjects.some((sub) => {
+            if (!sub) return false;
+            return sub.toLowerCase().trim() === notifSubject;
+          });
+          if (!isSubjectMatched) return;
+
+          const rawType = payload.new.type || "study-material";
+          let isTeacherMatched = true;
+          if (rawType.includes(":")) {
+            const notifTeacher = rawType.split(":")[1];
+            isTeacherMatched = assignedTeachers.some(tName => {
+              if (!tName || !notifTeacher) return false;
+              const n1 = tName.toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim();
+              const n2 = notifTeacher.toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim();
+              return n1 === n2 || n1.includes(n2) || n2.includes(n1);
+            });
+          }
+
+          if (isTeacherMatched) {
+            const uiType = rawType.includes(":") ? rawType.split(":")[0] : rawType;
+            const newNotif = {
+              id: payload.new.id + 100,
+              type: uiType,
+              title: payload.new.message,
+              time: payload.new.time || "Just Now",
+              group: "TODAY",
+              detail: "",
+              unread: true
+            };
+            setNotificationsList((prev) => [newNotif, ...prev]);
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
+  }, [studentProfile]);
+
+  const [materialsList, setMaterialsList] = useState([]);
+
+  // Fetch materials dynamically from Supabase
+  useEffect(() => {
+    const fetchMaterials = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("materials")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (!error && data) {
+          const parsed = data.map((row) => {
+            try {
+              if (row.title.startsWith("{")) {
+                const parsedTitle = JSON.parse(row.title);
+                return {
+                  id: row.id,
+                  subject: row.subject,
+                  teacher: row.teacher,
+                  flagged: row.flagged,
+                  created_at: row.created_at,
+                  ...parsedTitle,
+                };
+              }
+            } catch (e) {}
+            return {
+              id: row.id,
+              title: row.title,
+              subject: row.subject,
+              teacher: row.teacher,
+              flagged: row.flagged,
+              uploadDate: new Date(row.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+              fileType: "pdf",
+              fileName: row.title,
+              fileSize: "1.2 MB",
+              description: "Course study material.",
+              batch: "All Batches",
+              grade: "All Grades",
+              downloads: 0,
+            };
+          });
+
+          // Filter by student's batch or subject + loose teacher allocation
+          const studentBatch = studentProfile?.batchId;
+          const studentSubjects = studentProfile?.subjects || [];
+          const assignedTeachers = studentProfile?.assignedTeachers || [];
+
+          const filtered = parsed.filter(m => {
+            // Case 1: Match student's batch exactly
+            if (m.batch === studentBatch || m.batch === studentProfile?.batchName) return true;
+            
+            // Case 2: Match student's enrolled subject AND the material's teacher is assigned to the student loosely!
+            const isTeacherMatched = assignedTeachers.some(tName => {
+              if (!tName || !m.teacher) return false;
+              const n1 = tName.toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim();
+              const n2 = m.teacher.toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim();
+              return n1 === n2 || n1.includes(n2) || n2.includes(n1);
+            });
+            const isSubjectMatched = studentSubjects.some(sub => {
+              if (!sub || !m.subject) return false;
+              return sub.toLowerCase().trim() === m.subject.toLowerCase().trim();
+            });
+            if (isSubjectMatched && isTeacherMatched) return true;
+
+            // Case 3: Global/All batches
+            if (!m.batch || m.batch === "All Batches") return true;
+
+            return false;
+          });
+          setMaterialsList(filtered);
+        }
+      } catch (err) {
+        console.error("Error fetching study materials:", err);
+      }
+    };
+
+    if (studentProfile) {
+      fetchMaterials();
+    }
+  }, [studentProfile]);
+
+  const handleDownloadMaterial = (material) => {
+    setDownloadProgress(material.id);
+    setTimeout(() => {
+      setDownloadProgress(null);
+      try {
+        // Construct file download from base64 if url exists
+        if (material.fileUrl && material.fileUrl.startsWith("data:")) {
+          const link = document.createElement("a");
+          link.href = material.fileUrl;
+          link.download = material.fileName || "study_material.pdf";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } else {
+          // Fallback to text blob
+          const blob = new Blob([`Study Material: ${material.title}\nDescription: ${material.description}\nSubject: ${material.subject}`], { type: "application/pdf" });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `${material.fileName || material.title || "material"}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        }
+      } catch (e) {
+        console.error("Download failed:", e);
+      }
+    }, 1500);
+  };
 
   const filteredNotifications = notificationsList.filter((notif) => {
     const matchesSearch = notif.title.toLowerCase().includes(notificationSearch.toLowerCase()) ||
@@ -599,6 +872,7 @@ const StudentDashboard = ({ onNavigate }) => {
         <div className="sidebar-footer">
           <button className="logout-btn" onClick={async () => {
             try {
+              localStorage.removeItem("gw_logged_student");
               await supabase.auth.signOut();
             } catch (e) {
               console.error("Sign out error:", e);
@@ -652,7 +926,7 @@ const StudentDashboard = ({ onNavigate }) => {
             <div className="dashboard-dashboard-view">
               {/* Welcome Section */}
               <section className="welcome-section">
-                <h2>Good Morning, Sneha 👋</h2>
+                <h2>Good Morning, {studentProfile?.name || "Student"} 👋</h2>
                 <p>Welcome back! Here's your academic progress today.</p>
               </section>
 
@@ -685,9 +959,9 @@ const StudentDashboard = ({ onNavigate }) => {
                   </div>
                   <div className="card-middle">
                     <div className="card-value-row">
-                      <span className="card-value-large">92%</span>
+                      <span className="card-value-large">{overallPercentage}%</span>
                     </div>
-                    <p className="card-subtitle">46 Days Present</p>
+                    <p className="card-subtitle">{presentLogsCount} Days Present</p>
                   </div>
                 </div>
 
@@ -848,80 +1122,35 @@ const StudentDashboard = ({ onNavigate }) => {
                 </div>
 
                 <div className="materials-list">
-                  {/* File 1: Physics */}
-                  <div className="material-item">
-                    <div className="material-left">
-                      <div className="file-icon-wrap pdf">
-                        <span className="file-icon-text">PDF</span>
+                  {materialsList.length === 0 ? (
+                    <p style={{ padding: "12px", color: "var(--muted-color, #94a3b8)", fontSize: "0.9rem" }}>No study materials uploaded yet.</p>
+                  ) : (
+                    materialsList.slice(0, 3).map((material) => (
+                      <div key={material.id} className="material-item">
+                        <div className="material-left">
+                          <div className={`file-icon-wrap ${material.fileType || "pdf"}`}>
+                            <span className="file-icon-text">{(material.fileType || "pdf").toUpperCase()}</span>
+                          </div>
+                          <div className="material-info">
+                            <h4>{material.fileName || material.title}</h4>
+                            <p>Added: {material.uploadDate} &bull; {material.fileSize || "1.2 MB"}</p>
+                          </div>
+                        </div>
+                        <button
+                          className="download-icon-btn"
+                          onClick={() => handleDownloadMaterial(material)}
+                          disabled={downloadProgress !== null}
+                          aria-label={`Download ${material.fileName || material.title}`}
+                        >
+                          {downloadProgress === material.id ? (
+                            <span className="download-spinner"></span>
+                          ) : (
+                            <Download size={20} />
+                          )}
+                        </button>
                       </div>
-                      <div className="material-info">
-                        <h4>Physics Notes Unit 4.pdf</h4>
-                        <p>Added: Oct 24, 2023 &bull; 4.2 MB</p>
-                      </div>
-                    </div>
-                    <button
-                      className="download-icon-btn"
-                      onClick={() => handleDownloadFile("Physics Notes Unit 4.pdf")}
-                      disabled={downloadProgress !== null}
-                      aria-label="Download Physics Notes Unit 4.pdf"
-                    >
-                      {downloadProgress === "Physics Notes Unit 4.pdf" ? (
-                        <span className="download-spinner"></span>
-                      ) : (
-                        <Download size={20} />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* File 2: Mathematics */}
-                  <div className="material-item">
-                    <div className="material-left">
-                      <div className="file-icon-wrap doc">
-                        <span className="file-icon-text">DOC</span>
-                      </div>
-                      <div className="material-info">
-                        <h4>Mathematics Practice Sheet.pdf</h4>
-                        <p>Added: Oct 22, 2023 &bull; 1.8 MB</p>
-                      </div>
-                    </div>
-                    <button
-                      className="download-icon-btn"
-                      onClick={() => handleDownloadFile("Mathematics Practice Sheet.pdf")}
-                      disabled={downloadProgress !== null}
-                      aria-label="Download Mathematics Practice Sheet.pdf"
-                    >
-                      {downloadProgress === "Mathematics Practice Sheet.pdf" ? (
-                        <span className="download-spinner"></span>
-                      ) : (
-                        <Download size={20} />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* File 3: Chemistry */}
-                  <div className="material-item">
-                    <div className="material-left">
-                      <div className="file-icon-wrap chem">
-                        <span className="file-icon-text">PDF</span>
-                      </div>
-                      <div className="material-info">
-                        <h4>Chemistry Revision.pdf</h4>
-                        <p>Added: Oct 20, 2023 &bull; 5.1 MB</p>
-                      </div>
-                    </div>
-                    <button
-                      className="download-icon-btn"
-                      onClick={() => handleDownloadFile("Chemistry Revision.pdf")}
-                      disabled={downloadProgress !== null}
-                      aria-label="Download Chemistry Revision.pdf"
-                    >
-                      {downloadProgress === "Chemistry Revision.pdf" ? (
-                        <span className="download-spinner"></span>
-                      ) : (
-                        <Download size={20} />
-                      )}
-                    </button>
-                  </div>
+                    ))
+                  )}
                 </div>
               </section>
             </div>
@@ -935,191 +1164,280 @@ const StudentDashboard = ({ onNavigate }) => {
                 <p>Track your attendance here!</p>
               </section>
 
-              {/* Summary Cards Row (3 Cards) */}
-              <section className="attendance-summary-cards">
-                {/* Card 1: Overall Attendance */}
-                <div className="attendance-summary-card">
-                  <div className="attendance-card-info">
-                    <span className="card-badge gray">OVERALL ATTENDANCE</span>
-                    <span className="attendance-large-val">92%</span>
-                    <span className="attendance-badge-text green">Excellent Attendance</span>
-                  </div>
-                  <div className="circular-progress-wrapper">
-                    <svg className="circular-svg" viewBox="0 0 36 36">
-                      <path
-                        className="circle-bg"
-                        d="M18 2.0845
-                          a 15.9155 15.9155 0 0 1 0 31.831
-                          a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                      <path
-                        className="circle-fill-bar"
-                        strokeDasharray="92, 100"
-                        d="M18 2.0845
-                          a 15.9155 15.9155 0 0 1 0 31.831
-                          a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                    </svg>
-                    <div className="circle-text">92%</div>
-                  </div>
+              {loadingAttendance ? (
+                <div className="attendance-loading" style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "60px 20px",
+                  background: "#ffffff",
+                  borderRadius: "20px",
+                  border: "1px solid rgba(226, 232, 240, 0.8)",
+                  boxShadow: "0 6px 24px rgba(30, 42, 70, 0.05)",
+                  color: "#64748b"
+                }}>
+                  <div style={{
+                    width: "40px",
+                    height: "40px",
+                    border: "4px solid rgba(0,0,0,0.05)",
+                    borderRadius: "50%",
+                    borderTopColor: "#2D6BFF",
+                    animation: "spin 1s linear infinite",
+                    marginBottom: "16px"
+                  }}></div>
+                  <p style={{ fontSize: "15px", fontWeight: 600 }}>Loading attendance records...</p>
+                  <style>{`
+                    @keyframes spin {
+                      to { transform: rotate(360deg); }
+                    }
+                  `}</style>
                 </div>
-
-                {/* Card 2: Classes Attended */}
-                <div className="attendance-summary-card">
-                  <div className="attendance-card-info">
-                    <span className="card-badge gray">CLASSES ATTENDED</span>
-                    <span className="attendance-large-val">46</span>
-                    <span className="attendance-badge-subtitle">Out of 50 classes</span>
-                  </div>
-                  <div className="attendance-card-icon-wrap blue-icon">
-                    <CheckCircle size={24} />
-                  </div>
+              ) : attendanceError ? (
+                <div className="attendance-error" style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "40px 20px",
+                  background: "#ffffff",
+                  borderRadius: "20px",
+                  border: "1px solid rgba(226, 232, 240, 0.8)",
+                  boxShadow: "0 6px 24px rgba(30, 42, 70, 0.05)",
+                  color: "#dc2626"
+                }}>
+                  <div style={{ fontSize: "2.5rem", marginBottom: "12px" }}>⚠️</div>
+                  <p style={{ fontSize: "15px", fontWeight: 600 }}>{attendanceError}</p>
                 </div>
-
-                {/* Card 3: Enrolled Subjects */}
-                <div className="attendance-summary-card">
-                  <div className="attendance-card-info">
-                    <span className="card-badge gray">ENROLLED SUBJECTS</span>
-                    <span className="attendance-large-val">3</span>
-                    <span className="attendance-badge-subtitle">Math, Phys, Chem</span>
+              ) : attendanceLogs.length === 0 ? (
+                <div className="attendance-empty" style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "60px 40px",
+                  textAlign: "center",
+                  background: "#ffffff",
+                  borderRadius: "20px",
+                  border: "1px solid rgba(226, 232, 240, 0.8)",
+                  boxShadow: "0 6px 24px rgba(30, 42, 70, 0.05)"
+                }}>
+                  <div style={{
+                    width: "64px",
+                    height: "64px",
+                    borderRadius: "50%",
+                    backgroundColor: "#f8fafc",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: "16px",
+                    color: "#94a3b8"
+                  }}>
+                    <CalendarDays size={32} />
                   </div>
-                  <div className="attendance-card-icon-wrap indigo-icon">
-                    <BookOpen size={24} />
-                  </div>
+                  <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#1e2a46", marginBottom: "8px" }}>No Attendance Records Found</h3>
+                  <p style={{ color: "#64748b", fontSize: "14.5px", maxWidth: "340px", margin: "0 auto 16px" }}>You do not have any registered attendance records in the database.</p>
                 </div>
-              </section>
+              ) : (
+                <>
+                  {/* Summary Cards Row (3 Cards) */}
+                  <section className="attendance-summary-cards">
+                    {/* Card 1: Overall Attendance */}
+                    <div className="attendance-summary-card">
+                      <div className="attendance-card-info">
+                        <span className="card-badge gray">OVERALL ATTENDANCE</span>
+                        <span className="attendance-large-val">{overallPercentage}%</span>
+                        {overallPercentage >= 90 ? (
+                          <span className="attendance-badge-text green">Excellent Attendance</span>
+                        ) : overallPercentage >= 75 ? (
+                          <span className="attendance-badge-text" style={{ color: "#d97706" }}>Good Attendance</span>
+                        ) : (
+                          <span className="attendance-badge-text" style={{ color: "#dc2626" }}>Low Attendance</span>
+                        )}
+                      </div>
+                      <div className="circular-progress-wrapper">
+                        <svg className="circular-svg" viewBox="0 0 36 36">
+                          <path
+                            className="circle-bg"
+                            d="M18 2.0845
+                              a 15.9155 15.9155 0 0 1 0 31.831
+                              a 15.9155 15.9155 0 0 1 0 -31.831"
+                          />
+                          <path
+                            className="circle-fill-bar"
+                            strokeDasharray={`${overallPercentage}, 100`}
+                            d="M18 2.0845
+                              a 15.9155 15.9155 0 0 1 0 31.831
+                              a 15.9155 15.9155 0 0 1 0 -31.831"
+                          />
+                        </svg>
+                        <div className="circle-text">{overallPercentage}%</div>
+                      </div>
+                    </div>
 
-              {/* Subject-wise Attendance */}
-              <section className="subject-attendance-section">
-                <h3 className="section-title">Subject-wise Attendance</h3>
-                <div className="subject-cards-grid">
-                  {/* Mathematics */}
-                  <div className="subject-attendance-card">
-                    <div className="subject-card-top">
-                      <div className="subject-icon-box math-box">
-                        <BookOpen size={20} />
+                    {/* Card 2: Classes Attended */}
+                    <div className="attendance-summary-card">
+                      <div className="attendance-card-info">
+                        <span className="card-badge gray">CLASSES ATTENDED</span>
+                        <span className="attendance-large-val">{presentLogsCount}</span>
+                        <span className="attendance-badge-subtitle">Out of {totalLogs} classes</span>
                       </div>
-                      <div className="subject-title-details">
-                        <h4>Mathematics</h4>
-                        <p>Prof. Alan Turing</p>
+                      <div className="attendance-card-icon-wrap blue-icon">
+                        <CheckCircle size={24} />
                       </div>
-                      <span className="subject-pct-val math-pct">95%</span>
                     </div>
-                    <div className="subject-progress-track">
-                      <div className="subject-progress-fill math-fill" style={{ width: "95%" }}></div>
-                    </div>
-                    <div className="subject-card-bottom">
-                      <span>Present: 19 Sessions</span>
-                      <span>Total: 20</span>
-                    </div>
-                  </div>
 
-                  {/* Physics */}
-                  <div className="subject-attendance-card">
-                    <div className="subject-card-top">
-                      <div className="subject-icon-box phys-box">
-                        <Award size={20} />
+                    {/* Card 3: Enrolled Subjects */}
+                    <div className="attendance-summary-card">
+                      <div className="attendance-card-info">
+                        <span className="card-badge gray">ENROLLED SUBJECTS</span>
+                        <span className="attendance-large-val">{subjectsList.length}</span>
+                        <span className="attendance-badge-subtitle" style={{
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          maxWidth: "160px"
+                        }}>
+                          {subjectsList.join(", ")}
+                        </span>
                       </div>
-                      <div className="subject-title-details">
-                        <h4>Physics</h4>
-                        <p>Dr. Richard Feynman</p>
+                      <div className="attendance-card-icon-wrap indigo-icon">
+                        <BookOpen size={24} />
                       </div>
-                      <span className="subject-pct-val phys-pct">90%</span>
                     </div>
-                    <div className="subject-progress-track">
-                      <div className="subject-progress-fill phys-fill" style={{ width: "90%" }}></div>
-                    </div>
-                    <div className="subject-card-bottom">
-                      <span>Present: 18 Sessions</span>
-                      <span>Total: 20</span>
-                    </div>
-                  </div>
+                  </section>
 
-                  {/* Chemistry */}
-                  <div className="subject-attendance-card">
-                    <div className="subject-card-top">
-                      <div className="subject-icon-box chem-box">
-                        <ClipboardList size={20} />
-                      </div>
-                      <div className="subject-title-details">
-                        <h4>Chemistry</h4>
-                        <p>Dr. Marie Curie</p>
-                      </div>
-                      <span className="subject-pct-val chem-pct">85%</span>
-                    </div>
-                    <div className="subject-progress-track">
-                      <div className="subject-progress-fill chem-fill" style={{ width: "85%" }}></div>
-                    </div>
-                    <div className="subject-card-bottom">
-                      <span>Present: 17 Sessions</span>
-                      <span>Total: 20</span>
-                    </div>
-                  </div>
-                </div>
-              </section>
+                  {/* Subject-wise Attendance */}
+                  <section className="subject-attendance-section">
+                    <h3 className="section-title">Subject-wise Attendance</h3>
+                    <div className="subject-cards-grid">
+                      {subjectAttendance.map((sub, index) => {
+                        const styleTheme = (() => {
+                          const norm = sub.subject.toLowerCase();
+                          if (norm.includes("math")) {
+                            return {
+                              boxClass: "math-box",
+                              pctClass: "math-pct",
+                              fillClass: "math-fill",
+                              icon: <BookOpen size={20} />
+                            };
+                          } else if (norm.includes("phys")) {
+                            return {
+                              boxClass: "phys-box",
+                              pctClass: "phys-pct",
+                              fillClass: "phys-fill",
+                              icon: <Award size={20} />
+                            };
+                          } else if (norm.includes("chem")) {
+                            return {
+                              boxClass: "chem-box",
+                              pctClass: "chem-pct",
+                              fillClass: "chem-fill",
+                              icon: <ClipboardList size={20} />
+                            };
+                          }
+                          const fallbacks = [
+                            { boxClass: "math-box", pctClass: "math-pct", fillClass: "math-fill", icon: <BookOpen size={20} /> },
+                            { boxClass: "phys-box", pctClass: "phys-pct", fillClass: "phys-fill", icon: <Award size={20} /> },
+                            { boxClass: "chem-box", pctClass: "chem-pct", fillClass: "chem-fill", icon: <ClipboardList size={20} /> }
+                          ];
+                          return fallbacks[index % 3];
+                        })();
 
-              {/* Attendance History Card */}
-              <section className="attendance-history-card">
-                <div className="history-card-header">
-                  <h3>Attendance History</h3>
-                  <div className="history-filters">
-                    <select
-                      value={historyFilter}
-                      onChange={(e) => setHistoryFilter(e.target.value)}
-                      className="history-select-dropdown"
-                    >
-                      <option value="All Subjects">All Subjects</option>
-                      <option value="Mathematics">Mathematics</option>
-                      <option value="Physics">Physics</option>
-                      <option value="Chemistry">Chemistry</option>
-                    </select>
-                  </div>
-                </div>
+                        return (
+                          <div className="subject-attendance-card" key={index}>
+                            <div className="subject-card-top">
+                              <div className={`subject-icon-box ${styleTheme.boxClass}`}>
+                                {styleTheme.icon}
+                              </div>
+                              <div className="subject-title-details">
+                                <h4>{sub.subject}</h4>
+                                <p>{sub.teacher}</p>
+                              </div>
+                              <span className={`subject-pct-val ${styleTheme.pctClass}`}>{sub.rate}%</span>
+                            </div>
+                            <div className="subject-progress-track">
+                              <div className={`subject-progress-fill ${styleTheme.fillClass}`} style={{ width: `${sub.rate}%` }}></div>
+                            </div>
+                            <div className="subject-card-bottom">
+                              <span>Present: {sub.present} Sessions</span>
+                              <span>Total: {sub.total}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
 
-                <div className="history-table-container">
-                  <table className="history-table">
-                    <thead>
-                      <tr>
-                        <th>DATE</th>
-                        <th>SUBJECT</th>
-                        <th>TEACHER</th>
-                        <th>BATCH</th>
-                        <th>TIME</th>
-                        <th>STATUS</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredHistory.length > 0 ? (
-                        filteredHistory.map((row, idx) => (
-                          <tr key={idx}>
-                            <td>{row.date}</td>
-                            <td className="subject-cell">{row.subject}</td>
-                            <td>{row.teacher}</td>
-                            <td>{row.batch}</td>
-                            <td>{row.time}</td>
-                            <td>
-                              <span className={`status-badge ${row.status.toLowerCase()}`}>
-                                {row.status}
-                              </span>
-                            </td>
+                  {/* Attendance History Card */}
+                  <section className="attendance-history-card">
+                    <div className="history-card-header">
+                      <h3>Attendance History</h3>
+                      <div className="history-filters">
+                        <select
+                          value={historyFilter}
+                          onChange={(e) => setHistoryFilter(e.target.value)}
+                          className="history-select-dropdown"
+                        >
+                          <option value="All Subjects">All Subjects</option>
+                          {subjectsList.map((sub, index) => (
+                            <option key={index} value={sub}>{sub}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="history-table-container">
+                      <table className="history-table">
+                        <thead>
+                          <tr>
+                            <th>DATE</th>
+                            <th>SUBJECT</th>
+                            <th>TEACHER</th>
+                            <th>BATCH</th>
+                            <th>TIME</th>
+                            <th>STATUS</th>
                           </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan="6" className="no-records-cell">
-                            No attendance records found matching criteria.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                        </thead>
+                        <tbody>
+                          {filteredHistory.length > 0 ? (
+                            filteredHistory.map((row, idx) => {
+                              const statusLower = row.status?.toLowerCase();
+                              const lateStyle = statusLower === "late" ? { backgroundColor: "#fffbeb", color: "#d97706" } : {};
+                              
+                              return (
+                                <tr key={idx}>
+                                  <td>{formatDate(row.date)}</td>
+                                  <td className="subject-cell">{row.subject}</td>
+                                  <td>{row.teacher}</td>
+                                  <td>{studentProfile?.batchName || "—"}</td>
+                                  <td>{studentProfile?.batchSchedule || "—"}</td>
+                                  <td>
+                                    <span className={`status-badge ${statusLower}`} style={lateStyle}>
+                                      {row.status}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          ) : (
+                            <tr>
+                              <td colSpan="6" className="no-records-cell">
+                                No attendance records found matching criteria.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
 
-                <div className="history-pagination">
-                  <button className="pag-btn" disabled>Previous</button>
-                  <button className="pag-btn" disabled>Next</button>
-                </div>
-              </section>
+                    <div className="history-pagination">
+                      <button className="pag-btn" disabled>Previous</button>
+                      <button className="pag-btn" disabled>Next</button>
+                    </div>
+                  </section>
+                </>
+              )}
             </div>
           )}
 
@@ -1134,80 +1452,35 @@ const StudentDashboard = ({ onNavigate }) => {
                 </div>
 
                 <div className="materials-list">
-                  {/* File 1: Physics */}
-                  <div className="material-item">
-                    <div className="material-left">
-                      <div className="file-icon-wrap pdf">
-                        <span className="file-icon-text">PDF</span>
+                  {materialsList.length === 0 ? (
+                    <p style={{ padding: "12px", color: "var(--muted-color, #94a3b8)", fontSize: "0.9rem" }}>No study materials uploaded yet.</p>
+                  ) : (
+                    materialsList.map((material) => (
+                      <div key={material.id} className="material-item">
+                        <div className="material-left">
+                          <div className={`file-icon-wrap ${material.fileType || "pdf"}`}>
+                            <span className="file-icon-text">{(material.fileType || "pdf").toUpperCase()}</span>
+                          </div>
+                          <div className="material-info">
+                            <h4>{material.fileName || material.title}</h4>
+                            <p>Added: {material.uploadDate} &bull; {material.fileSize || "1.2 MB"}</p>
+                          </div>
+                        </div>
+                        <button
+                          className="download-icon-btn"
+                          onClick={() => handleDownloadMaterial(material)}
+                          disabled={downloadProgress !== null}
+                          aria-label={`Download ${material.fileName || material.title}`}
+                        >
+                          {downloadProgress === material.id ? (
+                            <span className="download-spinner"></span>
+                          ) : (
+                            <Download size={20} />
+                          )}
+                        </button>
                       </div>
-                      <div className="material-info">
-                        <h4>Physics Notes Unit 4.pdf</h4>
-                        <p>Added: Oct 24, 2023 &bull; 4.2 MB</p>
-                      </div>
-                    </div>
-                    <button
-                      className="download-icon-btn"
-                      onClick={() => handleDownloadFile("Physics Notes Unit 4.pdf")}
-                      disabled={downloadProgress !== null}
-                      aria-label="Download Physics Notes Unit 4.pdf"
-                    >
-                      {downloadProgress === "Physics Notes Unit 4.pdf" ? (
-                        <span className="download-spinner"></span>
-                      ) : (
-                        <Download size={20} />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* File 2: Mathematics */}
-                  <div className="material-item">
-                    <div className="material-left">
-                      <div className="file-icon-wrap doc">
-                        <span className="file-icon-text">DOC</span>
-                      </div>
-                      <div className="material-info">
-                        <h4>Mathematics Practice Sheet.pdf</h4>
-                        <p>Added: Oct 22, 2023 &bull; 1.8 MB</p>
-                      </div>
-                    </div>
-                    <button
-                      className="download-icon-btn"
-                      onClick={() => handleDownloadFile("Mathematics Practice Sheet.pdf")}
-                      disabled={downloadProgress !== null}
-                      aria-label="Download Mathematics Practice Sheet.pdf"
-                    >
-                      {downloadProgress === "Mathematics Practice Sheet.pdf" ? (
-                        <span className="download-spinner"></span>
-                      ) : (
-                        <Download size={20} />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* File 3: Chemistry */}
-                  <div className="material-item">
-                    <div className="material-left">
-                      <div className="file-icon-wrap chem">
-                        <span className="file-icon-text">PDF</span>
-                      </div>
-                      <div className="material-info">
-                        <h4>Chemistry Revision.pdf</h4>
-                        <p>Added: Oct 20, 2023 &bull; 5.1 MB</p>
-                      </div>
-                    </div>
-                    <button
-                      className="download-icon-btn"
-                      onClick={() => handleDownloadFile("Chemistry Revision.pdf")}
-                      disabled={downloadProgress !== null}
-                      aria-label="Download Chemistry Revision.pdf"
-                    >
-                      {downloadProgress === "Chemistry Revision.pdf" ? (
-                        <span className="download-spinner"></span>
-                      ) : (
-                        <Download size={20} />
-                      )}
-                    </button>
-                  </div>
+                    ))
+                  )}
                 </div>
               </section>
             </div>
@@ -1859,6 +2132,15 @@ const StudentDashboard = ({ onNavigate }) => {
                       <div className="info-item">
                         <span className="info-label">BATCH</span>
                         <span className="info-value">{getDisplayValue(studentProfile?.batchName, "Not Assigned")}</span>
+                      </div>
+
+                      <div className="info-item">
+                        <span className="info-label">ALLOCATED TEACHER</span>
+                        <span className="info-value">
+                          {studentProfile?.assignedTeachers && studentProfile.assignedTeachers.length > 0 
+                            ? studentProfile.assignedTeachers.join(", ") 
+                            : "None Assigned"}
+                        </span>
                       </div>
 
                       <div className="academic-badges-section">

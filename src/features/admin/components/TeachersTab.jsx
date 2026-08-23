@@ -454,11 +454,11 @@ const TeachersTab = ({
               <div className="info-section">
                 <h4>Assigned Batches</h4>
                 <div className="info-list">
-                  {batches.filter(b => selectedTeacher.subjects.includes(b.subject)).length === 0 ? (
+                  {batches.filter(b => b.teacher === selectedTeacher.name).length === 0 ? (
                     <div className="info-item text-xs text-muted">No active batches assigned.</div>
                   ) : (
                     batches
-                      .filter(b => selectedTeacher.subjects.includes(b.subject))
+                      .filter(b => b.teacher === selectedTeacher.name)
                       .map(b => (
                         <div className="info-item" key={b.id}>
                           <Layers size={14} className="icon-batches" />
