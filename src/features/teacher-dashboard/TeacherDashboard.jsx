@@ -9,6 +9,7 @@ import NotificationsCard from "./components/NotificationsCard/NotificationsCard"
 import QuickActions from "./components/QuickActions/QuickActions";
 import DashboardFooter from "./components/DashboardFooter/DashboardFooter";
 import * as adminService from "../../services/adminService";
+import supabase from "../../lib/supabase";
 
 class DashboardErrorBoundary extends Component {
   constructor(props) {
@@ -186,20 +187,22 @@ const TeacherDashboard = ({ onNavigate }) => {
   const [assignedStudents, setAssignedStudents] = useState([]);
   const [students, setStudents] = useState(() => loadFromStorage("gw_students_v2", []));
   const [batches, setBatches] = useState(() => loadFromStorage("gw_batches_v2", []));
-  const [assignments, setAssignments] = useState(() => loadFromStorage("gw_assignments_v2", []));
+  const [assignments, setAssignments] = useState([]);
   const [materials, setMaterials] = useState(() => loadFromStorage("gw_materials_v2", []));
+  const [viewAsgn, setViewAsgn] = useState(null);
 
   // Fetch live students, batches, notifications, and online classes from Supabase database
   useEffect(() => {
     let isMounted = true;
     const fetchLiveData = async () => {
       try {
-        const [dbStudents, dbBatches, dbNotifs, dbClasses, dbTests] = await Promise.all([
+        const [dbStudents, dbBatches, dbNotifs, dbClasses, dbTests, dbAssignments] = await Promise.all([
           adminService.fetchStudents(),
           adminService.fetchBatches(),
           adminService.fetchNotifications(),
           adminService.fetchOnlineClasses(),
           adminService.fetchWeeklyTests(),
+          adminService.fetchAssignments(),
         ]);
         if (isMounted) {
           if (Array.isArray(dbStudents) && dbStudents.length > 0) setStudents(dbStudents);
@@ -207,13 +210,106 @@ const TeacherDashboard = ({ onNavigate }) => {
           if (Array.isArray(dbNotifs) && dbNotifs.length > 0) setNotifications(dbNotifs);
           if (Array.isArray(dbClasses) && dbClasses.length > 0) setOnlineClasses(dbClasses);
           if (Array.isArray(dbTests)) setWeeklyTests(dbTests);
+          if (Array.isArray(dbAssignments)) {
+            const parsedAssignments = dbAssignments.map(row => {
+              let parsedDesc = {};
+              try {
+                if (row.description && row.description.startsWith("{")) {
+                  parsedDesc = JSON.parse(row.description);
+                }
+              } catch (e) {}
+
+              const matchedBatch = dbBatches.find(b => b.id === row.batchId);
+
+              return {
+                id: row.id,
+                title: row.title,
+                subject: row.subject,
+                batch: matchedBatch ? matchedBatch.name : "All Batches",
+                batchId: row.batchId,
+                grade: matchedBatch ? matchedBatch.grade : "All Grades",
+                dueDate: row.dueDate,
+                maxMarks: row.totalMarks || 20,
+                attachmentName: parsedDesc.attachmentName || "",
+                attachmentUrl: parsedDesc.attachmentUrl || "",
+                description: parsedDesc.description || row.description || "",
+                submissions: parsedDesc.submissions || []
+              };
+            });
+            setAssignments(parsedAssignments);
+          }
         }
       } catch (err) {
         console.warn("Could not fetch live data:", err);
       }
     };
     fetchLiveData();
-    return () => { isMounted = false; };
+
+    // Subscribe to new notifications for the teacher
+    const notifChannel = supabase
+      .channel("teacher-notifications-channel")
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, async () => {
+        try {
+          const dbNotifs = await adminService.fetchNotifications();
+          if (Array.isArray(dbNotifs) && isMounted) {
+            setNotifications(dbNotifs);
+          }
+        } catch (e) {
+          console.error("Error refetching notifications:", e);
+        }
+      })
+      .subscribe();
+
+    // Subscribe to assignments changes
+    const assignmentsChannel = supabase
+      .channel("teacher-assignments-channel")
+      .on("postgres_changes", { event: "*", schema: "public", table: "assignments" }, async () => {
+        try {
+          const dbAssignments = await adminService.fetchAssignments();
+          if (Array.isArray(dbAssignments) && isMounted) {
+            let currentBatches = [];
+            setBatches(prev => {
+              currentBatches = prev;
+              return prev;
+            });
+            const parsedAssignments = dbAssignments.map(row => {
+              let parsedDesc = {};
+              try {
+                if (row.description && row.description.startsWith("{")) {
+                  parsedDesc = JSON.parse(row.description);
+                }
+              } catch (e) {}
+
+              const matchedBatch = currentBatches.find(b => b.id === row.batchId);
+
+              return {
+                id: row.id,
+                title: row.title,
+                subject: row.subject,
+                batch: matchedBatch ? matchedBatch.name : "All Batches",
+                batchId: row.batchId,
+                grade: matchedBatch ? matchedBatch.grade : "All Grades",
+                dueDate: row.dueDate,
+                maxMarks: row.totalMarks || 20,
+                attachmentName: parsedDesc.attachmentName || "",
+                attachmentUrl: parsedDesc.attachmentUrl || "",
+                description: parsedDesc.description || row.description || "",
+                submissions: parsedDesc.submissions || []
+              };
+            });
+            setAssignments(parsedAssignments);
+          }
+        } catch (e) {
+          console.error("Error refetching assignments:", e);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(notifChannel);
+      supabase.removeChannel(assignmentsChannel);
+    };
   }, []);
 
   // One-time migration: wipe old cached mock data so hardcoded stale entries don't appear
@@ -316,18 +412,32 @@ const TeacherDashboard = ({ onNavigate }) => {
         const activeBatchMap = new Map();
 
         if (allBatchesData && (teacherName || teacherId)) {
+          const teacherSubjects = teacher?.subjects || loggedObj?.subjects || [];
           allBatchesData.forEach((b) => {
             if (!b) return;
             const bTeacher = (b.teacher || "").trim().toLowerCase();
             const bTeacherId = String(b.teacher_id || "").trim();
-            if (
+            
+            let isMatched = (
               (bTeacher && (bTeacher === teacherName || bTeacher.includes(teacherName) || teacherName.includes(bTeacher))) ||
               (bTeacherId && teacherId && bTeacherId === teacherId)
-            ) {
+            );
+
+            if (!isMatched) {
+              const bName = (b.name || "").toLowerCase();
+              isMatched = teacherSubjects.some(sub => {
+                const sClean = sub.toLowerCase().trim();
+                return bName.includes(sClean) || (sClean === "physics" && bName.includes("phys"));
+              });
+            }
+
+            if (isMatched) {
               activeBatchMap.set(String(b.id || b.name), b);
             }
           });
         }
+
+        const activeBatches = Array.from(activeBatchMap.values());
 
         const activeStudents = [];
 
@@ -487,6 +597,8 @@ const TeacherDashboard = ({ onNavigate }) => {
             setAssignments={setAssignments}
             batches={assignedBatches}
             students={assignedStudents}
+            viewAsgn={viewAsgn}
+            setViewAsgn={setViewAsgn}
           />
         );
       case "tests":
@@ -533,6 +645,11 @@ const TeacherDashboard = ({ onNavigate }) => {
           <Notifications
             notifications={notifications}
             setNotifications={setNotifications}
+            assignments={assignments}
+            setAssignments={setAssignments}
+            students={assignedStudents}
+            setActiveNav={handleSetActiveNav}
+            setViewAsgn={setViewAsgn}
           />
         );
       case "profile":

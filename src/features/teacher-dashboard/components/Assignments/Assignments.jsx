@@ -21,6 +21,7 @@ import {
   Paperclip,
   Star,
   BookOpen,
+  Download,
 } from "lucide-react";
 import {
   initialAssignments,
@@ -192,7 +193,13 @@ const SubmissionsPanel = ({ asgn, onClose, onSave }) => {
   };
 
   const handleSave = () => {
-    onSave({ ...asgn, submissions });
+    const nextSubmissions = submissions.map(sub => {
+      if (sub.score !== null && sub.score !== "" && (sub.status === "submitted" || sub.status === "pending")) {
+        return { ...sub, status: "reviewed" };
+      }
+      return sub;
+    });
+    onSave({ ...asgn, submissions: nextSubmissions });
     setSaved(true);
   };
 
@@ -243,67 +250,108 @@ const SubmissionsPanel = ({ asgn, onClose, onSave }) => {
             const gradeColor = pct == null ? "#64748b" : pct >= 80 ? "#27a55e" : pct >= 60 ? "#2D6BFF" : "#ea580c";
 
             return (
-              <div key={sub.studentId} className="as-sub-row">
-                {/* Student info */}
-                <div className="as-sub-student">
-                  <AvatarPlaceholder src={sub.avatar} name={sub.name} size={40} />
-                  <div>
-                    <p className="as-sub-name">{sub.name}</p>
-                    <p className="as-sub-roll">{sub.rollNo}</p>
+              <div key={sub.studentId} className="as-sub-row" style={{ display: "flex", flexDirection: "column", gap: "10px", alignItems: "stretch" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  {/* Student info */}
+                  <div className="as-sub-student">
+                    <AvatarPlaceholder src={sub.avatar} name={sub.name} size={40} />
+                    <div>
+                      <p className="as-sub-name">{sub.name}</p>
+                      <p className="as-sub-roll">{sub.rollNo}</p>
+                    </div>
+                  </div>
+
+                  {/* Status */}
+                  <span className="as-sub-status" style={{ color: cfg.color, background: cfg.bg }}>
+                    <Icon size={12} /> {cfg.label}
+                  </span>
+
+                  {/* Submitted on */}
+                  <div className="as-sub-date">
+                    {sub.submittedOn
+                      ? <><CalendarDays size={12} /> {sub.submittedOn}</>
+                      : <span className="as-sub-na">—</span>}
+                  </div>
+
+                  {/* Score input */}
+                  <div className="as-sub-marks">
+                    {sub.status === "missing" || sub.status === "pending" ? (
+                      <span className="as-sub-na">—</span>
+                    ) : (
+                      <div className="as-marks-wrap">
+                        <input
+                          className="as-marks-input"
+                          type="number"
+                          min={0}
+                          max={asgn.maxMarks}
+                          placeholder="—"
+                          value={sub.score ?? ""}
+                          onChange={e => {
+                            const v = e.target.value === "" ? null : Math.min(Number(e.target.value), asgn.maxMarks);
+                            updateSub(idx, "score", v);
+                          }}
+                        />
+                        <span className="as-marks-max">/ {asgn.maxMarks}</span>
+                        {pct != null && (
+                          <span className="as-pct-badge" style={{ color: gradeColor, background: `${gradeColor}18` }}>
+                            {pct}%
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Mark reviewed */}
+                  <div className="as-sub-action">
+                    {sub.status === "submitted" && (
+                      <button className="as-mark-reviewed-btn" onClick={() => markReviewed(idx)}>
+                        <Star size={13} /> Mark Reviewed
+                      </button>
+                    )}
+                    {sub.status === "reviewed" && (
+                      <span className="as-reviewed-done"><CheckCircle2 size={14} /> Done</span>
+                    )}
                   </div>
                 </div>
 
-                {/* Status */}
-                <span className="as-sub-status" style={{ color: cfg.color, background: cfg.bg }}>
-                  <Icon size={12} /> {cfg.label}
-                </span>
-
-                {/* Submitted on */}
-                <div className="as-sub-date">
-                  {sub.submittedOn
-                    ? <><CalendarDays size={12} /> {sub.submittedOn}</>
-                    : <span className="as-sub-na">—</span>}
-                </div>
-
-                {/* Score input */}
-                <div className="as-sub-marks">
-                  {sub.status === "missing" || sub.status === "pending" ? (
-                    <span className="as-sub-na">—</span>
-                  ) : (
-                    <div className="as-marks-wrap">
+                {/* Render Submission details (Description + PDF Attachment) */}
+                {(sub.status === "submitted" || sub.status === "reviewed") && (
+                  <div style={{ marginLeft: "52px", padding: "10px", background: "#f8fafc", borderRadius: "6px", border: "1px solid #e2e8f0" }}>
+                    {sub.description && (
+                      <div style={{ marginBottom: "8px" }}>
+                        <span style={{ fontSize: "11px", fontWeight: "bold", color: "#64748b", textTransform: "uppercase" }}>Student Description:</span>
+                        <p style={{ margin: "2px 0 0 0", fontSize: "13px", color: "#334155" }}>{sub.description}</p>
+                      </div>
+                    )}
+                    {sub.attachmentUrl ? (
+                      <div>
+                        <span style={{ fontSize: "11px", fontWeight: "bold", color: "#64748b", textTransform: "uppercase" }}>Answer File:</span>
+                        <div style={{ marginTop: "4px" }}>
+                          <a
+                            href={sub.attachmentUrl}
+                            download={sub.attachmentName || "answer_sheet.pdf"}
+                            className="outline-btn"
+                            style={{ display: "inline-flex", alignItems: "center", gap: "6px", textDecoration: "none", fontSize: "12px", padding: "4px 8px", background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "4px", color: "#2D6BFF" }}
+                          >
+                            <Download size={12} /> Open/Download PDF ({sub.attachmentName || "answer_sheet.pdf"})
+                          </a>
+                        </div>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: "12px", color: "#94a3b8" }}>No answer sheet uploaded</span>
+                    )}
+                    <div style={{ marginTop: "10px", borderTop: "1px solid #e2e8f0", paddingTop: "8px" }}>
+                      <span style={{ fontSize: "11px", fontWeight: "bold", color: "#64748b", textTransform: "uppercase" }}>Teacher Remarks / Feedback:</span>
                       <input
-                        className="as-marks-input"
-                        type="number"
-                        min={0}
-                        max={asgn.maxMarks}
-                        placeholder="—"
-                        value={sub.score ?? ""}
-                        onChange={e => {
-                          const v = e.target.value === "" ? null : Math.min(Number(e.target.value), asgn.maxMarks);
-                          updateSub(idx, "score", v);
-                        }}
+                        type="text"
+                        placeholder="e.g. Well done! Keep it up."
+                        value={sub.remarks || ""}
+                        onChange={e => updateSub(idx, "remarks", e.target.value)}
+                        style={{ marginTop: "4px", width: "100%", padding: "6px 10px", fontSize: "13px", border: "1px solid #cbd5e1", borderRadius: "4px", boxSizing: "border-box" }}
                       />
-                      <span className="as-marks-max">/ {asgn.maxMarks}</span>
-                      {pct != null && (
-                        <span className="as-pct-badge" style={{ color: gradeColor, background: `${gradeColor}18` }}>
-                          {pct}%
-                        </span>
-                      )}
                     </div>
-                  )}
-                </div>
-
-                {/* Mark reviewed */}
-                <div className="as-sub-action">
-                  {sub.status === "submitted" && (
-                    <button className="as-mark-reviewed-btn" onClick={() => markReviewed(idx)}>
-                      <Star size={13} /> Mark Reviewed
-                    </button>
-                  )}
-                  {sub.status === "reviewed" && (
-                    <span className="as-reviewed-done"><CheckCircle2 size={14} /> Done</span>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -335,11 +383,17 @@ const EMPTY_FORM = {
 };
 
 const AssignmentModal = ({ mode, initial, onClose, onSave, batches = [], students = [] }) => {
-  const [form, setForm] = useState(
-    initial
-      ? { ...initial }
-      : { ...EMPTY_FORM, createdDate: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) }
-  );
+  const [form, setForm] = useState(() => {
+    if (initial) return { ...initial };
+    const firstBatch = batches[0];
+    return {
+      ...EMPTY_FORM,
+      batchId: firstBatch ? firstBatch.id : "BAT102",
+      batch: firstBatch ? firstBatch.name : "Batch 12-Phys-Aravind",
+      grade: firstBatch ? firstBatch.grade || "Grade 11" : "Grade 11",
+      createdDate: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    };
+  });
   const [errors, setErrors] = useState({});
   const fileRef = useRef();
 
@@ -428,15 +482,27 @@ const AssignmentModal = ({ mode, initial, onClose, onSave, batches = [], student
                 onChange={e => set("subject", e.target.value)}
               />
             </div>
-            <div className="as-field">
-              <label className="as-label">Batch</label>
-              <input
-                className="as-input"
-                placeholder="e.g. Batch A"
-                value={form.batch}
-                onChange={e => set("batch", e.target.value)}
-              />
-            </div>
+             <div className="as-field">
+               <label className="as-label">Batch *</label>
+               <select
+                 className="as-input"
+                 value={form.batchId}
+                 onChange={e => {
+                   const bId = e.target.value;
+                   const bObj = batches.find(b => b.id === bId);
+                   setForm(f => ({
+                     ...f,
+                     batchId: bId,
+                     batch: bObj ? bObj.name : "",
+                     grade: bObj ? bObj.grade || "All Grades" : "All Grades"
+                   }));
+                 }}
+               >
+                 {batches.map(b => (
+                   <option key={b.id} value={b.id}>{b.name}</option>
+                 ))}
+               </select>
+             </div>
             <div className="as-field">
               <label className="as-label">Grade</label>
               <input
@@ -500,7 +566,14 @@ const AssignmentModal = ({ mode, initial, onClose, onSave, batches = [], student
                 accept=".pdf,.doc,.docx,.ppt,.pptx"
                 onChange={e => {
                   const f = e.target.files?.[0];
-                  if (f) set("attachmentName", f.name);
+                  if (f) {
+                    set("attachmentName", f.name);
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                      set("attachmentUrl", event.target.result);
+                    };
+                    reader.readAsDataURL(f);
+                  }
                 }}
               />
               {form.attachmentName ? (
@@ -629,21 +702,40 @@ const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssi
 
   /* CRUD */
   const handleSave = async (data) => {
+    // Resolve logged in teacher name
+    const loggedTeacherStr = localStorage.getItem("gw_logged_teacher");
+    let teacherName = "Alice";
+    if (loggedTeacherStr) {
+      try {
+        teacherName = JSON.parse(loggedTeacherStr).name;
+      } catch (e) {}
+    }
+
+    const payload = {
+      id: data.id,
+      title: data.title,
+      subject: data.subject,
+      batch_id: data.batchId || "BAT102",
+      due_date: data.dueDate,
+      total_marks: Number(data.maxMarks),
+      status: "Active",
+      student: "ALL",
+      description: JSON.stringify({
+        description: data.description,
+        attachmentName: data.attachmentName || "",
+        attachmentUrl: data.attachmentUrl || "",
+        submissions: data.submissions || []
+      })
+    };
+
     if (modal === "create") {
       setAssignments(p => [data, ...p]);
       showToast("Assignment created successfully!");
 
-      // Resolve logged in teacher name
-      const loggedTeacherStr = localStorage.getItem("gw_logged_teacher");
-      let teacherName = "Alice";
-      if (loggedTeacherStr) {
-        try {
-          teacherName = JSON.parse(loggedTeacherStr).name;
-        } catch (e) {}
-      }
-
-      // Insert notification for the student along with the current time
       try {
+        await supabase.from("assignments").insert(payload);
+
+        // Insert notification for the student along with the current time
         const currentTime = new Date().toLocaleTimeString("en-US", {
           hour: "numeric",
           minute: "2-digit",
@@ -656,24 +748,88 @@ const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssi
           time: currentTime,
         });
       } catch (err) {
-        console.error("Failed to insert assignment notification:", err);
+        console.error("Failed to insert assignment/notification:", err);
       }
     } else {
       setAssignments(p => p.map(a => a.id === data.id ? data : a));
       showToast("Assignment updated successfully!");
+
+      try {
+        await supabase
+          .from("assignments")
+          .update(payload)
+          .eq("id", data.id);
+      } catch (err) {
+        console.error("Failed to update database assignment:", err);
+      }
     }
     setModal(null);
   };
 
-  const handleSubmissionSave = (updated) => {
+  const handleSubmissionSave = async (updated) => {
+    const prevAsgn = assignments.find(a => a.id === updated.id);
+    const prevSubs = prevAsgn ? prevAsgn.submissions || [] : [];
+
     setAssignments(p => p.map(a => a.id === updated.id ? updated : a));
     setViewAsgn(updated);
     showToast("Marks saved successfully!");
+
+    try {
+      const payload = {
+        description: JSON.stringify({
+          description: updated.description,
+          attachmentName: updated.attachmentName || "",
+          attachmentUrl: updated.attachmentUrl || "",
+          submissions: updated.submissions || []
+        })
+      };
+
+      await supabase
+        .from("assignments")
+        .update(payload)
+        .eq("id", updated.id);
+
+      // Notify students who got newly graded
+      for (const sub of (updated.submissions || [])) {
+        if (sub.status === "reviewed") {
+          const prevSub = prevSubs.find(p => p.studentId === sub.studentId);
+          if (!prevSub || prevSub.status !== "reviewed" || prevSub.score !== sub.score) {
+            const currentTime = new Date().toLocaleTimeString("en-US", {
+              hour: "numeric",
+              minute: "2-digit",
+              hour12: true,
+            });
+
+            try {
+              await supabase.from("notifications").insert({
+                type: `graded:${sub.studentId}`,
+                message: `Your assignment '${updated.title}' has been graded. Mark: ${sub.score} / ${updated.maxMarks || 20}`,
+                time: currentTime
+              });
+            } catch (nErr) {
+              console.error("Failed to insert grade notification:", nErr);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to save grading to database:", err);
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     setAssignments(p => p.filter(a => a.id !== deleteTarget.id));
     showToast(`"${deleteTarget.title}" deleted.`, "warning");
+
+    try {
+      await supabase
+        .from("assignments")
+        .delete()
+        .eq("id", deleteTarget.id);
+    } catch (err) {
+      console.error("Failed to delete database assignment:", err);
+    }
+
     setDeleteTarget(null);
   };
 

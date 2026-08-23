@@ -25,7 +25,9 @@ import {
   Play,
   Lock,
   HelpCircle,
-  GraduationCap
+  GraduationCap,
+  Paperclip,
+  Upload
 } from "lucide-react";
 import logo from "../../assets/logo.png";
 import avatarImg from "../../assets/avatar.png";
@@ -56,6 +58,7 @@ const StudentDashboard = ({ onNavigate }) => {
 
   const normalizeStudentProfile = (student, batchName, assignedTeachers, batchSchedule = "—") => ({
     ...student,
+    batchId: student?.batch_id || "",
     name: student?.name || "",
     email: student?.email || "",
     contact: student?.contact || "",
@@ -323,7 +326,7 @@ const StudentDashboard = ({ onNavigate }) => {
     } catch (err) {
       console.error("Submission upload failed:", err);
       setTestSubmissions((prev) => ({ ...prev, [test.id]: { uploading: false, url: null } }));
-      alert("Upload failed. Please try again.");
+      showToast("Upload failed. Please try again.", "error");
     }
   };
 
@@ -472,32 +475,190 @@ const StudentDashboard = ({ onNavigate }) => {
     }
   ]);
 
-  const [assignments, setAssignments] = useState([
-    {
-      id: 1,
-      subject: "Mathematics",
-      status: "Pending",
-      title: "Algebra Worksheet",
-      description: "Solve questions from Chapter 4 and upload your answers in PDF format.",
-      assignedDate: "10 Jun 2026",
-      dueDate: "17 Jun 2026"
-    },
-    {
-      id: 2,
-      subject: "Physics",
-      status: "Evaluated",
-      title: "Quantum Mechanics - Physics Assignment",
-      score: "18 / 20",
-      teacherRemarks: "Well done. Improve numerical calculations."
-    },
-    {
-      id: 3,
-      subject: "Chemistry",
-      status: "Overdue",
-      title: "Organic Chemistry Worksheet",
-      missedDeadline: "15 Jun 2026"
+  const [assignments, setAssignments] = useState([]);
+
+  const [submitModalAsgn, setSubmitModalAsgn] = useState(null);
+  const [submitNotes, setSubmitNotes] = useState("");
+  const [studentFileName, setStudentFileName] = useState("");
+  const [studentFileUrl, setStudentFileUrl] = useState("");
+  const studentFileRef = useRef(null);
+
+  const [toast, setToast] = useState(null);
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  useEffect(() => {
+    let active = true;
+    const fetchAssignments = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("assignments")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (!error && data && active) {
+          const studentBatch = studentProfile?.batchId;
+          const studentSubjects = studentProfile?.subjects || [];
+          const parsed = data
+            .filter(row => {
+              if (row.batch_id === studentBatch || row.batch_id === "ALL") return true;
+              const rowSubject = (row.subject || "").toLowerCase().trim();
+              return studentSubjects.some(sub => sub.toLowerCase().trim() === rowSubject);
+            })
+            .map(row => {
+              let parsedDesc = {};
+              try {
+                if (row.description && row.description.startsWith("{")) {
+                  parsedDesc = JSON.parse(row.description);
+                }
+              } catch (e) {}
+
+              const submissionsList = parsedDesc.submissions || [];
+              const mySub = submissionsList.find(sub => sub.studentId === studentProfile.id);
+
+              let uiStatus = "Pending";
+              let uiScore = "";
+              let uiRemarks = "";
+              if (mySub) {
+                if (mySub.status === "reviewed") {
+                  uiStatus = "Evaluated";
+                  uiScore = `${mySub.score} / ${row.total_marks || 20}`;
+                  uiRemarks = mySub.remarks || "";
+                } else if (mySub.status === "submitted") {
+                  uiStatus = "Submitted";
+                } else if (mySub.status === "missing") {
+                  uiStatus = "Overdue";
+                }
+              }
+
+              return {
+                id: row.id,
+                subject: row.subject,
+                status: uiStatus,
+                title: row.title,
+                description: parsedDesc.description || row.description || "",
+                attachmentName: parsedDesc.attachmentName || "",
+                attachmentUrl: parsedDesc.attachmentUrl || "",
+                assignedDate: new Date(row.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+                dueDate: row.due_date,
+                score: uiScore,
+                teacherRemarks: uiRemarks,
+                rawSubmissions: submissionsList
+              };
+            });
+          setAssignments(parsed);
+        }
+      } catch (err) {
+        console.error("Error fetching assignments:", err);
+      }
+    };
+
+    if (studentProfile) {
+      fetchAssignments();
     }
-  ]);
+
+    // Real-time listener for assignments changes
+    const channel = supabase
+      .channel("student-assignments-channel")
+      .on("postgres_changes", { event: "*", schema: "public", table: "assignments" }, () => {
+        fetchAssignments();
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
+  }, [studentProfile]);
+
+  const handleStudentSubmissionSubmit = async () => {
+    if (!submitModalAsgn) return;
+    
+    try {
+      const newSubmissionEntry = {
+        studentId: studentProfile.id,
+        name: studentProfile.name,
+        rollNo: studentProfile.rollNo || studentProfile.contact || "—",
+        avatar: null,
+        submittedOn: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        score: null,
+        status: "submitted",
+        description: submitNotes,
+        attachmentName: studentFileName,
+        attachmentUrl: studentFileUrl
+      };
+
+      const updatedSubmissions = submitModalAsgn.rawSubmissions.map(sub => {
+        if (sub.studentId === studentProfile.id) {
+          return newSubmissionEntry;
+        }
+        return sub;
+      });
+
+      const exists = submitModalAsgn.rawSubmissions.some(sub => sub.studentId === studentProfile.id);
+      if (!exists) {
+        updatedSubmissions.push(newSubmissionEntry);
+      }
+
+      const payload = {
+        description: JSON.stringify({
+          description: submitModalAsgn.description,
+          attachmentName: submitModalAsgn.attachmentName || "",
+          attachmentUrl: submitModalAsgn.attachmentUrl || "",
+          submissions: updatedSubmissions
+        })
+      };
+
+      await supabase
+        .from("assignments")
+        .update(payload)
+        .eq("id", submitModalAsgn.id);
+
+      // Create notification for the teacher
+      const rawTeacher = (studentProfile?.assignedTeachers?.[0] || "Mr. Rajesh")
+        .toLowerCase()
+        .replace(/^(mr\.|mrs\.|ms\.)\s*/, "")
+        .trim();
+
+      const currentTime = new Date().toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
+
+      try {
+        await supabase.from("notifications").insert({
+          type: `submission:${rawTeacher}:${submitModalAsgn.id}:${studentProfile.id}`,
+          message: `${studentProfile.name} submitted assignment '${submitModalAsgn.title}' (${submitModalAsgn.subject})`,
+          time: currentTime,
+        });
+      } catch (nErr) {
+        console.error("Failed to insert student submission notification:", nErr);
+      }
+
+      setAssignments(prev => prev.map(item => {
+        if (item.id === submitModalAsgn.id) {
+          return {
+            ...item,
+            status: "Submitted",
+            rawSubmissions: updatedSubmissions
+          };
+        }
+        return item;
+      }));
+
+      showToast("Assignment submitted successfully!");
+      setSubmitModalAsgn(null);
+      setSubmitNotes("");
+      setStudentFileName("");
+      setStudentFileUrl("");
+    } catch (err) {
+      console.error("Failed to submit student assignment:", err);
+      showToast("Failed to submit assignment. Please try again.", "error");
+    }
+  };
 
   const filteredAssignments = assignments.filter((item) => {
     const matchesSearch = item.title.toLowerCase().includes(assignmentSearch.toLowerCase()) ||
@@ -507,13 +668,8 @@ const StudentDashboard = ({ onNavigate }) => {
     return matchesSearch && matchesSubject && matchesStatus;
   });
 
-  const handleSubmitAssignmentAction = (id, title) => {
-    setSubmittingId(id);
-    setTimeout(() => {
-      setAssignments(prev => prev.map(item => item.id === id ? { ...item, status: "Submitted" } : item));
-      setSubmittingId(null);
-      alert(`Assignment "${title}" submitted successfully!`);
-    }, 1500);
+  const handleSubmitAssignmentAction = (asgn) => {
+    setSubmitModalAsgn(asgn);
   };
 
   const handleViewAssignmentDetails = (asgn) => {
@@ -595,7 +751,18 @@ const StudentDashboard = ({ onNavigate }) => {
           const assignedTeachers = studentProfile?.assignedTeachers || [];
 
           const filteredDbNotifs = dbNotifs.filter((notif) => {
-            // Scope notifications to only the subjects this student is enrolled in
+            // Case 1: Do not show submission notifications to students
+            if (notif.rawType && notif.rawType.startsWith("submission:")) {
+              return false;
+            }
+
+            // Case 2: If type starts with graded:, match student ID
+            if (notif.rawType && notif.rawType.startsWith("graded:")) {
+              const notifStudentId = notif.rawType.split(":")[1];
+              return notifStudentId === studentProfile.id;
+            }
+
+            // Case 3: Standard subject-based matching
             if (!notif.title) return false;
             const match = notif.title.match(/\(([^)]+)\)/);
             if (!match) return false;
@@ -640,29 +807,42 @@ const StudentDashboard = ({ onNavigate }) => {
         if (payload.new && active) {
           const studentSubjects = studentProfile?.subjects || [];
           const assignedTeachers = studentProfile?.assignedTeachers || [];
-          
-          const match = payload.new.message?.match(/\(([^)]+)\)/);
-          if (!match) return;
-          const notifSubject = match[1].toLowerCase().trim();
-          const isSubjectMatched = studentSubjects.some((sub) => {
-            if (!sub) return false;
-            return sub.toLowerCase().trim() === notifSubject;
-          });
-          if (!isSubjectMatched) return;
-
           const rawType = payload.new.type || "study-material";
-          let isTeacherMatched = true;
-          if (rawType.includes(":")) {
-            const notifTeacher = rawType.split(":")[1];
-            isTeacherMatched = assignedTeachers.some(tName => {
-              if (!tName || !notifTeacher) return false;
-              const n1 = tName.toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim();
-              const n2 = notifTeacher.toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim();
-              return n1 === n2 || n1.includes(n2) || n2.includes(n1);
-            });
+          
+          if (rawType.startsWith("submission:")) {
+            return;
+          }
+          
+          let isNotificationForMe = false;
+          
+          if (rawType.startsWith("graded:")) {
+            const notifStudentId = rawType.split(":")[1];
+            isNotificationForMe = notifStudentId === studentProfile.id;
+          } else {
+            const match = payload.new.message?.match(/\(([^)]+)\)/);
+            if (match) {
+              const notifSubject = match[1].toLowerCase().trim();
+              const isSubjectMatched = studentSubjects.some((sub) => {
+                if (!sub) return false;
+                return sub.toLowerCase().trim() === notifSubject;
+              });
+              if (isSubjectMatched) {
+                let isTeacherMatched = true;
+                if (rawType.includes(":")) {
+                  const notifTeacher = rawType.split(":")[1];
+                  isTeacherMatched = assignedTeachers.some(tName => {
+                    if (!tName || !notifTeacher) return false;
+                    const n1 = tName.toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim();
+                    const n2 = notifTeacher.toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim();
+                    return n1 === n2 || n1.includes(n2) || n2.includes(n1);
+                  });
+                }
+                isNotificationForMe = isTeacherMatched;
+              }
+            }
           }
 
-          if (isTeacherMatched) {
+          if (isNotificationForMe) {
             const uiType = rawType.includes(":") ? rawType.split(":")[0] : rawType;
             const newNotif = {
               id: payload.new.id + 100,
@@ -815,7 +995,7 @@ const StudentDashboard = ({ onNavigate }) => {
     setDownloadProgress(fileName);
     setTimeout(() => {
       setDownloadProgress(null);
-      alert(`Successfully downloaded ${fileName}`);
+      showToast(`Successfully downloaded ${fileName}`);
     }, 1200);
   };
 
@@ -1014,7 +1194,7 @@ const StudentDashboard = ({ onNavigate }) => {
                     <h3>Physics: Quantum Mechanics</h3>
                     <p>Today, 4:00 PM</p>
                   </div>
-                  <button className="join-class-btn" onClick={() => alert("Joining Live Class...")}>
+                  <button className="join-class-btn" onClick={() => showToast("Joining Live Class...")}>
                     Join Class
                   </button>
                 </div>
@@ -1625,7 +1805,7 @@ const StudentDashboard = ({ onNavigate }) => {
                               </button>
                               <button
                                 className="primary-solid-btn"
-                                onClick={() => handleSubmitAssignmentAction(asgn.id, asgn.title)}
+                                onClick={() => handleSubmitAssignmentAction(asgn)}
                                 disabled={submittingId === asgn.id}
                               >
                                 {submittingId === asgn.id ? (
@@ -1647,7 +1827,7 @@ const StudentDashboard = ({ onNavigate }) => {
                           {asgn.status === "Overdue" && (
                             <button
                               className="primary-solid-btn"
-                              onClick={() => handleSubmitAssignmentAction(asgn.id, asgn.title)}
+                              onClick={() => handleSubmitAssignmentAction(asgn)}
                               disabled={submittingId === asgn.id}
                             >
                               {submittingId === asgn.id ? (
@@ -1675,6 +1855,19 @@ const StudentDashboard = ({ onNavigate }) => {
 
                         {asgn.description && (
                           <p className="assignment-desc">{asgn.description}</p>
+                        )}
+
+                        {asgn.attachmentUrl && (
+                          <div style={{ marginTop: "12px" }}>
+                            <a
+                              href={asgn.attachmentUrl}
+                              download={asgn.attachmentName || "assignment_document.pdf"}
+                              className="outline-btn"
+                              style={{ display: "inline-flex", alignItems: "center", gap: "6px", textDecoration: "none", fontSize: "13px", padding: "6px 12px" }}
+                            >
+                              <Download size={14} /> Download PDF ({asgn.attachmentName})
+                            </a>
+                          </div>
                         )}
 
                         {asgn.teacherRemarks && (
@@ -2148,7 +2341,7 @@ const StudentDashboard = ({ onNavigate }) => {
                             )}
                             {isUpcoming && (
                               <>
-                                <button className="outline-btn" onClick={() => alert(`Class: ${cls.title}\nSubject: ${cls.subject}\nTime: ${cls.time}\nDate: ${cls.date}`)}>
+                                <button className="outline-btn" onClick={() => showToast(`Class: ${cls.title} · Subject: ${cls.subject} · Time: ${cls.time}`, "info")}>
                                   View Details
                                 </button>
                                 <button className="join-class-btn locked" disabled>
@@ -2556,6 +2749,22 @@ const StudentDashboard = ({ onNavigate }) => {
                 </div>
               )}
 
+              {activeDetailsAssignment.attachmentUrl && (
+                <div className="modal-info-block">
+                  <span className="meta-label">Attachment (Reference Document)</span>
+                  <div style={{ marginTop: "6px" }}>
+                    <a
+                      href={activeDetailsAssignment.attachmentUrl}
+                      download={activeDetailsAssignment.attachmentName || "assignment_document.pdf"}
+                      className="outline-btn"
+                      style={{ display: "inline-flex", alignItems: "center", gap: "6px", textDecoration: "none", fontSize: "13px", padding: "6px 12px" }}
+                    >
+                      <Download size={14} /> Download PDF ({activeDetailsAssignment.attachmentName})
+                    </a>
+                  </div>
+                </div>
+              )}
+
               {activeDetailsAssignment.score && (
                 <div className="modal-info-block">
                   <span className="meta-label">Grade / Score</span>
@@ -2569,6 +2778,109 @@ const StudentDashboard = ({ onNavigate }) => {
                   <p className="modal-remarks-text">"{activeDetailsAssignment.teacherRemarks}"</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Student Submission Modal */}
+      {submitModalAsgn && (
+        <div className="custom-modal-overlay" onClick={() => setSubmitModalAsgn(null)} style={{ zIndex: 9999 }}>
+          <div className="custom-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Submit Assignment</h3>
+              <button className="modal-close-btn" onClick={() => setSubmitModalAsgn(null)}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <h4 className="modal-assignment-title">{submitModalAsgn.title}</h4>
+              <div style={{ marginBottom: "15px" }}>
+                <span className="meta-label">Subject</span>
+                <span className="meta-value">{submitModalAsgn.subject}</span>
+              </div>
+
+              <div className="modal-info-block">
+                <span className="meta-label">Submission Description / Notes *</span>
+                <textarea
+                  className="as-textarea"
+                  placeholder="Type a description or notes about your submission..."
+                  rows={4}
+                  style={{
+                    width: "100%",
+                    padding: "10px",
+                    borderRadius: "6px",
+                    border: "1px solid #d1d5db",
+                    marginTop: "6px",
+                    fontSize: "14px",
+                    resize: "none"
+                  }}
+                  value={submitNotes}
+                  onChange={e => setSubmitNotes(e.target.value)}
+                />
+              </div>
+
+              <div className="modal-info-block" style={{ marginTop: "15px" }}>
+                <span className="meta-label">Upload Answer PDF *</span>
+                <div
+                  onClick={() => studentFileRef.current?.click()}
+                  style={{
+                    border: "2px dashed #d1d5db",
+                    padding: "20px",
+                    textAlign: "center",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                    marginTop: "6px",
+                    background: "#f9fafb"
+                  }}
+                >
+                  <input
+                    ref={studentFileRef}
+                    type="file"
+                    accept=".pdf"
+                    style={{ display: "none" }}
+                    onChange={e => {
+                      const f = e.target.files?.[0];
+                      if (f) {
+                        setStudentFileName(f.name);
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          setStudentFileUrl(event.target.result);
+                        };
+                        reader.readAsDataURL(f);
+                      }
+                    }}
+                  />
+                  {studentFileName ? (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                      <FileText size={18} color="#2D6BFF" />
+                      <span style={{ fontWeight: 500, color: "#1f2937" }}>{studentFileName}</span>
+                      <button
+                        type="button"
+                        style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", display: "inline-flex", alignItems: "center" }}
+                        onClick={ev => { ev.stopPropagation(); setStudentFileName(""); setStudentFileUrl(""); }}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <Paperclip size={20} color="#9ca3af" style={{ marginBottom: "6px" }} />
+                      <div style={{ fontSize: "13px", color: "#6b7280" }}>Click to attach answer PDF file</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer" style={{ display: "flex", justifyContent: "flex-end", gap: "12px", padding: "16px 24px", borderTop: "1px solid #e5e7eb" }}>
+              <button className="outline-btn" onClick={() => setSubmitModalAsgn(null)}>Cancel</button>
+              <button
+                className="primary-solid-btn"
+                onClick={handleStudentSubmissionSubmit}
+                disabled={!studentFileUrl}
+              >
+                Submit Answer
+              </button>
             </div>
           </div>
         </div>
@@ -2629,6 +2941,23 @@ const StudentDashboard = ({ onNavigate }) => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+      {toast && (
+        <div style={{
+          position: "fixed",
+          top: "24px",
+          right: "24px",
+          background: toast.type === "error" ? "#ef4444" : toast.type === "info" ? "#3b82f6" : "#10b981",
+          color: "#ffffff",
+          padding: "12px 24px",
+          borderRadius: "8px",
+          boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+          zIndex: 9999,
+          fontWeight: "bold",
+          fontSize: "14px"
+        }}>
+          {toast.message}
         </div>
       )}
     </div>

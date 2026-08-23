@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Bell, Check, Trash2, Calendar, ClipboardList, Info, AlertTriangle, Circle } from "lucide-react";
+import { Bell, Check, Trash2, Calendar, ClipboardList, Info, AlertTriangle, Circle, Download } from "lucide-react";
 import "./Notifications.css";
 
-const Notifications = ({ notifications, setNotifications }) => {
+const Notifications = ({ notifications, setNotifications, assignments, setAssignments, students, setActiveNav, setViewAsgn }) => {
   const [filter, setFilter] = useState("all"); // "all" | "unread" | "read"
 
   const filteredNotifications = notifications.filter((n) => {
@@ -34,7 +34,8 @@ const Notifications = ({ notifications, setNotifications }) => {
 
   // Get icon based on type
   const getNotificationIcon = (type) => {
-    switch (type) {
+    const mainType = type?.includes(":") ? type.split(":")[0] : type;
+    switch (mainType) {
       case "assignment":
         return {
           icon: <ClipboardList size={18} />,
@@ -48,6 +49,12 @@ const Notifications = ({ notifications, setNotifications }) => {
       case "class":
         return {
           icon: <Calendar size={18} />,
+          colorClass: "bg-green text-green"
+        };
+      case "submission":
+      case "student-submission":
+        return {
+          icon: <Check size={18} />,
           colorClass: "bg-green text-green"
         };
       default:
@@ -127,6 +134,26 @@ const Notifications = ({ notifications, setNotifications }) => {
           <div className="notif-items-list">
             {filteredNotifications.map((n) => {
               const { icon, colorClass } = getNotificationIcon(n.type);
+              
+              let asgnObj = null;
+              let studentSub = null;
+              if (n.type && n.type.startsWith("submission:")) {
+                const parts = n.type.split(":");
+                const asgnId = parts[2];
+                const studentId = parts[3];
+                asgnObj = assignments?.find(a => a.id === asgnId);
+                if (asgnObj) {
+                  studentSub = asgnObj.submissions?.find(s => s.studentId === studentId);
+                }
+              }
+
+              const handleGradeSubmission = (asgn) => {
+                if (setActiveNav && setViewAsgn) {
+                  setViewAsgn(asgn);
+                  setActiveNav("assignments");
+                }
+              };
+
               return (
                 <div key={n.id} className={`notif-item ${!n.read ? "notif-unread" : ""}`}>
                   {/* Icon & Message */}
@@ -141,7 +168,51 @@ const Notifications = ({ notifications, setNotifications }) => {
                   </div>
 
                   {/* Actions */}
-                  <div className="notif-item-right">
+                  <div className="notif-item-right" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    {asgnObj && (
+                      <button
+                        className="notif-row-action-btn"
+                        title="Grade Assignment"
+                        style={{ 
+                          background: "#2D6BFF", 
+                          color: "#ffffff", 
+                          border: "none", 
+                          borderRadius: "4px", 
+                          padding: "4px 8px", 
+                          fontSize: "12px", 
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          height: "28px"
+                        }}
+                        onClick={() => handleGradeSubmission(asgnObj)}
+                      >
+                        Grade
+                      </button>
+                    )}
+                    {studentSub?.attachmentUrl && (
+                      <a
+                        href={studentSub.attachmentUrl}
+                        download={studentSub.attachmentName || "answer_sheet.pdf"}
+                        className="notif-row-action-btn"
+                        title="Download Answer Sheet"
+                        style={{ 
+                          background: "#27a55e", 
+                          color: "#ffffff", 
+                          border: "none", 
+                          borderRadius: "4px", 
+                          padding: "4px 8px", 
+                          fontSize: "12px", 
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          textDecoration: "none",
+                          height: "28px"
+                        }}
+                      >
+                        View PDF
+                      </a>
+                    )}
                     {!n.read && (
                       <button 
                         className="notif-row-action-btn check-btn" 
