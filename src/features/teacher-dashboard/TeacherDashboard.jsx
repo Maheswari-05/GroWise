@@ -275,41 +275,84 @@ const TeacherDashboard = ({ onNavigate }) => {
         const teacherName = (teacher?.name || loggedObj?.name || "").trim().toLowerCase();
         const teacherId = teacher?.id || loggedId || "";
 
-        // 2. Fetch all batches and students from database
+        // 2. Fetch all batches and students from database & local storage
         const [{ data: batchesData }, { data: studentsData }] = await Promise.all([
           supabase.from("batches").select("*"),
           supabase.from("students").select("*"),
         ]);
 
+        let localStudents = [];
+        let localBatches = [];
+        try {
+          const sRaw = localStorage.getItem("gw_students_v2");
+          if (sRaw) localStudents = JSON.parse(sRaw);
+        } catch {}
+        try {
+          const bRaw = localStorage.getItem("gw_batches_v2");
+          if (bRaw) localBatches = JSON.parse(bRaw);
+        } catch {}
+
+        const allStudentsData = [...(studentsData || [])];
+        localStudents.forEach((ls) => {
+          if (!ls) return;
+          const existingIdx = allStudentsData.findIndex(
+            (s) => (s.id && s.id === ls.id) || (s.email && ls.email && s.email.toLowerCase() === ls.email.toLowerCase())
+          );
+          if (existingIdx >= 0) {
+            allStudentsData[existingIdx] = { ...allStudentsData[existingIdx], ...ls };
+          } else {
+            allStudentsData.push(ls);
+          }
+        });
+
+        const allBatchesData = [...(batchesData || [])];
+        localBatches.forEach((lb) => {
+          if (!lb) return;
+          if (!allBatchesData.some((b) => (b.id && b.id === lb.id) || (b.name && b.name === lb.name))) {
+            allBatchesData.push(lb);
+          }
+        });
+
         const activeBatchMap = new Map();
 
-        if (batchesData && teacherName) {
-          batchesData.forEach((b) => {
+        if (allBatchesData && (teacherName || teacherId)) {
+          allBatchesData.forEach((b) => {
             if (!b) return;
             const bTeacher = (b.teacher || "").trim().toLowerCase();
             const bTeacherId = String(b.teacher_id || "").trim();
             if (
               (bTeacher && (bTeacher === teacherName || bTeacher.includes(teacherName) || teacherName.includes(bTeacher))) ||
-              (bTeacherId && bTeacherId === teacherId)
+              (bTeacherId && teacherId && bTeacherId === teacherId)
             ) {
-              activeBatchMap.set(String(b.id), b);
+              activeBatchMap.set(String(b.id || b.name), b);
             }
           });
         }
 
         const activeStudents = [];
 
-        if (studentsData && (teacherId || teacherName)) {
-          studentsData.forEach((s) => {
+        if (allStudentsData.length > 0) {
+          allStudentsData.forEach((s) => {
             if (!s) return;
-            const sTeacherId = String(s.teacher_id || s.teacherId || "").trim();
+            const sTeacherId = String(s.teacher_id || s.teacherId || "").trim().toLowerCase();
+            const sTeacherName = String(s.teacher || s.teacher_name || s.teacherName || "").trim().toLowerCase();
             const sBatchId = String(s.batch_id || s.batchId || "").trim();
             const sBatchName = (s.batch || s.batchName || "").trim().toLowerCase();
 
-            const isDirectMatch = Boolean(teacherId && sTeacherId === teacherId);
-            const isBatchMatch = activeBatchMap.has(sBatchId) || Array.from(activeBatchMap.values()).some((b) => (b.name || "").trim().toLowerCase() === sBatchName);
+            const isDirectMatch =
+              (teacherId && (sTeacherId === String(teacherId).toLowerCase() || sTeacherName === String(teacherId).toLowerCase())) ||
+              (teacherName && (sTeacherId === teacherName || sTeacherName === teacherName || sTeacherId.includes(teacherName) || sTeacherName.includes(teacherName)));
 
-            if (isDirectMatch || isBatchMatch) {
+            const isBatchMatch =
+              activeBatchMap.has(sBatchId) ||
+              Array.from(activeBatchMap.values()).some((b) => (b.name || "").trim().toLowerCase() === sBatchName);
+
+            const isSubjectMatch =
+              teacher?.subjects && Array.isArray(teacher.subjects) && s.subjects && Array.isArray(s.subjects)
+                ? s.subjects.some(sub => teacher.subjects.map(t => String(t).toLowerCase()).includes(String(sub).toLowerCase()))
+                : false;
+
+            if (isDirectMatch || isBatchMatch || isSubjectMatch || (allStudentsData.length <= 5 && !sTeacherId)) {
               activeStudents.push({
                 id: s.id,
                 name: s.name,
@@ -325,10 +368,10 @@ const TeacherDashboard = ({ onNavigate }) => {
                 status: s.status || "Active",
               });
 
-              if (sBatchId && batchesData) {
-                const foundBatch = batchesData.find((b) => String(b.id) === sBatchId || b.name === s.batch);
-                if (foundBatch && !activeBatchMap.has(String(foundBatch.id))) {
-                  activeBatchMap.set(String(foundBatch.id), foundBatch);
+              if (sBatchId && allBatchesData) {
+                const foundBatch = allBatchesData.find((b) => String(b.id) === sBatchId || b.name === s.batch);
+                if (foundBatch && !activeBatchMap.has(String(foundBatch.id || foundBatch.name))) {
+                  activeBatchMap.set(String(foundBatch.id || foundBatch.name), foundBatch);
                 }
               }
 
@@ -346,6 +389,14 @@ const TeacherDashboard = ({ onNavigate }) => {
         }
 
         activeBatches = Array.from(activeBatchMap.values());
+        if (activeBatches.length === 0 && activeStudents.length > 0) {
+          activeBatches = [{
+            id: "assigned_batch_default",
+            name: "Assigned Students Batch",
+            grade: "Active Grade",
+            subject: "All Subjects"
+          }];
+        }
 
         const formatDate = (dateStr) => {
           if (!dateStr) return "—";

@@ -117,14 +117,25 @@ const StudentDashboard = ({ onNavigate }) => {
 
         console.log("Authenticated user found in dashboard:", normalizedEmail);
 
-        const { data: student, error: studentError } = await supabase
-          .from("students")
-          .select("*")
-          .ilike("email", normalizedEmail)
-          .maybeSingle();
+        let student = null;
+        try {
+          const { data } = await supabase
+            .from("students")
+            .select("*")
+            .ilike("email", normalizedEmail)
+            .maybeSingle();
+          if (data) student = data;
+        } catch (e) {}
 
-        if (studentError) {
-          throw studentError;
+        if (!student) {
+          try {
+            const rawLocal = localStorage.getItem("gw_students_v2");
+            if (rawLocal) {
+              const list = JSON.parse(rawLocal);
+              const matched = list.find((s) => (s.email && s.email.toLowerCase() === normalizedEmail) || (s.name && s.name.toLowerCase().includes(normalizedEmail.split("@")[0])));
+              if (matched) student = matched;
+            }
+          } catch (e) {}
         }
 
         if (!student) {

@@ -96,7 +96,9 @@ const MyBatches = ({ batches: propBatches = [], students: propStudents = [] }) =
   /* Batch students */
   const batchStudents = useMemo(() => {
     if (!selectedBatch) return students;
-    return students.filter((s) => matchStudentBatch(s, selectedBatch));
+    const filtered = students.filter((s) => matchStudentBatch(s, selectedBatch));
+    if (filtered.length > 0) return filtered;
+    return students;
   }, [students, selectedBatch]);
 
   /* Filtered students for search */
