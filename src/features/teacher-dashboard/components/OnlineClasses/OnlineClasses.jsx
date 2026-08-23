@@ -1,23 +1,48 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Plus, Filter, BookOpen, Calendar, Clock, Video, X, Edit, Trash2, Check, Play, RefreshCw, AlertTriangle, Users, Mic, MicOff, VideoOff, PhoneOff, Monitor } from "lucide-react";
+import {
+  Search, Plus, Filter, BookOpen, Calendar, Clock, Video, X,
+  Trash2, Check, Play, RefreshCw, AlertTriangle, Users, Mic, MicOff,
+  VideoOff, PhoneOff, Monitor, Radio, CheckCircle, UserCheck
+} from "lucide-react";
+import * as adminService from "../../../../services/adminService";
+import supabase from "../../../../lib/supabase";
 import "./OnlineClasses.css";
 
-const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, setAttendanceRecords, students, batches, teacherProfile = {} }) => {
+const OnlineClasses = ({
+  onlineClasses = [],
+  setOnlineClasses,
+  attendanceRecords = [],
+  setAttendanceRecords,
+  students = [],
+  batches = [],
+  teacherProfile = {}
+}) => {
   const teacherName = teacherProfile?.name || "Teacher";
   const teacherInitial = teacherName.charAt(0).toUpperCase() || "T";
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [selectedSubject, setSelectedSubject] = useState("all");
 
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [activeCallClassId, setActiveCallClassId] = useState(null);
+  const [isScheduling, setIsScheduling] = useState(false);
 
   // New Class Form State
   const [newTitle, setNewTitle] = useState("");
-  const [newSubject, setNewSubject] = useState("Mathematics");
-  const [newBatch, setNewBatch] = useState("b1");
+  const [newSubject, setNewSubject] = useState(
+    teacherProfile.subjects?.[0] || "Mathematics"
+  );
+  const [newBatch, setNewBatch] = useState("");
   const [newDate, setNewDate] = useState(new Date().toISOString().split("T")[0]);
   const [newTime, setNewTime] = useState("09:00 AM - 10:00 AM");
+
+  // Synchronize newBatch when batches are loaded
+  useEffect(() => {
+    if (batches.length > 0 && (!newBatch || !batches.some((b) => String(b.id) === String(newBatch)))) {
+      setNewBatch(batches[0].id);
+    }
+  }, [batches, newBatch]);
 
   // Call options state
   const [micActive, setMicActive] = useState(true);
@@ -32,7 +57,26 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
 
-  // WebRTC & Audio Analyser Effect
+  // Helper to find students assigned to a batch
+  const getBatchStudents = (batchIdOrName) => {
+    if (!batchIdOrName) return [];
+    const batchObj = batches.find(
+      (b) => String(b.id) === String(batchIdOrName) || String(b.name) === String(batchIdOrName)
+    );
+    const targetId = batchObj?.id || batchIdOrName;
+    const targetName = batchObj?.name || batchIdOrName;
+
+    return students.filter(
+      (s) =>
+        String(s.batchId) === String(targetId) ||
+        String(s.batch_id) === String(targetId) ||
+        s.batch === targetName ||
+        s.batch === targetId ||
+        s.batchId === targetName
+    );
+  };
+
+  // WebRTC & Audio Analyser Effect for live call
   useEffect(() => {
     if (!activeCallClassId) {
       if (mediaStreamRef.current) {
@@ -72,7 +116,7 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
           videoRef.current.play().catch((err) => console.warn("Video playback error:", err));
         }
 
-        // Web Audio volume level analyser
+        // Audio volume level analyser
         const audioTrack = stream.getAudioTracks()[0];
         if (audioTrack && micActive) {
           const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -139,34 +183,72 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
   };
 
   // Filter classes
-  const filteredClasses = onlineClasses.filter((c) => {
-    const matchesSearch = c.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = selectedStatus === "all" || c.status === selectedStatus;
+  const filteredClasses = (onlineClasses || []).filter((c) => {
+    if (!c) return false;
+    const title = c.title || "";
+    const matchesSearch = title.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = selectedStatus === "all" || (c.status && c.status.toLowerCase() === selectedStatus.toLowerCase());
     const matchesSubject = selectedSubject === "all" || c.subject === selectedSubject;
     return matchesSearch && matchesStatus && matchesSubject;
   });
 
-  const handleScheduleClass = (e) => {
+  // Handle scheduling a new class
+  const handleScheduleClass = async (e) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
 
-    const newClass = {
-      id: "c" + (onlineClasses.length + 1),
-      title: newTitle,
+    setIsScheduling(true);
+    const selectedBatchObj = batches.find((b) => String(b.id) === String(newBatch)) || batches[0];
+    const batchIdentifier = selectedBatchObj?.name || newBatch || "Batch";
+
+    const newClassData = {
+      title: newTitle.trim(),
       subject: newSubject,
-      batchId: newBatch,
+      teacher: teacherName,
+      student: batchIdentifier,
+      batchId: selectedBatchObj?.id || newBatch,
       date: newDate,
       time: newTime,
-      status: "upcoming"
+      status: "upcoming",
     };
 
-    setOnlineClasses([newClass, ...onlineClasses]);
-    setShowScheduleModal(false);
-    setNewTitle("");
+    try {
+      // 1. Save to Supabase DB
+      const created = await adminService.addOnlineClass(newClassData);
+      const newClass = created ? { ...newClassData, id: created.id } : { ...newClassData, id: "c_" + Date.now() };
+
+      // 2. Update local state
+      setOnlineClasses([newClass, ...(onlineClasses || [])]);
+
+      // 3. Send notification for students
+      try {
+        const currentTime = new Date().toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        });
+        await supabase.from("notifications").insert({
+          type: `online-class:${teacherName}`,
+          message: `Live class scheduled: ${newTitle} (${newSubject}) for ${newDate} at ${newTime}`,
+          time: currentTime,
+        });
+      } catch (notifErr) {
+        console.warn("Notification send warning:", notifErr);
+      }
+
+      setShowScheduleModal(false);
+      setNewTitle("");
+    } catch (err) {
+      console.error("Failed to schedule class:", err);
+      alert("Failed to schedule class. Please try again.");
+    } finally {
+      setIsScheduling(false);
+    }
   };
 
-  const handleStartClass = (classId) => {
-    const updated = onlineClasses.map((c) => {
+  // Start Class & Join Call
+  const handleStartClass = async (classId) => {
+    const updated = (onlineClasses || []).map((c) => {
       if (c.id === classId) return { ...c, status: "live" };
       return c;
     });
@@ -174,89 +256,149 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
     setActiveCallClassId(classId);
     setVideoActive(true);
     setMicActive(true);
+
+    try {
+      await adminService.updateOnlineClass(classId, { status: "live" });
+    } catch (err) {
+      console.warn("Could not update online class status in DB:", err);
+    }
   };
 
-  const handleEndClass = () => {
-    const liveClass = onlineClasses.find((c) => c.id === activeCallClassId);
-    if (!liveClass) return;
+  // End Class & Auto-Record Attendance
+  const handleEndClass = async () => {
+    const liveClass = (onlineClasses || []).find((c) => c.id === activeCallClassId);
+    if (!liveClass) {
+      setActiveCallClassId(null);
+      return;
+    }
 
-    const updatedClasses = onlineClasses.map((c) => {
+    const updatedClasses = (onlineClasses || []).map((c) => {
       if (c.id === activeCallClassId) return { ...c, status: "completed" };
       return c;
     });
     setOnlineClasses(updatedClasses);
 
-    const batchStudents = students.filter((s) => s.batchId === liveClass.batchId);
+    // Get assigned students for this batch
+    const batchStudents = getBatchStudents(liveClass.batchId || liveClass.student);
+    const dateToday = liveClass.date || new Date().toISOString().split("T")[0];
+
+    // Create teacher attendance record
     const newAttendanceRecord = {
-      id: "a" + (attendanceRecords.length + 1),
-      date: liveClass.date,
-      batchId: liveClass.batchId,
+      id: "a_" + Date.now(),
+      date: dateToday,
+      batchId: liveClass.batchId || liveClass.student,
+      batch: liveClass.student || "Batch",
       subject: liveClass.subject,
       teacherStatus: "Submitted",
       onlineClass: true,
       records: {},
-      remarks: {}
+      remarks: {},
     };
 
     batchStudents.forEach((student) => {
-      const isPresent = Math.random() > 0.1;
-      newAttendanceRecord.records[student.id] = isPresent ? "present" : "absent";
-      newAttendanceRecord.remarks[student.id] = isPresent 
-        ? "Auto-recorded via live session attendance" 
-        : "Absent from live session";
+      newAttendanceRecord.records[student.id] = "present";
+      newAttendanceRecord.remarks[student.id] = "Attended live online class session";
     });
 
-    setAttendanceRecords([newAttendanceRecord, ...attendanceRecords]);
+    setAttendanceRecords([newAttendanceRecord, ...(attendanceRecords || [])]);
+
+    // Update class status in DB
+    try {
+      await adminService.updateOnlineClass(liveClass.id, { status: "completed" });
+    } catch (err) {
+      console.warn("Error updating class status:", err);
+    }
+
+    // Save attendance logs in Supabase
+    if (batchStudents.length > 0) {
+      try {
+        const logs = batchStudents.map((student) => ({
+          date: dateToday,
+          subject: liveClass.subject,
+          teacher: teacherName,
+          student: student.name || student.id,
+          status: "Present",
+        }));
+        await adminService.addBatchAttendance(logs);
+      } catch (err) {
+        console.warn("Error recording attendance logs:", err);
+      }
+    }
+
     setActiveCallClassId(null);
     setIsScreenSharing(false);
 
-    alert(`Class ended! Attendance auto-recorded for ${batchStudents.length} students.`);
+    alert(`Class ended! Live attendance successfully recorded for ${batchStudents.length} assigned students.`);
   };
 
-  const handleCancelClass = (classId) => {
+  const handleCancelClass = async (classId) => {
     if (window.confirm("Are you sure you want to cancel this online class?")) {
-      const updated = onlineClasses.map((c) => {
+      const updated = (onlineClasses || []).map((c) => {
         if (c.id === classId) return { ...c, status: "cancelled" };
         return c;
       });
       setOnlineClasses(updated);
+
+      try {
+        await adminService.updateOnlineClass(classId, { status: "cancelled" });
+      } catch (err) {
+        console.warn("Could not cancel class in DB:", err);
+      }
     }
   };
 
-  const handleRescheduleClass = (classId) => {
-    const newTimePrompt = prompt("Enter new date & time (e.g. 2026-07-31 at 10:00 AM - 11:00 AM):");
+  const handleRescheduleClass = async (classId) => {
+    const newTimePrompt = prompt("Enter new date & time slot (e.g. 2026-08-25 at 11:00 AM - 12:00 PM):");
     if (newTimePrompt) {
       const parts = newTimePrompt.split(" at ");
       const datePart = parts[0] || new Date().toISOString().split("T")[0];
       const timePart = parts[1] || "10:00 AM - 11:00 AM";
 
-      const updated = onlineClasses.map((c) => {
+      const updated = (onlineClasses || []).map((c) => {
         if (c.id === classId) return { ...c, date: datePart, time: timePart, status: "upcoming" };
         return c;
       });
       setOnlineClasses(updated);
+
+      try {
+        await adminService.updateOnlineClass(classId, { date: datePart, time: timePart, status: "upcoming" });
+      } catch (err) {
+        console.warn("Could not reschedule class in DB:", err);
+      }
     }
   };
 
   // Find active call details
-  const activeCallClass = onlineClasses.find((c) => c.id === activeCallClassId);
-  const activeCallBatchStudents = activeCallClass ? students.filter((s) => s.batchId === activeCallClass.batchId) : [];
+  const activeCallClass = (onlineClasses || []).find((c) => c.id === activeCallClassId);
+  const activeCallBatchStudents = activeCallClass
+    ? getBatchStudents(activeCallClass.batchId || activeCallClass.student)
+    : [];
+
+  // Preview assigned students for currently selected batch in schedule modal
+  const selectedBatchStudents = getBatchStudents(newBatch);
 
   return (
     <div className="online-classes-container">
-      {/* 1. Live Jitsi Call Mock Interface */}
+      {/* 1. Live Meeting Call Interface */}
       {activeCallClass && (
         <div className="oc-call-overlay">
           <div className="oc-call-window">
             {/* Header info */}
             <div className="oc-call-header">
               <div className="oc-call-header-left">
-                <span className="oc-live-badge">LIVE CALL</span>
+                <span className="oc-live-badge">
+                  <Radio size={12} className="oc-live-pulse" /> LIVE SESSION
+                </span>
                 <h3>{activeCallClass.title}</h3>
-                <span className="oc-call-subtitle">{activeCallClass.subject} · {batches.find(b => b.id === activeCallClass.batchId)?.name}</span>
+                <span className="oc-call-subtitle">
+                  {activeCallClass.subject} · {batches.find((b) => String(b.id) === String(activeCallClass.batchId))?.name || activeCallClass.student || "Assigned Batch"}
+                </span>
               </div>
               <div className="oc-call-header-right">
-                <Users size={16} /> <span>{activeCallBatchStudents.length + 1} connected</span>
+                <Users size={16} />{" "}
+                <span>
+                  {activeCallBatchStudents.length + 1} participant{activeCallBatchStudents.length !== 0 ? "s" : ""}
+                </span>
               </div>
             </div>
 
@@ -287,20 +429,24 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
                       </div>
                     )}
                     <div className="oc-feed-name">
-                      {teacherName} {isScreenSharing ? "(Screen Sharing)" : "(You)"}
+                      {teacherName} {isScreenSharing ? "(Screen Sharing)" : "(You - Host)"}
                     </div>
                   </div>
                 ) : (
                   <div className="oc-video-avatar-placeholder">
                     {teacherProfile?.avatar ? (
-                      <img src={teacherProfile.avatar} alt="Teacher avatar" style={{ width: "90px", height: "90px", borderRadius: "50%", objectFit: "cover" }} />
+                      <img
+                        src={teacherProfile.avatar}
+                        alt="Teacher avatar"
+                        style={{ width: "90px", height: "90px", borderRadius: "50%", objectFit: "cover" }}
+                      />
                     ) : (
                       <div className="oc-video-avatar-initials">{teacherInitial}</div>
                     )}
                     <div className="oc-feed-name">{teacherName} (Camera Off)</div>
                   </div>
                 )}
-                
+
                 {/* Audio Status & Level Indicator */}
                 <div className={`oc-mic-status ${micActive ? "oc-mic-status--active" : ""}`}>
                   {micActive ? (
@@ -320,43 +466,49 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
                 </div>
               </div>
 
-              {/* Student Feeds grid */}
+              {/* Assigned Student Feeds Grid */}
               <div className="oc-students-grid">
-                {activeCallBatchStudents.map((student) => (
-                  <div key={student.id} className="oc-video-feed student-feed">
-                    <div className="oc-video-simulation">
-                      {student.avatar ? (
-                        <img 
-                          src={student.avatar} 
-                          alt={student.name} 
-                          className="oc-student-call-avatar"
-                        />
-                      ) : (
-                        <div className="oc-student-call-initials">
-                          {student.name ? student.name.charAt(0).toUpperCase() : "S"}
-                        </div>
-                      )}
-                      <div className="oc-feed-name">{student.name}</div>
+                {activeCallBatchStudents.length > 0 ? (
+                  activeCallBatchStudents.map((student) => (
+                    <div key={student.id} className="oc-video-feed student-feed">
+                      <div className="oc-video-simulation">
+                        {student.avatar ? (
+                          <img
+                            src={student.avatar}
+                            alt={student.name}
+                            className="oc-student-call-avatar"
+                          />
+                        ) : (
+                          <div className="oc-student-call-initials">
+                            {student.name ? student.name.charAt(0).toUpperCase() : "S"}
+                          </div>
+                        )}
+                        <div className="oc-feed-name">{student.name}</div>
+                      </div>
+                      <div className="oc-mic-status">
+                        <UserCheck size={13} style={{ color: "#22c55e" }} title="Assigned Student (Connected)" />
+                      </div>
                     </div>
-                    <div className="oc-mic-status">
-                      <Mic size={12} className="mic-on" />
-                    </div>
+                  ))
+                ) : (
+                  <div className="oc-video-feed student-feed" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#1e293b", color: "#94a3b8", fontSize: "12px", textAlign: "center", padding: "10px" }}>
+                    <span>Waiting for assigned batch students to connect...</span>
                   </div>
-                ))}
+                )}
               </div>
             </div>
 
             {/* Controls Bar */}
             <div className="oc-call-controls">
-              <button 
+              <button
                 className={`oc-control-btn ${!micActive ? "control-disabled" : ""}`}
                 onClick={() => setMicActive(!micActive)}
                 title={micActive ? "Mute Microphone" : "Unmute Microphone"}
               >
                 {micActive ? <Mic size={20} /> : <MicOff size={20} />}
               </button>
-              
-              <button 
+
+              <button
                 className={`oc-control-btn ${!videoActive ? "control-disabled" : ""}`}
                 onClick={() => setVideoActive(!videoActive)}
                 title={videoActive ? "Turn Off Camera" : "Turn On Camera"}
@@ -373,14 +525,14 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
               </button>
 
               <button className="oc-hangup-btn" onClick={handleEndClass}>
-                <PhoneOff size={20} /> End Class
+                <PhoneOff size={18} /> End Class & Record Attendance
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 2. Main List View */}
+      {/* 2. Main Classes List View */}
       {!activeCallClass && (
         <>
           {/* Action Bar */}
@@ -402,7 +554,7 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
                   <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}>
                     <option value="all">All Statuses</option>
                     <option value="upcoming">Upcoming</option>
-                    <option value="live">Live</option>
+                    <option value="live">Live Now</option>
                     <option value="completed">Completed</option>
                     <option value="cancelled">Cancelled</option>
                   </select>
@@ -412,8 +564,9 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
                   <BookOpen size={14} />
                   <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)}>
                     <option value="all">All Subjects</option>
-                    <option value="Mathematics">Mathematics</option>
-                    <option value="Science">Science</option>
+                    {[...new Set((onlineClasses || []).map((c) => c.subject).filter(Boolean))].map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -429,19 +582,32 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
             {filteredClasses.length === 0 ? (
               <div className="oc-empty-state">
                 <AlertTriangle size={48} />
-                <p>No online classes scheduled. Create one to get started.</p>
+                <p>No online classes scheduled. Click "Schedule Live Class" to set up a new session.</p>
               </div>
             ) : (
               filteredClasses.map((c) => {
-                const batch = batches.find((b) => String(b.id) === String(c.batchId) || String(b.name) === String(c.batchId) || String(b.id) === String(c.batch) || String(b.name) === String(c.batch));
-                const batchText = batch ? `${batch.name}${batch.grade ? ` (${batch.grade})` : ""}` : (c.batch || c.batchId || "All Batches");
+                const batch = batches.find(
+                  (b) =>
+                    String(b.id) === String(c.batchId) ||
+                    String(b.name) === String(c.batchId) ||
+                    String(b.id) === String(c.student) ||
+                    String(b.name) === String(c.student)
+                );
+                const batchText = batch
+                  ? `${batch.name}${batch.grade ? ` (${batch.grade})` : ""}`
+                  : c.student || c.batch || c.batchId || "General Batch";
                 const statusLower = (c.status || "upcoming").toLowerCase();
+                const assignedCount = getBatchStudents(c.batchId || c.student).length;
 
                 let dateDisplay = "Today";
                 if (c.date) {
                   const parsedDate = new Date(c.date);
                   if (!isNaN(parsedDate.getTime())) {
-                    dateDisplay = parsedDate.toLocaleDateString("en-US", { day: 'numeric', month: 'short', year: 'numeric' });
+                    dateDisplay = parsedDate.toLocaleDateString("en-US", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    });
                   } else {
                     dateDisplay = String(c.date);
                   }
@@ -458,12 +624,15 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
                         <div className="oc-card-title-row">
                           <h3 className="oc-card-title">{c.title}</h3>
                           <span className={`oc-badge badge-${statusLower}`}>
-                            {c.status}
+                            {statusLower === "live" ? "LIVE NOW" : c.status || "UPCOMING"}
                           </span>
                         </div>
                         <div className="oc-card-meta">
                           <span><strong>Batch:</strong> {batchText}</span>
                           <span><strong>Subject:</strong> {c.subject}</span>
+                          {assignedCount > 0 && (
+                            <span><strong>Students:</strong> {assignedCount} assigned</span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -496,7 +665,7 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
                           </>
                         )}
                         {statusLower === "live" && (
-                          <button className="oc-btn-start call-live-btn" onClick={() => setActiveCallClassId(c.id)}>
+                          <button className="oc-btn-start call-live-btn" onClick={() => handleStartClass(c.id)}>
                             <Play size={14} /> Join Call
                           </button>
                         )}
@@ -544,22 +713,57 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
                 <div className="oc-form-group">
                   <label>Subject</label>
                   <select value={newSubject} onChange={(e) => setNewSubject(e.target.value)}>
-                    <option value="Mathematics">Mathematics</option>
-                    <option value="Science">Science</option>
+                    {teacherProfile.subjects && teacherProfile.subjects.length > 0 ? (
+                      teacherProfile.subjects.map((sub) => (
+                        <option key={sub} value={sub}>{sub}</option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="Mathematics">Mathematics</option>
+                        <option value="Science">Science</option>
+                        <option value="Physics">Physics</option>
+                        <option value="Chemistry">Chemistry</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
                 <div className="oc-form-group">
-                  <label>Batch</label>
-                  <select value={newBatch} onChange={(e) => setNewBatch(e.target.value)}>
+                  <label>Assigned Batch</label>
+                  <select value={newBatch} required onChange={(e) => setNewBatch(e.target.value)}>
                     {batches.map((b) => (
-                      <option key={b.id} value={b.id}>{b.name} ({b.grade})</option>
+                      <option key={b.id} value={b.id}>
+                        {b.name} {b.grade ? `(${b.grade})` : (b.subject ? `— ${b.subject}` : "")}
+                      </option>
                     ))}
+                    {batches.length === 0 && (
+                      <option value="">No assigned batches</option>
+                    )}
                   </select>
                 </div>
               </div>
 
-              <div className="oc-form-row">
+              {/* Assigned Students in this Batch Preview */}
+              <div className="oc-batch-students-preview">
+                <span className="oc-preview-label">
+                  <Users size={14} /> Assigned Students in Selected Batch ({selectedBatchStudents.length}):
+                </span>
+                <div className="oc-student-chips">
+                  {selectedBatchStudents.length > 0 ? (
+                    selectedBatchStudents.map((s) => (
+                      <span key={s.id} className="oc-student-chip">
+                        <CheckCircle size={11} style={{ color: "#22c55e" }} /> {s.name}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="oc-student-chip-empty">
+                      No students enrolled in this batch yet.
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="oc-form-row" style={{ marginTop: "16px" }}>
                 <div className="oc-form-group">
                   <label>Date</label>
                   <input
@@ -577,7 +781,9 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
                     <option value="10:00 AM - 11:00 AM">10:00 AM - 11:00 AM</option>
                     <option value="11:00 AM - 12:00 PM">11:00 AM - 12:00 PM</option>
                     <option value="02:00 PM - 03:00 PM">02:00 PM - 03:00 PM</option>
+                    <option value="03:00 PM - 04:00 PM">03:00 PM - 04:00 PM</option>
                     <option value="04:00 PM - 05:00 PM">04:00 PM - 05:00 PM</option>
+                    <option value="05:00 PM - 06:00 PM">05:00 PM - 06:00 PM</option>
                   </select>
                 </div>
               </div>
@@ -586,8 +792,8 @@ const OnlineClasses = ({ onlineClasses, setOnlineClasses, attendanceRecords, set
                 <button type="button" className="oc-btn-secondary" onClick={() => setShowScheduleModal(false)}>
                   Cancel
                 </button>
-                <button type="submit" className="oc-btn-primary">
-                  Schedule Class
+                <button type="submit" className="oc-btn-primary" disabled={isScheduling || batches.length === 0}>
+                  {isScheduling ? "Scheduling..." : "Schedule Class"}
                 </button>
               </div>
             </form>

@@ -299,49 +299,77 @@ const StudentDashboard = ({ onNavigate }) => {
   const [onlineClassSearch, setOnlineClassSearch] = useState("");
   const [onlineClassSubject, setOnlineClassSubject] = useState("All Subjects");
   const [onlineClassStatus, setOnlineClassStatus] = useState("All Status");
+  const [onlineClasses, setOnlineClasses] = useState([]);
+  const [activeStudentLiveCall, setActiveStudentLiveCall] = useState(null);
+  const [studentMic, setStudentMic] = useState(true);
+  const [studentVideo, setStudentVideo] = useState(true);
+  const studentVideoRef = useRef(null);
 
-  const [onlineClasses, setOnlineClasses] = useState([
-    {
-      id: 1,
-      subject: "Mathematics",
-      title: "Mathematics - Algebra Revision",
-      description: "Advanced Problem Solving Techniques",
-      teacher: "Mr. Rajesh",
-      date: "Today",
-      time: "5:00 PM - 6:00 PM",
-      status: "Live Now",
-      image: mathClassImg
-    },
-    {
-      id: 2,
-      subject: "Physics",
-      title: "Physics - Quantum Mechanics",
-      description: "Understanding Quantum Mechanics",
-      teacher: "Mrs. Anita",
-      date: "24 Jun 2026",
-      time: "4:00 PM - 5:00 PM",
-      status: "Upcoming",
-      image: physicsClassImg
-    },
-    {
-      id: 3,
-      subject: "Chemistry",
-      title: "Chemistry - Organic Chemistry",
-      description: "Introduction to Hydrocarbons",
-      teacher: "Mr. Kumar",
-      date: "18 Jun 2026",
-      time: "3:00 PM - 4:00 PM",
-      status: "Completed",
-      image: chemistryClassImg
+  // Fetch online classes from Supabase for this student's assigned batch alone
+  useEffect(() => {
+    if (!studentProfile) return;
+    const fetchClasses = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("online_classes")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (!error && data) {
+          const studentBatchName = (studentProfile.batchName || "").trim().toLowerCase();
+          const studentBatchId = String(studentProfile.batch_id || "").trim().toLowerCase();
+
+          const myClasses = data.filter((c) => {
+            if (!c) return false;
+            const classTarget = String(c.student || c.batch_id || c.batchId || "").trim().toLowerCase();
+            if (!classTarget || classTarget === "all" || classTarget === "general") return true;
+            return (
+              classTarget === studentBatchName ||
+              classTarget === studentBatchId ||
+              (studentBatchName && classTarget.includes(studentBatchName)) ||
+              (studentBatchId && classTarget.includes(studentBatchId))
+            );
+          });
+          setOnlineClasses(myClasses);
+        }
+      } catch (err) {
+        console.warn("Could not fetch student online classes:", err);
+      }
+    };
+
+    fetchClasses();
+  }, [studentProfile]);
+
+  // Handle student local media stream during live meet
+  useEffect(() => {
+    let stream = null;
+    if (activeStudentLiveCall && studentVideo) {
+      navigator.mediaDevices?.getUserMedia({ video: true, audio: studentMic })
+        .then((s) => {
+          stream = s;
+          if (studentVideoRef.current) {
+            studentVideoRef.current.srcObject = s;
+            studentVideoRef.current.play().catch(() => {});
+          }
+        })
+        .catch((err) => console.warn("Student media access:", err));
     }
-  ]);
+    return () => {
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+    };
+  }, [activeStudentLiveCall, studentVideo, studentMic]);
 
   const filteredOnlineClasses = onlineClasses.filter((item) => {
-    const matchesSearch = item.title.toLowerCase().includes(onlineClassSearch.toLowerCase()) ||
-      item.description.toLowerCase().includes(onlineClassSearch.toLowerCase()) ||
-      item.subject.toLowerCase().includes(onlineClassSearch.toLowerCase());
-    const matchesSubject = onlineClassSubject === "All Subjects" || item.subject === onlineClassSubject;
-    const matchesStatus = onlineClassStatus === "All Status" || item.status === onlineClassStatus;
+    const title = item.title || "";
+    const desc = item.description || "";
+    const subj = item.subject || "";
+    const status = item.status || "upcoming";
+
+    const matchesSearch = title.toLowerCase().includes(onlineClassSearch.toLowerCase()) ||
+      desc.toLowerCase().includes(onlineClassSearch.toLowerCase()) ||
+      subj.toLowerCase().includes(onlineClassSearch.toLowerCase());
+    const matchesSubject = onlineClassSubject === "All Subjects" || subj === onlineClassSubject;
+    const matchesStatus = onlineClassStatus === "All Status" || status.toLowerCase() === onlineClassStatus.toLowerCase() || (onlineClassStatus === "Live Now" && status.toLowerCase() === "live");
     return matchesSearch && matchesSubject && matchesStatus;
   });
 
@@ -1906,29 +1934,161 @@ const StudentDashboard = ({ onNavigate }) => {
                 </div>
               </section>
 
+              {/* Live Meeting Room Modal for Student */}
+              {activeStudentLiveCall && (
+                <div style={{
+                  position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+                  background: "rgba(15, 23, 42, 0.95)", zIndex: 9999,
+                  display: "flex", flexDirection: "column", padding: "20px"
+                }}>
+                  {/* Meet Header */}
+                  <div style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "16px 24px", background: "#1e293b", borderRadius: "12px", marginBottom: "16px", color: "#fff"
+                  }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span style={{ background: "#ef4444", color: "#fff", padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700 }}>
+                          LIVE CLASS
+                        </span>
+                        <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 700 }}>{activeStudentLiveCall.title}</h3>
+                      </div>
+                      <span style={{ fontSize: "13px", color: "#94a3b8" }}>
+                        {activeStudentLiveCall.subject} · Teacher: {activeStudentLiveCall.teacher || "Faculty"}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setActiveStudentLiveCall(null)}
+                      style={{
+                        background: "#dc2626", color: "#fff", border: "none",
+                        padding: "8px 18px", borderRadius: "8px", cursor: "pointer",
+                        fontWeight: 600, fontSize: "13px"
+                      }}
+                    >
+                      Leave Meet
+                    </button>
+                  </div>
+
+                  {/* Video Grid */}
+                  <div style={{
+                    flex: 1, display: "grid", gridTemplateColumns: "2fr 1fr", gap: "16px", minHeight: 0
+                  }}>
+                    {/* Teacher / Main Stage Feed */}
+                    <div style={{
+                      background: "#0f172a", borderRadius: "12px", border: "1px solid #334155",
+                      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                      position: "relative", overflow: "hidden", color: "#fff"
+                    }}>
+                      <div style={{
+                        width: "100px", height: "100px", borderRadius: "50%",
+                        background: "#3b82f6", display: "flex", alignItems: "center",
+                        justifyContent: "center", fontSize: "36px", fontWeight: 700, marginBottom: "12px"
+                      }}>
+                        {activeStudentLiveCall.teacher ? activeStudentLiveCall.teacher.charAt(0).toUpperCase() : "T"}
+                      </div>
+                      <h4 style={{ margin: "0 0 4px", fontSize: "18px" }}>{activeStudentLiveCall.teacher || "Teacher"} (Presenter)</h4>
+                      <p style={{ margin: 0, color: "#22c55e", fontSize: "13px", display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#22c55e", display: "inline-block" }}></span>
+                        Broadcasting Live Lecture
+                      </p>
+                    </div>
+
+                    {/* Student Self Feed & Info */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                      <div style={{
+                        flex: 1, background: "#1e293b", borderRadius: "12px", border: "1px solid #334155",
+                        position: "relative", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center"
+                      }}>
+                        {studentVideo ? (
+                          <video
+                            ref={studentVideoRef}
+                            autoPlay
+                            playsInline
+                            muted
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                          />
+                        ) : (
+                          <div style={{ textAlign: "center", color: "#94a3b8" }}>
+                            <User size={48} style={{ opacity: 0.5, marginBottom: "8px" }} />
+                            <p style={{ margin: 0, fontSize: "13px" }}>Camera Off</p>
+                          </div>
+                        )}
+                        <span style={{
+                          position: "absolute", bottom: "10px", left: "10px",
+                          background: "rgba(0,0,0,0.6)", color: "#fff", padding: "2px 8px", borderRadius: "6px", fontSize: "12px"
+                        }}>
+                          {studentProfile?.name || "You"}
+                        </span>
+                      </div>
+
+                      {/* Meet Info Card */}
+                      <div style={{
+                        background: "#1e293b", borderRadius: "12px", border: "1px solid #334155", padding: "16px", color: "#fff"
+                      }}>
+                        <h5 style={{ margin: "0 0 8px", fontSize: "13px", color: "#94a3b8", textTransform: "uppercase" }}>Class Info</h5>
+                        <p style={{ margin: "0 0 6px", fontSize: "13px" }}><strong>Batch:</strong> {studentProfile?.batchName || "Assigned Batch"}</p>
+                        <p style={{ margin: "0 0 6px", fontSize: "13px" }}><strong>Time:</strong> {activeStudentLiveCall.time}</p>
+                        <p style={{ margin: 0, fontSize: "12px", color: "#22c55e" }}>✓ Attendance automatically being recorded</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Student Controls Bar */}
+                  <div style={{
+                    display: "flex", justifyContent: "center", gap: "16px", padding: "16px 0 0"
+                  }}>
+                    <button
+                      onClick={() => setStudentMic(!studentMic)}
+                      style={{
+                        padding: "12px 24px", borderRadius: "30px", border: "none", cursor: "pointer",
+                        background: studentMic ? "#334155" : "#ef4444", color: "#fff", fontWeight: 600,
+                        display: "flex", alignItems: "center", gap: "8px", fontSize: "13px"
+                      }}
+                    >
+                      {studentMic ? "Mute Mic" : "Unmute Mic"}
+                    </button>
+                    <button
+                      onClick={() => setStudentVideo(!studentVideo)}
+                      style={{
+                        padding: "12px 24px", borderRadius: "30px", border: "none", cursor: "pointer",
+                        background: studentVideo ? "#334155" : "#ef4444", color: "#fff", fontWeight: 600,
+                        display: "flex", alignItems: "center", gap: "8px", fontSize: "13px"
+                      }}
+                    >
+                      {studentVideo ? "Turn Off Video" : "Turn On Video"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <section className="classes-list-container">
                 {filteredOnlineClasses.length > 0 ? (
                   filteredOnlineClasses.map((cls) => {
-                    const isLive = cls.status === "Live Now";
-                    const isUpcoming = cls.status === "Upcoming";
-                    const isCompleted = cls.status === "Completed";
+                    const statusStr = (cls.status || "upcoming").toLowerCase();
+                    const isLive = statusStr === "live" || statusStr === "live now";
+                    const isUpcoming = statusStr === "upcoming";
+                    const isCompleted = statusStr === "completed";
+
+                    let fallbackImg = mathClassImg;
+                    if (cls.subject && cls.subject.toLowerCase().includes("phys")) fallbackImg = physicsClassImg;
+                    else if (cls.subject && cls.subject.toLowerCase().includes("chem")) fallbackImg = chemistryClassImg;
 
                     return (
                       <div key={cls.id} className="class-card">
                         <div className="class-card-left">
                           <div className="class-image-wrap">
-                            <img src={cls.image} alt={cls.title} className="class-image" />
+                            <img src={cls.image || fallbackImg} alt={cls.title} className="class-image" />
                             {isLive && <span className="status-badge-overlay live">LIVE NOW</span>}
                             {isUpcoming && <span className="status-badge-overlay upcoming">UPCOMING</span>}
                             {isCompleted && <span className="status-badge-overlay completed">COMPLETED</span>}
                           </div>
                           <div className="class-info-wrap">
                             <h4>{cls.title}</h4>
-                            <p className="class-desc">{cls.description}</p>
+                            <p className="class-desc">{cls.description || `${cls.subject} live lecture session for your batch.`}</p>
                             <div className="class-teacher-row">
                               <User size={16} className="teacher-icon" />
                               <span className="teacher-label">TEACHER</span>
-                              <span className="teacher-name">{cls.teacher}</span>
+                              <span className="teacher-name">{cls.teacher || "Faculty"}</span>
                             </div>
                           </div>
                         </div>
@@ -1940,13 +2100,13 @@ const StudentDashboard = ({ onNavigate }) => {
                           </div>
                           <div className="class-actions">
                             {isLive && (
-                              <button className="join-class-btn active" onClick={() => alert(`Joining ${cls.title}...`)}>
+                              <button className="join-class-btn active" onClick={() => setActiveStudentLiveCall(cls)}>
                                 <Play size={16} className="btn-icon" /> Join Class
                               </button>
                             )}
                             {isUpcoming && (
                               <>
-                                <button className="outline-btn" onClick={() => alert(`Details for ${cls.title}...`)}>
+                                <button className="outline-btn" onClick={() => alert(`Class: ${cls.title}\nSubject: ${cls.subject}\nTime: ${cls.time}\nDate: ${cls.date}`)}>
                                   View Details
                                 </button>
                                 <button className="join-class-btn locked" disabled>
@@ -1955,9 +2115,9 @@ const StudentDashboard = ({ onNavigate }) => {
                               </>
                             )}
                             {isCompleted && (
-                              <button className="outline-btn" onClick={() => alert(`Details for ${cls.title}...`)}>
-                                View Details
-                              </button>
+                              <span style={{ fontSize: "13px", color: "#16a34a", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}>
+                                <Check size={16} /> Class Completed
+                              </span>
                             )}
                           </div>
                         </div>
@@ -1966,7 +2126,7 @@ const StudentDashboard = ({ onNavigate }) => {
                   })
                 ) : (
                   <div className="no-classes-card">
-                    <p>No online classes found matching criteria.</p>
+                    <p>No online classes scheduled for your batch yet.</p>
                   </div>
                 )}
               </section>

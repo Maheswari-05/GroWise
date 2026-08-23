@@ -190,12 +190,73 @@ export async function addWeeklyTest(test) {
 
 export async function fetchOnlineClasses() {
   try {
-    const { data, error } = await supabase.from('online_classes').select('*');
+    const { data, error } = await supabase.from('online_classes').select('*').order('created_at', { ascending: false });
     if (error) { console.error('fetchOnlineClasses error:', error); return []; }
     return (data || []).map(toCamelCase);
   } catch (e) {
     console.error('fetchOnlineClasses exception:', e);
     return [];
+  }
+}
+
+export async function addOnlineClass(onlineClass) {
+  try {
+    const row = toSnakeCase(onlineClass);
+    delete row.id;
+    delete row.created_at;
+    const { data, error } = await supabase.from('online_classes').insert(row).select().single();
+    if (error) { console.error('addOnlineClass error:', error); return null; }
+    return toCamelCase(data);
+  } catch (e) {
+    console.error('addOnlineClass exception:', e);
+    return null;
+  }
+}
+
+export async function updateOnlineClass(id, updates) {
+  try {
+    const row = toSnakeCase(updates);
+    const { error } = await supabase.from('online_classes').update(row).eq('id', id);
+    if (error) { console.error('updateOnlineClass error:', error); }
+  } catch (e) {
+    console.error('updateOnlineClass exception:', e);
+  }
+}
+
+export async function deleteOnlineClass(id) {
+  try {
+    const { error } = await supabase.from('online_classes').delete().eq('id', id);
+    if (error) { console.error('deleteOnlineClass error:', error); }
+  } catch (e) {
+    console.error('deleteOnlineClass exception:', e);
+  }
+}
+
+export async function addAttendanceLog(log) {
+  try {
+    const row = toSnakeCase(log);
+    delete row.id;
+    delete row.created_at;
+    const { error } = await supabase.from('attendance_logs').insert(row);
+    if (error) { console.error('addAttendanceLog error:', error); }
+  } catch (e) {
+    console.error('addAttendanceLog exception:', e);
+  }
+}
+
+export async function addBatchAttendance(logs) {
+  try {
+    if (!Array.isArray(logs) || logs.length === 0) return;
+    const rows = logs.map(l => {
+      const r = toSnakeCase(l);
+      delete r.id;
+      delete r.created_at;
+      return r;
+    });
+    const { error } = await supabase.from('attendance_logs').insert(rows);
+    if (error) { console.error('addBatchAttendance error:', error); }
+  } catch (e) {
+    console.error('addBatchAttendance exception:', e);
   }
 }
 

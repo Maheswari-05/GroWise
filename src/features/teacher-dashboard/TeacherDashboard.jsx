@@ -365,19 +365,33 @@ const TeacherDashboard = ({ onNavigate }) => {
   const hasUnreadNotifications = notifications.some((n) => !n.read);
   const unreadCount = notifications.filter((n) => !n.read).length;
 
+  // Resolve effective batches & students for this teacher (combines assigned filter with fallback)
+  const effectiveBatches = assignedBatches && assignedBatches.length > 0
+    ? assignedBatches
+    : (batches && batches.length > 0
+        ? batches.filter(b => !teacherProfile.name || b.teacher === teacherProfile.name || (teacherProfile.batches && teacherProfile.batches.includes(b.name)) || (b.subject && teacherProfile.subjects?.includes(b.subject)))
+        : []);
+  const resolvedBatches = effectiveBatches.length > 0 ? effectiveBatches : (batches || []);
+
+  const batchIds = new Set(resolvedBatches.map(b => String(b.id || b.name)));
+  const effectiveStudents = assignedStudents && assignedStudents.length > 0
+    ? assignedStudents
+    : (students || []).filter(s => batchIds.has(String(s.batchId || s.batch_id || s.batch)) || resolvedBatches.some(b => b.name === s.batch || b.name === s.batchId));
+  const resolvedStudents = effectiveStudents.length > 0 ? effectiveStudents : (students || []);
+
   const renderContent = () => {
     switch (activeNav) {
       case "batches":
-        return <MyBatches batches={assignedBatches} students={assignedStudents} />;
+        return <MyBatches batches={resolvedBatches} students={resolvedStudents} />;
       case "materials":
-        return <StudyMaterials materials={materials} setMaterials={setMaterials} batches={assignedBatches} />;
+        return <StudyMaterials materials={materials} setMaterials={setMaterials} batches={resolvedBatches} />;
       case "assignments":
         return (
           <Assignments
             assignments={assignments}
             setAssignments={setAssignments}
-            batches={assignedBatches}
-            students={assignedStudents}
+            batches={resolvedBatches}
+            students={resolvedStudents}
           />
         );
       case "tests":
@@ -385,8 +399,8 @@ const TeacherDashboard = ({ onNavigate }) => {
           <WeeklyTests
             weeklyTests={weeklyTests}
             setWeeklyTests={setWeeklyTests}
-            students={assignedStudents}
-            batches={assignedBatches}
+            students={resolvedStudents}
+            batches={resolvedBatches}
           />
         );
       case "classes":
@@ -396,8 +410,8 @@ const TeacherDashboard = ({ onNavigate }) => {
             setOnlineClasses={setOnlineClasses}
             attendanceRecords={attendanceRecords}
             setAttendanceRecords={setAttendanceRecords}
-            students={assignedStudents}
-            batches={assignedBatches}
+            students={resolvedStudents}
+            batches={resolvedBatches}
             teacherProfile={teacherProfile}
           />
         );
@@ -406,8 +420,8 @@ const TeacherDashboard = ({ onNavigate }) => {
           <Attendance
             attendanceRecords={attendanceRecords}
             setAttendanceRecords={setAttendanceRecords}
-            students={assignedStudents}
-            batches={assignedBatches}
+            students={resolvedStudents}
+            batches={resolvedBatches}
           />
         );
       case "reports":
@@ -415,8 +429,8 @@ const TeacherDashboard = ({ onNavigate }) => {
           <Performance
             weeklyTests={weeklyTests}
             attendanceRecords={attendanceRecords}
-            students={assignedStudents}
-            batches={assignedBatches}
+            students={resolvedStudents}
+            batches={resolvedBatches}
           />
         );
       case "notifications":
@@ -437,8 +451,8 @@ const TeacherDashboard = ({ onNavigate }) => {
         return (
           <>
             <SummaryCards
-              batches={assignedBatches}
-              students={assignedStudents}
+              batches={resolvedBatches}
+              students={resolvedStudents}
               onlineClasses={onlineClasses}
               assignments={assignments}
               teacherProfile={teacherProfile}
@@ -448,14 +462,14 @@ const TeacherDashboard = ({ onNavigate }) => {
             <div className="td-row-two">
               <TodaySchedule 
                 onlineClasses={onlineClasses} 
-                batches={assignedBatches} 
+                batches={resolvedBatches} 
                 teacherProfile={teacherProfile}
                 setActiveNav={handleSetActiveNav} 
               />
-              <UpcomingTests weeklyTests={weeklyTests} batches={assignedBatches} setActiveNav={handleSetActiveNav} />
+              <UpcomingTests weeklyTests={weeklyTests} batches={resolvedBatches} setActiveNav={handleSetActiveNav} />
             </div>
             <div className="td-row-three">
-              <RecentSubmissions assignments={assignments} students={assignedStudents.length ? assignedStudents : students} setActiveNav={handleSetActiveNav} />
+              <RecentSubmissions assignments={assignments} students={resolvedStudents} setActiveNav={handleSetActiveNav} />
               <NotificationsCard notifications={notifications} setActiveNav={handleSetActiveNav} />
             </div>
           </>
