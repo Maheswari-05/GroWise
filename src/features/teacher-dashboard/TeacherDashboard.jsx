@@ -116,11 +116,11 @@ const loadLoggedTeacherProfile = () => {
         avatar: matched.avatar || "",
         email: matched.email || `${name.toLowerCase().replace(/\s+/g, ".")}@growise.com`,
         phone: matched.contact || matched.phone || "+91 98765 43210",
-        qualification: matched.qualification || "M.Sc. in Education, B.Ed.",
-        experience: matched.experience || "6+ Years Teaching Experience",
-        subjects: Array.isArray(matched.subjects) ? matched.subjects : matched.subject ? [matched.subject] : ["Mathematics", "Science"],
-        batches: matched.batches || ["Batch A (Grade 10)", "Batch C (Grade 9)"],
-        joiningDate: matched.joiningDate || "June 12, 2024",
+        qualification: matched.qualification || "Faculty",
+        experience: matched.experience || "Teaching Faculty",
+        subjects: Array.isArray(matched.subjects) ? matched.subjects : matched.subject ? [matched.subject] : ["Mathematics"],
+        batches: Array.isArray(matched.batches) ? matched.batches : [],
+        joiningDate: matched.joiningDate || "—",
       };
     }
   } catch (err) {
@@ -239,55 +239,95 @@ const TeacherDashboard = ({ onNavigate }) => {
     const fetchProfileAndBatches = async () => {
       try {
         const loggedId = localStorage.getItem("gw_logged_teacher_id");
-        if (!loggedId) return;
+        const loggedTeacherRaw = localStorage.getItem("gw_logged_teacher");
+        let loggedObj = null;
+        try { if (loggedTeacherRaw) loggedObj = JSON.parse(loggedTeacherRaw); } catch {}
 
         // 1. Fetch teacher profile from database
-        const { data: teacher, error: teacherError } = await supabase
-          .from("teachers")
-          .select("*")
-          .eq("id", loggedId)
-          .maybeSingle();
-
-        if (teacherError || !teacher) {
-          console.error("Error fetching teacher profile from Supabase:", teacherError);
-          return;
+        let teacher = null;
+        if (loggedId) {
+          const { data } = await supabase
+            .from("teachers")
+            .select("*")
+            .eq("id", loggedId)
+            .maybeSingle();
+          if (data) teacher = data;
         }
 
-        // 2. Fetch batches taught by this teacher from database
-        const { data: batchesData, error: batchesError } = await supabase
-          .from("batches")
-          .select("*")
-          .eq("teacher", teacher.name);
+        if (!teacher && loggedObj?.email) {
+          const { data } = await supabase
+            .from("teachers")
+            .select("*")
+            .ilike("email", loggedObj.email.trim())
+            .maybeSingle();
+          if (data) teacher = data;
+        }
+
+        if (!teacher && loggedObj?.name) {
+          const { data } = await supabase
+            .from("teachers")
+            .select("*")
+            .ilike("name", loggedObj.name.trim())
+            .maybeSingle();
+          if (data) teacher = data;
+        }
+
+        const teacherName = (teacher?.name || loggedObj?.name || "").trim().toLowerCase();
+        const teacherId = teacher?.id || loggedId || "";
+
+        // 2. Fetch all batches and students from database
+        const [{ data: batchesData }, { data: studentsData }] = await Promise.all([
+          supabase.from("batches").select("*"),
+          supabase.from("students").select("*"),
+        ]);
 
         let activeBatches = [];
         let activeStudents = [];
-        if (!batchesError && batchesData) {
-          activeBatches = batchesData;
 
-          // 3. Fetch students enrolled in those batches from Supabase
-          const { data: studentsData, error: studentsError } = await supabase
-            .from("students")
-            .select("*");
+        if (batchesData && teacherName) {
+          // Filter batches explicitly assigned to this teacher
+          activeBatches = batchesData.filter((b) => {
+            if (!b) return false;
+            const bTeacher = (b.teacher || "").trim().toLowerCase();
+            const bTeacherId = String(b.teacher_id || "").trim();
+            return (
+              (bTeacher && bTeacher === teacherName) ||
+              (bTeacherId && bTeacherId === teacherId)
+            );
+          });
+        }
 
-          if (!studentsError && studentsData) {
-            const batchIds = batchesData.map(b => b.id);
-            // Map to unified student format matching local storage format
-            activeStudents = studentsData
-              .filter(s => batchIds.includes(s.batch_id))
-              .map(s => ({
-                id: s.id,
-                name: s.name,
-                contact: s.contact,
-                email: s.email || "",
-                dob: s.dob || "",
-                address: s.address || "",
-                parentName: s.parent_name || "",
-                parentContact: s.parent_contact || "",
-                subjects: s.subjects || [],
-                batchId: s.batch_id || "",
-                status: s.status || "Active"
-              }));
-          }
+        if (studentsData && activeBatches.length > 0) {
+          const batchIds = new Set(activeBatches.map((b) => String(b.id)));
+          const batchNames = new Set(activeBatches.map((b) => (b.name || "").trim().toLowerCase()));
+
+          activeStudents = studentsData
+            .filter((s) => {
+              if (!s) return false;
+              const sBatchId = String(s.batch_id || s.batchId || "");
+              const sBatchName = (s.batch || s.batchName || "").trim().toLowerCase();
+              const sTeacherId = String(s.teacher_id || s.teacherId || "");
+
+              return (
+                (sTeacherId && sTeacherId === teacherId) ||
+                (sBatchId && batchIds.has(sBatchId)) ||
+                (sBatchName && batchNames.has(sBatchName))
+              );
+            })
+            .map((s) => ({
+              id: s.id,
+              name: s.name,
+              contact: s.contact,
+              email: s.email || "",
+              dob: s.dob || "",
+              address: s.address || "",
+              parentName: s.parent_name || s.parentName || "",
+              parentContact: s.parent_contact || s.parentContact || "",
+              subjects: s.subjects || [],
+              batchId: s.batch_id || s.batchId || "",
+              batch: s.batch || "",
+              status: s.status || "Active",
+            }));
         }
 
         const formatDate = (dateStr) => {
@@ -298,25 +338,27 @@ const TeacherDashboard = ({ onNavigate }) => {
         };
 
         if (active) {
-          const exp = teacher.qualification?.toLowerCase().includes("exp")
-            ? teacher.qualification.split(",").find(part => part.toLowerCase().includes("exp"))?.trim() || "Professional Faculty"
-            : "Professional Faculty";
-
           setAssignedBatches(activeBatches);
           setAssignedStudents(activeStudents);
 
-          setTeacherProfile({
-            id: teacher.id,
-            name: teacher.name,
-            avatar: teacher.avatar || "",
-            email: teacher.email || "",
-            phone: teacher.contact || "",
-            qualification: teacher.qualification || "",
-            experience: exp,
-            subjects: teacher.subjects || [],
-            batches: activeBatches.map(b => b.name),
-            joiningDate: formatDate(teacher.created_at),
-          });
+          if (teacher) {
+            const exp = teacher.qualification?.toLowerCase().includes("exp")
+              ? teacher.qualification.split(",").find(part => part.toLowerCase().includes("exp"))?.trim() || "Teaching Faculty"
+              : "Teaching Faculty";
+
+            setTeacherProfile({
+              id: teacher.id,
+              name: teacher.name,
+              avatar: teacher.avatar || "",
+              email: teacher.email || "",
+              phone: teacher.contact || "",
+              qualification: teacher.qualification || "Faculty",
+              experience: exp,
+              subjects: teacher.subjects || [],
+              batches: activeBatches.map((b) => b.name),
+              joiningDate: formatDate(teacher.created_at),
+            });
+          }
         }
       } catch (err) {
         console.error("Failed to fetch teacher profile/batches:", err);
@@ -329,7 +371,6 @@ const TeacherDashboard = ({ onNavigate }) => {
       active = false;
     };
   }, []);
-
 
   // Sync state changes to LocalStorage
   useEffect(() => {
@@ -365,33 +406,19 @@ const TeacherDashboard = ({ onNavigate }) => {
   const hasUnreadNotifications = notifications.some((n) => !n.read);
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  // Resolve effective batches & students for this teacher (combines assigned filter with fallback)
-  const effectiveBatches = assignedBatches && assignedBatches.length > 0
-    ? assignedBatches
-    : (batches && batches.length > 0
-        ? batches.filter(b => !teacherProfile.name || b.teacher === teacherProfile.name || (teacherProfile.batches && teacherProfile.batches.includes(b.name)) || (b.subject && teacherProfile.subjects?.includes(b.subject)))
-        : []);
-  const resolvedBatches = effectiveBatches.length > 0 ? effectiveBatches : (batches || []);
-
-  const batchIds = new Set(resolvedBatches.map(b => String(b.id || b.name)));
-  const effectiveStudents = assignedStudents && assignedStudents.length > 0
-    ? assignedStudents
-    : (students || []).filter(s => batchIds.has(String(s.batchId || s.batch_id || s.batch)) || resolvedBatches.some(b => b.name === s.batch || b.name === s.batchId));
-  const resolvedStudents = effectiveStudents.length > 0 ? effectiveStudents : (students || []);
-
   const renderContent = () => {
     switch (activeNav) {
       case "batches":
-        return <MyBatches batches={resolvedBatches} students={resolvedStudents} />;
+        return <MyBatches batches={assignedBatches} students={assignedStudents} />;
       case "materials":
-        return <StudyMaterials materials={materials} setMaterials={setMaterials} batches={resolvedBatches} />;
+        return <StudyMaterials materials={materials} setMaterials={setMaterials} batches={assignedBatches} />;
       case "assignments":
         return (
           <Assignments
             assignments={assignments}
             setAssignments={setAssignments}
-            batches={resolvedBatches}
-            students={resolvedStudents}
+            batches={assignedBatches}
+            students={assignedStudents}
           />
         );
       case "tests":
@@ -399,8 +426,8 @@ const TeacherDashboard = ({ onNavigate }) => {
           <WeeklyTests
             weeklyTests={weeklyTests}
             setWeeklyTests={setWeeklyTests}
-            students={resolvedStudents}
-            batches={resolvedBatches}
+            students={assignedStudents}
+            batches={assignedBatches}
           />
         );
       case "classes":
@@ -410,8 +437,8 @@ const TeacherDashboard = ({ onNavigate }) => {
             setOnlineClasses={setOnlineClasses}
             attendanceRecords={attendanceRecords}
             setAttendanceRecords={setAttendanceRecords}
-            students={resolvedStudents}
-            batches={resolvedBatches}
+            students={assignedStudents}
+            batches={assignedBatches}
             teacherProfile={teacherProfile}
           />
         );
@@ -420,8 +447,8 @@ const TeacherDashboard = ({ onNavigate }) => {
           <Attendance
             attendanceRecords={attendanceRecords}
             setAttendanceRecords={setAttendanceRecords}
-            students={resolvedStudents}
-            batches={resolvedBatches}
+            students={assignedStudents}
+            batches={assignedBatches}
           />
         );
       case "reports":
@@ -429,8 +456,8 @@ const TeacherDashboard = ({ onNavigate }) => {
           <Performance
             weeklyTests={weeklyTests}
             attendanceRecords={attendanceRecords}
-            students={resolvedStudents}
-            batches={resolvedBatches}
+            students={assignedStudents}
+            batches={assignedBatches}
           />
         );
       case "notifications":
@@ -451,8 +478,8 @@ const TeacherDashboard = ({ onNavigate }) => {
         return (
           <>
             <SummaryCards
-              batches={resolvedBatches}
-              students={resolvedStudents}
+              batches={assignedBatches}
+              students={assignedStudents}
               onlineClasses={onlineClasses}
               assignments={assignments}
               teacherProfile={teacherProfile}
@@ -462,14 +489,14 @@ const TeacherDashboard = ({ onNavigate }) => {
             <div className="td-row-two">
               <TodaySchedule 
                 onlineClasses={onlineClasses} 
-                batches={resolvedBatches} 
+                batches={assignedBatches} 
                 teacherProfile={teacherProfile}
                 setActiveNav={handleSetActiveNav} 
               />
-              <UpcomingTests weeklyTests={weeklyTests} batches={resolvedBatches} setActiveNav={handleSetActiveNav} />
+              <UpcomingTests weeklyTests={weeklyTests} batches={assignedBatches} setActiveNav={handleSetActiveNav} />
             </div>
             <div className="td-row-three">
-              <RecentSubmissions assignments={assignments} students={resolvedStudents} setActiveNav={handleSetActiveNav} />
+              <RecentSubmissions assignments={assignments} students={assignedStudents} setActiveNav={handleSetActiveNav} />
               <NotificationsCard notifications={notifications} setActiveNav={handleSetActiveNav} />
             </div>
           </>
