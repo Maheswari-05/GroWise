@@ -79,6 +79,10 @@ const StudentsTab = ({
   }, [initialStudentData]);
 
   const handleEditClick = (student) => {
+    const studentBatch = batches.find(b => b.id === student.batchId);
+    const matchedTeacher = teachers.find(t => t.name === studentBatch?.teacher);
+    const resolvedTeacherId = matchedTeacher ? matchedTeacher.id : "";
+
     setFormData({
       id: student.id,
       name: student.name,
@@ -90,7 +94,7 @@ const StudentsTab = ({
       parentContact: student.parentContact || "",
       subjects: student.subjects || [],
       batchId: student.batchId || "",
-      teacherId: student.teacherId || "",
+      teacherId: resolvedTeacherId,
       username: student.username || student.name.split(" ")[0],
       password: student.password || "Password@123",
       status: student.status || "Active"
@@ -462,9 +466,11 @@ const StudentsTab = ({
                     onChange={(e) => setFormData({...formData, teacherId: e.target.value})}
                   >
                     <option value="">-- Choose Teacher --</option>
-                    {teachers.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
+                    {teachers
+                      .filter(t => t.name.toLowerCase().includes("alice") || t.name.toLowerCase().includes("rajesh"))
+                      .map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
                   </select>
                 </div>
 

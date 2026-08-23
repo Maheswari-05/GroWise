@@ -1,21 +1,12 @@
 import { GraduationCap, Users, Video, ClipboardCheck, TrendingUp } from "lucide-react";
 import "./SummaryCards.css";
 
-const SummaryCards = ({ batches = [], students = [], onlineClasses = [], assignments = [], setActiveNav }) => {
+const SummaryCards = ({ batches = [], students = [], onlineClasses = [], assignments = [], teacherProfile = {}, setActiveNav }) => {
   const batchCount = String(batches.length).padStart(2, "0");
   const studentCount = String(students.length).padStart(2, "0");
 
-  const todayClassesCount = String(
-    onlineClasses.filter((c) => c.status === "upcoming" || c.status === "live" || c.date === "Today").length
-  ).padStart(2, "0");
-
-  let pendingCount = 0;
-  assignments.forEach((a) => {
-    if (a.submissions && Array.isArray(a.submissions)) {
-      pendingCount += a.submissions.filter((s) => s.status === "submitted" || s.status === "pending").length;
-    }
-  });
-  const pendingFormatted = String(pendingCount).padStart(2, "0");
+  const todayClassesCount = String(teacherProfile.subjects?.length || 0).padStart(2, "0");
+  const pendingFormatted = "00";
 
   const navTargetMap = {
     batches: "batches",

@@ -140,14 +140,6 @@ const Profile = ({ teacherProfile, setTeacherProfile }) => {
                   <span className="detail-value">{teacherProfile.experience}</span>
                 </div>
               </div>
-
-              <div className="profile-detail-item">
-                <div className="profile-icon-box"><Calendar size={16} /></div>
-                <div className="profile-detail-text">
-                  <span className="detail-label">Joining Date</span>
-                  <span className="detail-value">{teacherProfile.joiningDate}</span>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -163,17 +155,6 @@ const Profile = ({ teacherProfile, setTeacherProfile }) => {
                   {teacherProfile.subjects.map((sub, i) => (
                     <span key={i} className="workload-tag sub-tag">
                       <BookOpen size={13} /> {sub}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="workload-section">
-                <span className="workload-title">Active Batches</span>
-                <div className="workload-tags">
-                  {teacherProfile.batches.map((batch, i) => (
-                    <span key={i} className="workload-tag batch-tag">
-                      <GraduationCap size={13} /> {batch}
                     </span>
                   ))}
                 </div>

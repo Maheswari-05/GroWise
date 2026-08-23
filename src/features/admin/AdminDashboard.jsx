@@ -247,6 +247,18 @@ const AdminDashboard = ({ onNavigate }) => {
   const handleAddStudent = async (newStu) => {
     try {
       await adminService.addStudent(newStu);
+
+      // Update the batch's teacher to the selected teacher's name in the database
+      if (newStu.batchId && newStu.teacherId) {
+        const teacherObj = teachers.find(t => t.id === newStu.teacherId);
+        if (teacherObj) {
+          await supabase
+            .from("batches")
+            .update({ teacher: teacherObj.name })
+            .eq("id", newStu.batchId);
+        }
+      }
+
       setStudents((currentStudents) => {
         const nextStudent = {
           ...newStu,
@@ -295,6 +307,18 @@ const AdminDashboard = ({ onNavigate }) => {
   const handleUpdateStudent = async (updatedStu) => {
     try {
       await adminService.updateStudent(updatedStu);
+
+      // Update the batch's teacher to the selected teacher's name in the database
+      if (updatedStu.batchId && updatedStu.teacherId) {
+        const teacherObj = teachers.find(t => t.id === updatedStu.teacherId);
+        if (teacherObj) {
+          await supabase
+            .from("batches")
+            .update({ teacher: teacherObj.name })
+            .eq("id", updatedStu.batchId);
+        }
+      }
+
       setStudents((currentStudents) =>
         currentStudents.map((student) =>
           student.id === updatedStu.id || (updatedStu.email && student.email === updatedStu.email)

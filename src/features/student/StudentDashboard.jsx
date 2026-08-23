@@ -44,6 +44,9 @@ const StudentDashboard = ({ onNavigate }) => {
   const [studentProfile, setStudentProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState("");
+  const [attendanceLogs, setAttendanceLogs] = useState([]);
+  const [loadingAttendance, setLoadingAttendance] = useState(true);
+  const [attendanceError, setAttendanceError] = useState("");
 
   const getDisplayValue = (value, fallback = "—") => {
     if (value === null || value === undefined) return fallback;
@@ -51,7 +54,7 @@ const StudentDashboard = ({ onNavigate }) => {
     return text ? value : fallback;
   };
 
-  const normalizeStudentProfile = (student, batchName, assignedTeachers) => ({
+  const normalizeStudentProfile = (student, batchName, assignedTeachers, batchSchedule = "—") => ({
     ...student,
     name: student?.name || "",
     email: student?.email || "",
@@ -59,6 +62,7 @@ const StudentDashboard = ({ onNavigate }) => {
     dob: student?.dob || "",
     address: student?.address || "",
     batchName,
+    batchSchedule,
     assignedTeachers,
     admissionDate: student?.created_at || "",
   });
@@ -84,7 +88,9 @@ const StudentDashboard = ({ onNavigate }) => {
     const fetchStudentProfile = async () => {
       try {
         setLoadingProfile(true);
+        setLoadingAttendance(true);
         setProfileError("");
+        setAttendanceError("");
 
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -115,11 +121,14 @@ const StudentDashboard = ({ onNavigate }) => {
           if (active) {
             setProfileError("Student profile not found in database.");
             setLoadingProfile(false);
+            setLoadingAttendance(false);
           }
           return;
         }
 
         let batchName = "Not Assigned";
+        let batchSchedule = "—";
+        let assignedTeachers = [];
 
         if (student.batch_id) {
           const { data: batchData, error: batchError } = await supabase
@@ -130,11 +139,39 @@ const StudentDashboard = ({ onNavigate }) => {
 
           if (!batchError && batchData) {
             batchName = batchData.name;
+            batchSchedule = batchData.schedule || "—";
+            if (batchData.teacher) {
+              assignedTeachers = [batchData.teacher];
+            }
           }
         }
 
+        // Fetch attendance logs for this student name
+        let attLogs = [];
+        let attError = null;
+        try {
+          const { data, error } = await supabase
+            .from("attendance_logs")
+            .select("*")
+            .eq("student", student.name)
+            .order("date", { ascending: false });
+          if (error) {
+            attError = error;
+          } else {
+            attLogs = data || [];
+          }
+        } catch (e) {
+          console.error("Exception fetching attendance logs:", e);
+          attError = e;
+        }
+
         if (active) {
-          setStudentProfile(normalizeStudentProfile(student, batchName, []));
+          setStudentProfile(normalizeStudentProfile(student, batchName, assignedTeachers, batchSchedule));
+          setAttendanceLogs(attLogs);
+          if (attError) {
+            setAttendanceError("Failed to load attendance logs.");
+          }
+          setLoadingAttendance(false);
           setLoadingProfile(false);
         }
       } catch (err) {
@@ -142,6 +179,7 @@ const StudentDashboard = ({ onNavigate }) => {
         if (active) {
           setProfileError(err.message || "Failed to load student profile.");
           setLoadingProfile(false);
+          setLoadingAttendance(false);
         }
       }
     };
@@ -375,16 +413,43 @@ const StudentDashboard = ({ onNavigate }) => {
     setActiveDetailsAssignment(asgn);
   };
 
-  const attendanceHistory = [
-    { date: "Oct 06, 2023", subject: "Mathematics", teacher: "Alan Turing", batch: "Morning B1", time: "09:00 - 10:30", status: "Present" },
-    { date: "Oct 05, 2023", subject: "Physics", teacher: "Richard Feynman", batch: "Morning B1", time: "11:00 - 12:30", status: "Present" },
-    { date: "Oct 03, 2023", subject: "Chemistry", teacher: "Marie Curie", batch: "Evening C2", time: "16:00 - 17:30", status: "Absent" },
-    { date: "Oct 02, 2023", subject: "Chemistry", teacher: "Marie Curie", batch: "Evening C2", time: "16:00 - 17:30", status: "Present" },
-    { date: "Oct 01, 2023", subject: "Mathematics", teacher: "Alan Turing", batch: "Morning B1", time: "09:00 - 10:30", status: "Present" },
-  ];
+  const attendanceHistory = attendanceLogs;
 
   const filteredHistory = attendanceHistory.filter((record) => {
     return historyFilter === "All Subjects" || record.subject === historyFilter;
+  });
+
+  const totalLogs = attendanceLogs.length;
+  const presentLogsCount = attendanceLogs.filter(log => {
+    const statusLower = log.status?.toLowerCase();
+    return statusLower === "present" || statusLower === "late";
+  }).length;
+  const overallPercentage = totalLogs > 0 ? Math.round((presentLogsCount / totalLogs) * 100) : 0;
+
+  const subjectsList = Array.from(new Set([
+    ...(Array.isArray(studentProfile?.subjects) ? studentProfile.subjects : []),
+    ...attendanceLogs.map(l => l.subject).filter(Boolean)
+  ]));
+
+  const subjectAttendance = subjectsList.map(subjectName => {
+    const logsForSubject = attendanceLogs.filter(l => l.subject === subjectName);
+    const totalForSubject = logsForSubject.length;
+    const presentForSubject = logsForSubject.filter(log => {
+      const statusLower = log.status?.toLowerCase();
+      return statusLower === "present" || statusLower === "late";
+    }).length;
+    const rateForSubject = totalForSubject > 0 ? Math.round((presentForSubject / totalForSubject) * 100) : 100;
+    
+    const firstLogWithTeacher = logsForSubject.find(l => l.teacher);
+    const teacherName = firstLogWithTeacher?.teacher || "TBD";
+
+    return {
+      subject: subjectName,
+      total: totalForSubject,
+      present: presentForSubject,
+      rate: rateForSubject,
+      teacher: teacherName
+    };
   });
 
   const [notificationSearch, setNotificationSearch] = useState("");
@@ -626,7 +691,7 @@ const StudentDashboard = ({ onNavigate }) => {
             <div className="dashboard-dashboard-view">
               {/* Welcome Section */}
               <section className="welcome-section">
-                <h2>Good Morning, Sneha 👋</h2>
+                <h2>Good Morning, {studentProfile?.name || "Student"} 👋</h2>
                 <p>Welcome back! Here's your academic progress today.</p>
               </section>
 
@@ -659,9 +724,9 @@ const StudentDashboard = ({ onNavigate }) => {
                   </div>
                   <div className="card-middle">
                     <div className="card-value-row">
-                      <span className="card-value-large">92%</span>
+                      <span className="card-value-large">{overallPercentage}%</span>
                     </div>
-                    <p className="card-subtitle">46 Days Present</p>
+                    <p className="card-subtitle">{presentLogsCount} Days Present</p>
                   </div>
                 </div>
 
@@ -909,191 +974,280 @@ const StudentDashboard = ({ onNavigate }) => {
                 <p>Track your attendance here!</p>
               </section>
 
-              {/* Summary Cards Row (3 Cards) */}
-              <section className="attendance-summary-cards">
-                {/* Card 1: Overall Attendance */}
-                <div className="attendance-summary-card">
-                  <div className="attendance-card-info">
-                    <span className="card-badge gray">OVERALL ATTENDANCE</span>
-                    <span className="attendance-large-val">92%</span>
-                    <span className="attendance-badge-text green">Excellent Attendance</span>
-                  </div>
-                  <div className="circular-progress-wrapper">
-                    <svg className="circular-svg" viewBox="0 0 36 36">
-                      <path
-                        className="circle-bg"
-                        d="M18 2.0845
-                          a 15.9155 15.9155 0 0 1 0 31.831
-                          a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                      <path
-                        className="circle-fill-bar"
-                        strokeDasharray="92, 100"
-                        d="M18 2.0845
-                          a 15.9155 15.9155 0 0 1 0 31.831
-                          a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                    </svg>
-                    <div className="circle-text">92%</div>
-                  </div>
+              {loadingAttendance ? (
+                <div className="attendance-loading" style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "60px 20px",
+                  background: "#ffffff",
+                  borderRadius: "20px",
+                  border: "1px solid rgba(226, 232, 240, 0.8)",
+                  boxShadow: "0 6px 24px rgba(30, 42, 70, 0.05)",
+                  color: "#64748b"
+                }}>
+                  <div style={{
+                    width: "40px",
+                    height: "40px",
+                    border: "4px solid rgba(0,0,0,0.05)",
+                    borderRadius: "50%",
+                    borderTopColor: "#2D6BFF",
+                    animation: "spin 1s linear infinite",
+                    marginBottom: "16px"
+                  }}></div>
+                  <p style={{ fontSize: "15px", fontWeight: 600 }}>Loading attendance records...</p>
+                  <style>{`
+                    @keyframes spin {
+                      to { transform: rotate(360deg); }
+                    }
+                  `}</style>
                 </div>
-
-                {/* Card 2: Classes Attended */}
-                <div className="attendance-summary-card">
-                  <div className="attendance-card-info">
-                    <span className="card-badge gray">CLASSES ATTENDED</span>
-                    <span className="attendance-large-val">46</span>
-                    <span className="attendance-badge-subtitle">Out of 50 classes</span>
-                  </div>
-                  <div className="attendance-card-icon-wrap blue-icon">
-                    <CheckCircle size={24} />
-                  </div>
+              ) : attendanceError ? (
+                <div className="attendance-error" style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "40px 20px",
+                  background: "#ffffff",
+                  borderRadius: "20px",
+                  border: "1px solid rgba(226, 232, 240, 0.8)",
+                  boxShadow: "0 6px 24px rgba(30, 42, 70, 0.05)",
+                  color: "#dc2626"
+                }}>
+                  <div style={{ fontSize: "2.5rem", marginBottom: "12px" }}>⚠️</div>
+                  <p style={{ fontSize: "15px", fontWeight: 600 }}>{attendanceError}</p>
                 </div>
-
-                {/* Card 3: Enrolled Subjects */}
-                <div className="attendance-summary-card">
-                  <div className="attendance-card-info">
-                    <span className="card-badge gray">ENROLLED SUBJECTS</span>
-                    <span className="attendance-large-val">3</span>
-                    <span className="attendance-badge-subtitle">Math, Phys, Chem</span>
+              ) : attendanceLogs.length === 0 ? (
+                <div className="attendance-empty" style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "60px 40px",
+                  textAlign: "center",
+                  background: "#ffffff",
+                  borderRadius: "20px",
+                  border: "1px solid rgba(226, 232, 240, 0.8)",
+                  boxShadow: "0 6px 24px rgba(30, 42, 70, 0.05)"
+                }}>
+                  <div style={{
+                    width: "64px",
+                    height: "64px",
+                    borderRadius: "50%",
+                    backgroundColor: "#f8fafc",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: "16px",
+                    color: "#94a3b8"
+                  }}>
+                    <CalendarDays size={32} />
                   </div>
-                  <div className="attendance-card-icon-wrap indigo-icon">
-                    <BookOpen size={24} />
-                  </div>
+                  <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#1e2a46", marginBottom: "8px" }}>No Attendance Records Found</h3>
+                  <p style={{ color: "#64748b", fontSize: "14.5px", maxWidth: "340px", margin: "0 auto 16px" }}>You do not have any registered attendance records in the database.</p>
                 </div>
-              </section>
+              ) : (
+                <>
+                  {/* Summary Cards Row (3 Cards) */}
+                  <section className="attendance-summary-cards">
+                    {/* Card 1: Overall Attendance */}
+                    <div className="attendance-summary-card">
+                      <div className="attendance-card-info">
+                        <span className="card-badge gray">OVERALL ATTENDANCE</span>
+                        <span className="attendance-large-val">{overallPercentage}%</span>
+                        {overallPercentage >= 90 ? (
+                          <span className="attendance-badge-text green">Excellent Attendance</span>
+                        ) : overallPercentage >= 75 ? (
+                          <span className="attendance-badge-text" style={{ color: "#d97706" }}>Good Attendance</span>
+                        ) : (
+                          <span className="attendance-badge-text" style={{ color: "#dc2626" }}>Low Attendance</span>
+                        )}
+                      </div>
+                      <div className="circular-progress-wrapper">
+                        <svg className="circular-svg" viewBox="0 0 36 36">
+                          <path
+                            className="circle-bg"
+                            d="M18 2.0845
+                              a 15.9155 15.9155 0 0 1 0 31.831
+                              a 15.9155 15.9155 0 0 1 0 -31.831"
+                          />
+                          <path
+                            className="circle-fill-bar"
+                            strokeDasharray={`${overallPercentage}, 100`}
+                            d="M18 2.0845
+                              a 15.9155 15.9155 0 0 1 0 31.831
+                              a 15.9155 15.9155 0 0 1 0 -31.831"
+                          />
+                        </svg>
+                        <div className="circle-text">{overallPercentage}%</div>
+                      </div>
+                    </div>
 
-              {/* Subject-wise Attendance */}
-              <section className="subject-attendance-section">
-                <h3 className="section-title">Subject-wise Attendance</h3>
-                <div className="subject-cards-grid">
-                  {/* Mathematics */}
-                  <div className="subject-attendance-card">
-                    <div className="subject-card-top">
-                      <div className="subject-icon-box math-box">
-                        <BookOpen size={20} />
+                    {/* Card 2: Classes Attended */}
+                    <div className="attendance-summary-card">
+                      <div className="attendance-card-info">
+                        <span className="card-badge gray">CLASSES ATTENDED</span>
+                        <span className="attendance-large-val">{presentLogsCount}</span>
+                        <span className="attendance-badge-subtitle">Out of {totalLogs} classes</span>
                       </div>
-                      <div className="subject-title-details">
-                        <h4>Mathematics</h4>
-                        <p>Prof. Alan Turing</p>
+                      <div className="attendance-card-icon-wrap blue-icon">
+                        <CheckCircle size={24} />
                       </div>
-                      <span className="subject-pct-val math-pct">95%</span>
                     </div>
-                    <div className="subject-progress-track">
-                      <div className="subject-progress-fill math-fill" style={{ width: "95%" }}></div>
-                    </div>
-                    <div className="subject-card-bottom">
-                      <span>Present: 19 Sessions</span>
-                      <span>Total: 20</span>
-                    </div>
-                  </div>
 
-                  {/* Physics */}
-                  <div className="subject-attendance-card">
-                    <div className="subject-card-top">
-                      <div className="subject-icon-box phys-box">
-                        <Award size={20} />
+                    {/* Card 3: Enrolled Subjects */}
+                    <div className="attendance-summary-card">
+                      <div className="attendance-card-info">
+                        <span className="card-badge gray">ENROLLED SUBJECTS</span>
+                        <span className="attendance-large-val">{subjectsList.length}</span>
+                        <span className="attendance-badge-subtitle" style={{
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          maxWidth: "160px"
+                        }}>
+                          {subjectsList.join(", ")}
+                        </span>
                       </div>
-                      <div className="subject-title-details">
-                        <h4>Physics</h4>
-                        <p>Dr. Richard Feynman</p>
+                      <div className="attendance-card-icon-wrap indigo-icon">
+                        <BookOpen size={24} />
                       </div>
-                      <span className="subject-pct-val phys-pct">90%</span>
                     </div>
-                    <div className="subject-progress-track">
-                      <div className="subject-progress-fill phys-fill" style={{ width: "90%" }}></div>
-                    </div>
-                    <div className="subject-card-bottom">
-                      <span>Present: 18 Sessions</span>
-                      <span>Total: 20</span>
-                    </div>
-                  </div>
+                  </section>
 
-                  {/* Chemistry */}
-                  <div className="subject-attendance-card">
-                    <div className="subject-card-top">
-                      <div className="subject-icon-box chem-box">
-                        <ClipboardList size={20} />
-                      </div>
-                      <div className="subject-title-details">
-                        <h4>Chemistry</h4>
-                        <p>Dr. Marie Curie</p>
-                      </div>
-                      <span className="subject-pct-val chem-pct">85%</span>
-                    </div>
-                    <div className="subject-progress-track">
-                      <div className="subject-progress-fill chem-fill" style={{ width: "85%" }}></div>
-                    </div>
-                    <div className="subject-card-bottom">
-                      <span>Present: 17 Sessions</span>
-                      <span>Total: 20</span>
-                    </div>
-                  </div>
-                </div>
-              </section>
+                  {/* Subject-wise Attendance */}
+                  <section className="subject-attendance-section">
+                    <h3 className="section-title">Subject-wise Attendance</h3>
+                    <div className="subject-cards-grid">
+                      {subjectAttendance.map((sub, index) => {
+                        const styleTheme = (() => {
+                          const norm = sub.subject.toLowerCase();
+                          if (norm.includes("math")) {
+                            return {
+                              boxClass: "math-box",
+                              pctClass: "math-pct",
+                              fillClass: "math-fill",
+                              icon: <BookOpen size={20} />
+                            };
+                          } else if (norm.includes("phys")) {
+                            return {
+                              boxClass: "phys-box",
+                              pctClass: "phys-pct",
+                              fillClass: "phys-fill",
+                              icon: <Award size={20} />
+                            };
+                          } else if (norm.includes("chem")) {
+                            return {
+                              boxClass: "chem-box",
+                              pctClass: "chem-pct",
+                              fillClass: "chem-fill",
+                              icon: <ClipboardList size={20} />
+                            };
+                          }
+                          const fallbacks = [
+                            { boxClass: "math-box", pctClass: "math-pct", fillClass: "math-fill", icon: <BookOpen size={20} /> },
+                            { boxClass: "phys-box", pctClass: "phys-pct", fillClass: "phys-fill", icon: <Award size={20} /> },
+                            { boxClass: "chem-box", pctClass: "chem-pct", fillClass: "chem-fill", icon: <ClipboardList size={20} /> }
+                          ];
+                          return fallbacks[index % 3];
+                        })();
 
-              {/* Attendance History Card */}
-              <section className="attendance-history-card">
-                <div className="history-card-header">
-                  <h3>Attendance History</h3>
-                  <div className="history-filters">
-                    <select
-                      value={historyFilter}
-                      onChange={(e) => setHistoryFilter(e.target.value)}
-                      className="history-select-dropdown"
-                    >
-                      <option value="All Subjects">All Subjects</option>
-                      <option value="Mathematics">Mathematics</option>
-                      <option value="Physics">Physics</option>
-                      <option value="Chemistry">Chemistry</option>
-                    </select>
-                  </div>
-                </div>
+                        return (
+                          <div className="subject-attendance-card" key={index}>
+                            <div className="subject-card-top">
+                              <div className={`subject-icon-box ${styleTheme.boxClass}`}>
+                                {styleTheme.icon}
+                              </div>
+                              <div className="subject-title-details">
+                                <h4>{sub.subject}</h4>
+                                <p>{sub.teacher}</p>
+                              </div>
+                              <span className={`subject-pct-val ${styleTheme.pctClass}`}>{sub.rate}%</span>
+                            </div>
+                            <div className="subject-progress-track">
+                              <div className={`subject-progress-fill ${styleTheme.fillClass}`} style={{ width: `${sub.rate}%` }}></div>
+                            </div>
+                            <div className="subject-card-bottom">
+                              <span>Present: {sub.present} Sessions</span>
+                              <span>Total: {sub.total}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
 
-                <div className="history-table-container">
-                  <table className="history-table">
-                    <thead>
-                      <tr>
-                        <th>DATE</th>
-                        <th>SUBJECT</th>
-                        <th>TEACHER</th>
-                        <th>BATCH</th>
-                        <th>TIME</th>
-                        <th>STATUS</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredHistory.length > 0 ? (
-                        filteredHistory.map((row, idx) => (
-                          <tr key={idx}>
-                            <td>{row.date}</td>
-                            <td className="subject-cell">{row.subject}</td>
-                            <td>{row.teacher}</td>
-                            <td>{row.batch}</td>
-                            <td>{row.time}</td>
-                            <td>
-                              <span className={`status-badge ${row.status.toLowerCase()}`}>
-                                {row.status}
-                              </span>
-                            </td>
+                  {/* Attendance History Card */}
+                  <section className="attendance-history-card">
+                    <div className="history-card-header">
+                      <h3>Attendance History</h3>
+                      <div className="history-filters">
+                        <select
+                          value={historyFilter}
+                          onChange={(e) => setHistoryFilter(e.target.value)}
+                          className="history-select-dropdown"
+                        >
+                          <option value="All Subjects">All Subjects</option>
+                          {subjectsList.map((sub, index) => (
+                            <option key={index} value={sub}>{sub}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="history-table-container">
+                      <table className="history-table">
+                        <thead>
+                          <tr>
+                            <th>DATE</th>
+                            <th>SUBJECT</th>
+                            <th>TEACHER</th>
+                            <th>BATCH</th>
+                            <th>TIME</th>
+                            <th>STATUS</th>
                           </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan="6" className="no-records-cell">
-                            No attendance records found matching criteria.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                        </thead>
+                        <tbody>
+                          {filteredHistory.length > 0 ? (
+                            filteredHistory.map((row, idx) => {
+                              const statusLower = row.status?.toLowerCase();
+                              const lateStyle = statusLower === "late" ? { backgroundColor: "#fffbeb", color: "#d97706" } : {};
+                              
+                              return (
+                                <tr key={idx}>
+                                  <td>{formatDate(row.date)}</td>
+                                  <td className="subject-cell">{row.subject}</td>
+                                  <td>{row.teacher}</td>
+                                  <td>{studentProfile?.batchName || "—"}</td>
+                                  <td>{studentProfile?.batchSchedule || "—"}</td>
+                                  <td>
+                                    <span className={`status-badge ${statusLower}`} style={lateStyle}>
+                                      {row.status}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          ) : (
+                            <tr>
+                              <td colSpan="6" className="no-records-cell">
+                                No attendance records found matching criteria.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
 
-                <div className="history-pagination">
-                  <button className="pag-btn" disabled>Previous</button>
-                  <button className="pag-btn" disabled>Next</button>
-                </div>
-              </section>
+                    <div className="history-pagination">
+                      <button className="pag-btn" disabled>Previous</button>
+                      <button className="pag-btn" disabled>Next</button>
+                    </div>
+                  </section>
+                </>
+              )}
             </div>
           )}
 
@@ -1725,6 +1879,15 @@ const StudentDashboard = ({ onNavigate }) => {
                       <div className="info-item">
                         <span className="info-label">BATCH</span>
                         <span className="info-value">{getDisplayValue(studentProfile?.batchName, "Not Assigned")}</span>
+                      </div>
+
+                      <div className="info-item">
+                        <span className="info-label">ALLOCATED TEACHER</span>
+                        <span className="info-value">
+                          {studentProfile?.assignedTeachers && studentProfile.assignedTeachers.length > 0 
+                            ? studentProfile.assignedTeachers.join(", ") 
+                            : "None Assigned"}
+                        </span>
                       </div>
 
                       <div className="academic-badges-section">

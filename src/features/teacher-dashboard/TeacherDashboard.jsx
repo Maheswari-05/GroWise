@@ -181,6 +181,8 @@ const TeacherDashboard = ({ onNavigate }) => {
   const [attendanceRecords, setAttendanceRecords] = useState(() => loadFromStorage("gw_attendance_v2", initialAttendanceRecords));
   const [notifications, setNotifications] = useState(() => loadFromStorage("gw_notifications_v2", initialNotifications));
   const [teacherProfile, setTeacherProfile] = useState(loadLoggedTeacherProfile);
+  const [assignedBatches, setAssignedBatches] = useState([]);
+  const [assignedStudents, setAssignedStudents] = useState([]);
   const [students, setStudents] = useState(() => loadFromStorage("gw_students_v2", initialStudents));
   const [batches, setBatches] = useState(() => loadFromStorage("gw_batches_v2", initialBatches));
   const [assignments, setAssignments] = useState(() => loadFromStorage("gw_assignments_v2", []));
@@ -194,6 +196,104 @@ const TeacherDashboard = ({ onNavigate }) => {
     } catch {}
     setWeeklyTests([]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fetch teacher profile and active batches dynamically from Supabase
+  useEffect(() => {
+    let active = true;
+
+    const fetchProfileAndBatches = async () => {
+      try {
+        const loggedId = localStorage.getItem("gw_logged_teacher_id");
+        if (!loggedId) return;
+
+        // 1. Fetch teacher profile from database
+        const { data: teacher, error: teacherError } = await supabase
+          .from("teachers")
+          .select("*")
+          .eq("id", loggedId)
+          .maybeSingle();
+
+        if (teacherError || !teacher) {
+          console.error("Error fetching teacher profile from Supabase:", teacherError);
+          return;
+        }
+
+        // 2. Fetch batches taught by this teacher from database
+        const { data: batchesData, error: batchesError } = await supabase
+          .from("batches")
+          .select("*")
+          .eq("teacher", teacher.name);
+
+        let activeBatches = [];
+        let activeStudents = [];
+        if (!batchesError && batchesData) {
+          activeBatches = batchesData;
+
+          // 3. Fetch students enrolled in those batches from Supabase
+          const { data: studentsData, error: studentsError } = await supabase
+            .from("students")
+            .select("*");
+
+          if (!studentsError && studentsData) {
+            const batchIds = batchesData.map(b => b.id);
+            // Map to unified student format matching local storage format
+            activeStudents = studentsData
+              .filter(s => batchIds.includes(s.batch_id))
+              .map(s => ({
+                id: s.id,
+                name: s.name,
+                contact: s.contact,
+                email: s.email || "",
+                dob: s.dob || "",
+                address: s.address || "",
+                parentName: s.parent_name || "",
+                parentContact: s.parent_contact || "",
+                subjects: s.subjects || [],
+                batchId: s.batch_id || "",
+                status: s.status || "Active"
+              }));
+          }
+        }
+
+        const formatDate = (dateStr) => {
+          if (!dateStr) return "—";
+          const d = new Date(dateStr);
+          if (isNaN(d.getTime())) return dateStr;
+          return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+        };
+
+        if (active) {
+          const exp = teacher.qualification?.toLowerCase().includes("exp")
+            ? teacher.qualification.split(",").find(part => part.toLowerCase().includes("exp"))?.trim() || "Professional Faculty"
+            : "Professional Faculty";
+
+          setAssignedBatches(activeBatches);
+          setAssignedStudents(activeStudents);
+
+          setTeacherProfile({
+            id: teacher.id,
+            name: teacher.name,
+            avatar: teacher.avatar || "",
+            email: teacher.email || "",
+            phone: teacher.contact || "",
+            qualification: teacher.qualification || "",
+            experience: exp,
+            subjects: teacher.subjects || [],
+            batches: activeBatches.map(b => b.name),
+            joiningDate: formatDate(teacher.created_at),
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch teacher profile/batches:", err);
+      }
+    };
+
+    fetchProfileAndBatches();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
 
@@ -234,16 +334,16 @@ const TeacherDashboard = ({ onNavigate }) => {
   const renderContent = () => {
     switch (activeNav) {
       case "batches":
-        return <MyBatches batches={batches} students={students} />;
+        return <MyBatches batches={assignedBatches} students={assignedStudents} />;
       case "materials":
-        return <StudyMaterials materials={materials} setMaterials={setMaterials} batches={batches} />;
+        return <StudyMaterials materials={materials} setMaterials={setMaterials} batches={assignedBatches} />;
       case "assignments":
         return (
           <Assignments
             assignments={assignments}
             setAssignments={setAssignments}
-            batches={batches}
-            students={students}
+            batches={assignedBatches}
+            students={assignedStudents}
           />
         );
       case "tests":
@@ -251,8 +351,8 @@ const TeacherDashboard = ({ onNavigate }) => {
           <WeeklyTests
             weeklyTests={weeklyTests}
             setWeeklyTests={setWeeklyTests}
-            students={students}
-            batches={batches}
+            students={assignedStudents}
+            batches={assignedBatches}
           />
         );
       case "classes":
@@ -262,8 +362,8 @@ const TeacherDashboard = ({ onNavigate }) => {
             setOnlineClasses={setOnlineClasses}
             attendanceRecords={attendanceRecords}
             setAttendanceRecords={setAttendanceRecords}
-            students={students}
-            batches={batches}
+            students={assignedStudents}
+            batches={assignedBatches}
             teacherProfile={teacherProfile}
           />
         );
@@ -272,8 +372,8 @@ const TeacherDashboard = ({ onNavigate }) => {
           <Attendance
             attendanceRecords={attendanceRecords}
             setAttendanceRecords={setAttendanceRecords}
-            students={students}
-            batches={batches}
+            students={assignedStudents}
+            batches={assignedBatches}
           />
         );
       case "reports":
@@ -281,8 +381,8 @@ const TeacherDashboard = ({ onNavigate }) => {
           <Performance
             weeklyTests={weeklyTests}
             attendanceRecords={attendanceRecords}
-            students={students}
-            batches={batches}
+            students={assignedStudents}
+            batches={assignedBatches}
           />
         );
       case "notifications":
@@ -303,18 +403,24 @@ const TeacherDashboard = ({ onNavigate }) => {
         return (
           <>
             <SummaryCards
-              batches={batches}
-              students={students}
+              batches={assignedBatches}
+              students={assignedStudents}
               onlineClasses={onlineClasses}
               assignments={assignments}
+              teacherProfile={teacherProfile}
               setActiveNav={handleSetActiveNav}
             />
             <div className="td-row-two">
-              <TodaySchedule onlineClasses={onlineClasses} batches={batches} setActiveNav={handleSetActiveNav} />
-              <UpcomingTests weeklyTests={weeklyTests} batches={batches} setActiveNav={handleSetActiveNav} />
+              <TodaySchedule 
+                onlineClasses={onlineClasses} 
+                batches={assignedBatches} 
+                teacherProfile={teacherProfile}
+                setActiveNav={handleSetActiveNav} 
+              />
+              <UpcomingTests weeklyTests={weeklyTests} batches={assignedBatches} setActiveNav={handleSetActiveNav} />
             </div>
             <div className="td-row-three">
-              <RecentSubmissions assignments={assignments} students={students} setActiveNav={handleSetActiveNav} />
+              <RecentSubmissions assignments={assignments} students={assignedStudents} setActiveNav={handleSetActiveNav} />
               <NotificationsCard setActiveNav={handleSetActiveNav} />
             </div>
             <QuickActions setActiveNav={handleSetActiveNav} />

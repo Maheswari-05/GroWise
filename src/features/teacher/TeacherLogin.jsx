@@ -47,7 +47,20 @@ const TeacherLogin = ({ onNavigate }) => {
         console.error("❌ Teacher Supabase auth error:", authError.message);
         // Fallback: also check demo hardcoded credentials
         if (normalizedEmail === "rajesh@growise.edu" && password.trim() === "Teacher@123") {
-          const demoTeacher = {
+          const { data: dbTeacher } = await supabase
+            .from("teachers")
+            .select("*")
+            .or("email.ilike.%rajesh%,name.ilike.%rajesh%")
+            .limit(1)
+            .maybeSingle();
+
+          const demoTeacher = dbTeacher ? {
+            id: dbTeacher.id,
+            name: dbTeacher.name,
+            email: dbTeacher.email,
+            subjects: dbTeacher.subjects,
+            status: dbTeacher.status
+          } : {
             id: "TCH101",
             name: "Mr. Rajesh",
             email: "rajesh@growise.edu",
@@ -67,11 +80,25 @@ const TeacherLogin = ({ onNavigate }) => {
       if (data?.user) {
         console.log("✅ Teacher Supabase login successful for:", data.user.email);
 
-        // 2. Look up their profile in localStorage (set by admin when adding them)
-        const teachers = getStoredTeachers();
-        const profile = teachers.find(
-          (t) => t.email?.toLowerCase().trim() === normalizedEmail
-        );
+        // 2. Look up their profile in Supabase database
+        const { data: profileData, error: profileError } = await supabase
+          .from("teachers")
+          .select("*")
+          .ilike("email", normalizedEmail)
+          .maybeSingle();
+
+        let profile = null;
+        if (!profileError && profileData) {
+          profile = {
+            id: profileData.id,
+            name: profileData.name,
+            email: profileData.email,
+            phone: profileData.contact || profileData.phone || "",
+            qualification: profileData.qualification || "",
+            subjects: profileData.subjects || [],
+            status: profileData.status || "Active",
+          };
+        }
 
         const loggedTeacher = profile || {
           id: data.user.id,

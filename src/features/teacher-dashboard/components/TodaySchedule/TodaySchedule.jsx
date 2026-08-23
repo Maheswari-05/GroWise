@@ -7,25 +7,26 @@ const subjectColors = {
   purple: { dot: "#8b5cf6", bg: "rgba(139,92,246,0.08)", badge: "rgba(139,92,246,0.12)", text: "#7c3aed" },
 };
 
-const TodaySchedule = ({ onlineClasses = [], batches = [], setActiveNav }) => {
+const TodaySchedule = ({ onlineClasses = [], batches = [], teacherProfile = {}, setActiveNav }) => {
   const getBatch = (bId) => batches.find((b) => b.id === bId || b.name === bId);
 
   const colors = ["blue", "green", "purple"];
-  const schedule = onlineClasses.length > 0
-    ? onlineClasses.slice(0, 4).map((c, i) => {
-        const batchObj = getBatch(c.batchId);
-        return {
-          time: c.time || "09:00 AM",
-          subject: c.subject || c.title || "Subject Session",
-          grade: batchObj?.grade || "All Grades",
-          batch: batchObj?.name || c.batch || "Batch A",
-          color: colors[i % colors.length],
-        };
-      })
-    : [
-        { time: "09:00 AM", subject: "Mathematics", grade: "Grade 10", batch: "Batch A", color: "blue" },
-        { time: "11:00 AM", subject: "Science", grade: "Grade 9", batch: "Batch C", color: "green" },
-      ];
+  const subjects = teacherProfile.subjects || ["Mathematics", "Science"];
+
+  // Generate one class for each subject the teacher teaches
+  const schedule = subjects.map((sub, i) => {
+    // Find if there is an online class matching this subject, or create a dynamic one
+    const matchingClass = onlineClasses.find(c => c.subject === sub);
+    const batchObj = batches.find(b => b.subject === sub) || batches[0];
+    
+    return {
+      time: matchingClass?.time || (i === 0 ? "09:00 AM" : i === 1 ? "11:00 AM" : "02:00 PM"),
+      subject: sub,
+      grade: batchObj?.grade || "All Grades",
+      batch: batchObj?.name || "Batch A",
+      color: colors[i % colors.length],
+    };
+  });
   return (
     <div className="td-card today-schedule">
       <div className="td-card-header">
