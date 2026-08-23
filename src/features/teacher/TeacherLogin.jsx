@@ -4,17 +4,6 @@ import logo from "../../assets/logo.png";
 import supabase from "../../lib/supabase";
 import "./TeacherLogin.css";
 
-// Read teachers from the same localStorage store the admin panel uses
-const getStoredTeachers = () => {
-  try {
-    const stored = localStorage.getItem("gw_teachers_v2");
-    if (stored) return JSON.parse(stored);
-  } catch {
-    // ignore
-  }
-  return [];
-};
-
 const TeacherLogin = ({ onNavigate }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -155,9 +144,6 @@ const TeacherLogin = ({ onNavigate }) => {
     }
   };
 
-  // Build hint list from stored teachers so admins/testers know what to use
-  const storedTeachers = getStoredTeachers();
-
   return (
     <div className="login-container teacher-login-container">
       {/* Back button */}
@@ -232,19 +218,6 @@ const TeacherLogin = ({ onNavigate }) => {
             {isLoading ? "Signing in..." : "Login"}
           </button>
         </form>
-
-        {/* Helper credentials hint card to make testing smooth */}
-        <div className="credentials-hint">
-          <p className="hint-title">Demo Credentials</p>
-          <div className="hint-row">
-            <span className="hint-label">Email:</span>
-            <code className="hint-val">rajesh@growise.edu</code>
-          </div>
-          <div className="hint-row">
-            <span className="hint-label">Password:</span>
-            <code className="hint-val">Teacher@123</code>
-          </div>
-        </div>
       </div>
     </div>
   );
