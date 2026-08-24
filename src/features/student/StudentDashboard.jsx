@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   LayoutDashboard,
   CalendarDays,
@@ -36,7 +36,11 @@ import {
   Radio,
   ExternalLink,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Eye,
+  Sparkles,
+  FolderOpen,
+  Filter
 } from "lucide-react";
 import logo from "../../assets/logo.png";
 import avatarImg from "../../assets/avatar.png";
@@ -1410,12 +1414,27 @@ const StudentDashboard = ({ onNavigate }) => {
     };
   }, [studentProfile]);
 
-  const [materialsList, setMaterialsList] = useState([]);
+  const [allMaterialsList, setAllMaterialsList] = useState(() => {
+    try {
+      const stored = localStorage.getItem("gw_materials_v2");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  });
+  const [studyMaterialSearch, setStudyMaterialSearch] = useState("");
+  const [studyMaterialSubject, setStudyMaterialSubject] = useState("All");
+  const [studyMaterialScope, setStudyMaterialScope] = useState("All");
+  const [previewMaterial, setPreviewMaterial] = useState(null);
 
-  // Fetch materials dynamically from Supabase & subscribe in real-time
+  // Fetch materials dynamically from Supabase & localStorage and sync real-time
   useEffect(() => {
     let active = true;
+
     const fetchMaterials = async () => {
+      let supabaseMaterials = [];
       try {
         const { data, error } = await supabase
           .from("materials")
@@ -1423,29 +1442,29 @@ const StudentDashboard = ({ onNavigate }) => {
           .order("created_at", { ascending: false });
 
         if (!error && data && active) {
-          const parsed = data.map((row) => {
+          supabaseMaterials = data.map((row) => {
             try {
               if (row.title && typeof row.title === "string" && row.title.startsWith("{")) {
                 const parsedTitle = JSON.parse(row.title);
                 return {
                   id: row.id,
-                  subject: row.subject,
-                  teacher: row.teacher,
+                  subject: row.subject || parsedTitle.subject || "General",
+                  teacher: row.teacher || parsedTitle.teacher || "Teacher",
                   flagged: row.flagged,
                   created_at: row.created_at,
                   ...parsedTitle,
                 };
               }
-            } catch (e) { }
+            } catch (e) {}
             return {
               id: row.id,
-              title: row.title,
-              subject: row.subject,
-              teacher: row.teacher,
+              title: row.title || "Study Material",
+              subject: row.subject || "General",
+              teacher: row.teacher || "Teacher",
               flagged: row.flagged,
-              uploadDate: new Date(row.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+              uploadDate: row.created_at ? new Date(row.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Recent",
               fileType: "pdf",
-              fileName: row.title,
+              fileName: row.title || "material.pdf",
               fileSize: "1.2 MB",
               description: "Course study material.",
               batch: "All Batches",
@@ -1453,48 +1472,39 @@ const StudentDashboard = ({ onNavigate }) => {
               downloads: 0,
             };
           });
-
-          // Filter by student's batch or subject or teacher
-          const studentBatch = String(studentProfile?.batchId || studentProfile?.batch_id || studentProfile?.batch || "").trim().toLowerCase();
-          const studentBatchName = String(studentProfile?.batchName || "").trim().toLowerCase();
-          const studentSubjects = (studentProfile?.subjects || []).map(s => String(s).toLowerCase().trim());
-          const assignedTeachers = (studentProfile?.assignedTeachers || []).map(t =>
-            String(t).toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim()
-          );
-
-          const filtered = parsed.filter(m => {
-            if (!m) return false;
-            const mBatch = String(m.batch || "").trim().toLowerCase();
-            const mSubject = String(m.subject || "").trim().toLowerCase();
-            const mTeacher = String(m.teacher || "").toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim();
-
-            // Case 1: Global/All batches
-            if (!mBatch || mBatch === "all batches" || mBatch === "all" || mBatch === "all grades") return true;
-
-            // Case 2: Batch match (ID or Name)
-            if (studentBatch && (mBatch === studentBatch || mBatch.includes(studentBatch) || studentBatch.includes(mBatch))) return true;
-            if (studentBatchName && (mBatch === studentBatchName || mBatch.includes(studentBatchName) || studentBatchName.includes(mBatch))) return true;
-
-            // Case 3: Subject match (if enrolled or student subjects list empty)
-            if (mSubject && (studentSubjects.length === 0 || studentSubjects.some(sub => mSubject === sub || mSubject.includes(sub) || sub.includes(mSubject)))) return true;
-
-            // Case 4: Teacher match
-            if (mTeacher && assignedTeachers.some(t => t && (t === mTeacher || t.includes(mTeacher) || mTeacher.includes(t)))) return true;
-
-            // Fallback: show materials so student is never left with an empty screen if active
-            return true;
-          });
-
-          setMaterialsList(filtered);
         }
       } catch (err) {
-        console.error("Error fetching study materials:", err);
+        console.error("Error fetching study materials from Supabase:", err);
       }
+
+      // Read localStorage backup
+      let localList = [];
+      try {
+        const raw = localStorage.getItem("gw_materials_v2");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) localList = parsed;
+        }
+      } catch (e) {}
+
+      if (!active) return;
+
+      // Merge Supabase and LocalStorage without duplicates
+      const map = new Map();
+      supabaseMaterials.forEach((m) => {
+        if (m && m.id) map.set(String(m.id), m);
+      });
+      localList.forEach((m) => {
+        if (m && m.id && !map.has(String(m.id))) {
+          map.set(String(m.id), m);
+        }
+      });
+
+      const merged = Array.from(map.values());
+      setAllMaterialsList(merged);
     };
 
-    if (studentProfile) {
-      fetchMaterials();
-    }
+    fetchMaterials();
 
     // Subscribe to real-time changes in materials table
     const materialsChannel = supabase
@@ -1504,11 +1514,69 @@ const StudentDashboard = ({ onNavigate }) => {
       })
       .subscribe();
 
+    // Listen to localStorage updates across tabs
+    const handleStorageChange = (e) => {
+      if (e.key === "gw_materials_v2") {
+        fetchMaterials();
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+
     return () => {
       active = false;
       supabase.removeChannel(materialsChannel);
+      window.removeEventListener("storage", handleStorageChange);
     };
-  }, [studentProfile]);
+  }, []);
+
+  // Filtered materials based on user search, subject pills, and batch scope
+  const materialsList = useMemo(() => {
+    let list = [...allMaterialsList];
+
+    // Filter by Scope (My Batch vs All)
+    if (studyMaterialScope === "My Batch" && studentProfile) {
+      const studentBatch = String(studentProfile?.batchId || studentProfile?.batch_id || studentProfile?.batch || "").trim().toLowerCase();
+      const studentBatchName = String(studentProfile?.batchName || "").trim().toLowerCase();
+      const studentSubjects = (studentProfile?.subjects || []).map(s => String(s).toLowerCase().trim());
+      const assignedTeachers = (studentProfile?.assignedTeachers || []).map(t =>
+        String(t).toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim()
+      );
+
+      list = list.filter(m => {
+        if (!m) return false;
+        const mBatch = String(m.batch || "").trim().toLowerCase();
+        const mSubject = String(m.subject || "").trim().toLowerCase();
+        const mTeacher = String(m.teacher || "").toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim();
+
+        if (!mBatch || mBatch === "all batches" || mBatch === "all" || mBatch === "all grades") return true;
+        if (studentBatch && (mBatch === studentBatch || mBatch.includes(studentBatch) || studentBatch.includes(mBatch))) return true;
+        if (studentBatchName && (mBatch === studentBatchName || mBatch.includes(studentBatchName) || studentBatchName.includes(mBatch))) return true;
+        if (mSubject && studentSubjects.some(sub => mSubject === sub || mSubject.includes(sub) || sub.includes(mSubject))) return true;
+        if (mTeacher && assignedTeachers.some(t => t && (t === mTeacher || t.includes(mTeacher) || mTeacher.includes(t)))) return true;
+        return false;
+      });
+    }
+
+    // Filter by Subject
+    if (studyMaterialSubject !== "All") {
+      list = list.filter(m => String(m.subject || "").toLowerCase() === studyMaterialSubject.toLowerCase());
+    }
+
+    // Filter by Search Query
+    if (studyMaterialSearch.trim()) {
+      const q = studyMaterialSearch.toLowerCase();
+      list = list.filter(m =>
+        String(m.title || "").toLowerCase().includes(q) ||
+        String(m.subject || "").toLowerCase().includes(q) ||
+        String(m.description || "").toLowerCase().includes(q) ||
+        String(m.teacher || "").toLowerCase().includes(q) ||
+        String(m.fileName || "").toLowerCase().includes(q) ||
+        String(m.batch || "").toLowerCase().includes(q)
+      );
+    }
+
+    return list;
+  }, [allMaterialsList, studyMaterialSubject, studyMaterialScope, studyMaterialSearch, studentProfile]);
 
   const handleDownloadMaterial = (material) => {
     setDownloadProgress(material.id);
@@ -1979,7 +2047,10 @@ const StudentDashboard = ({ onNavigate }) => {
               {/* Study Materials Section */}
               <section className="study-materials-section-card">
                 <div className="card-header">
-                  <h3>Study Materials</h3>
+                  <div className="card-header-left">
+                    <h3>Study Materials</h3>
+                    <span className="count-pill">{materialsList.length}</span>
+                  </div>
                   <button className="view-all-btn" onClick={() => selectTab("Study Materials")}>
                     View All
                   </button>
@@ -1987,31 +2058,58 @@ const StudentDashboard = ({ onNavigate }) => {
 
                 <div className="materials-list">
                   {materialsList.length === 0 ? (
-                    <p style={{ padding: "12px", color: "var(--muted-color, #94a3b8)", fontSize: "0.9rem" }}>No study materials uploaded yet.</p>
+                    <div className="empty-materials-box">
+                      <BookOpen size={32} className="empty-icon" />
+                      <p>No study materials uploaded yet.</p>
+                    </div>
                   ) : (
-                    materialsList.slice(0, 3).map((material) => (
-                      <div key={material.id} className="material-item">
+                    materialsList.slice(0, 4).map((material) => (
+                      <div
+                        key={material.id}
+                        className="material-item clickable-material-item"
+                        onClick={() => setPreviewMaterial(material)}
+                        title="Click to preview study material"
+                      >
                         <div className="material-left">
                           <div className={`file-icon-wrap ${material.fileType || "pdf"}`}>
                             <span className="file-icon-text">{(material.fileType || "pdf").toUpperCase()}</span>
                           </div>
                           <div className="material-info">
-                            <h4>{material.fileName || material.title}</h4>
-                            <p>Added: {material.uploadDate} &bull; {material.fileSize || "1.2 MB"}</p>
+                            <div className="material-title-row">
+                              <h4>{material.fileName || material.title}</h4>
+                              <span className={`material-sub-tag ${(material.subject || "math").toLowerCase()}`}>
+                                {material.subject}
+                              </span>
+                            </div>
+                            <p>
+                              {material.teacher ? `By ${material.teacher} • ` : ""}
+                              Added: {material.uploadDate} &bull; {material.fileSize || "1.2 MB"}
+                            </p>
                           </div>
                         </div>
-                        <button
-                          className="download-icon-btn"
-                          onClick={() => handleDownloadMaterial(material)}
-                          disabled={downloadProgress !== null}
-                          aria-label={`Download ${material.fileName || material.title}`}
-                        >
-                          {downloadProgress === material.id ? (
-                            <span className="download-spinner"></span>
-                          ) : (
-                            <Download size={20} />
-                          )}
-                        </button>
+                        <div className="material-item-actions" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            className="preview-icon-btn"
+                            onClick={() => setPreviewMaterial(material)}
+                            title="Preview Material"
+                            aria-label={`Preview ${material.fileName || material.title}`}
+                          >
+                            <Eye size={18} />
+                          </button>
+                          <button
+                            className="download-icon-btn"
+                            onClick={() => handleDownloadMaterial(material)}
+                            disabled={downloadProgress !== null}
+                            title="Download Material"
+                            aria-label={`Download ${material.fileName || material.title}`}
+                          >
+                            {downloadProgress === material.id ? (
+                              <span className="download-spinner"></span>
+                            ) : (
+                              <Download size={18} />
+                            )}
+                          </button>
+                        </div>
                       </div>
                     ))
                   )}
@@ -2026,45 +2124,167 @@ const StudentDashboard = ({ onNavigate }) => {
 
           {activeTab === "Study Materials" && (
             <div className="study-materials-view-container">
-              <section className="study-materials-section-card">
-                <div className="card-header">
-                  <h3>Study Materials</h3>
-                  <button className="view-all-btn" onClick={() => setActiveTab("Dashboard")}>
-                    Back to Dashboard
-                  </button>
+              {/* Header Description */}
+              <section className="study-materials-header-section">
+                <div className="study-materials-header-left">
+                  <h2>Study Materials &amp; Notes</h2>
+                  <p>Access and view lecture slides, formula sheets, chapter notes, and study resources uploaded by your teachers.</p>
                 </div>
+                <div className="study-materials-header-right">
+                  <div className="materials-scope-toggle">
+                    <button
+                      className={`scope-pill-btn ${studyMaterialScope === "All" ? "active" : ""}`}
+                      onClick={() => setStudyMaterialScope("All")}
+                    >
+                      All Materials ({allMaterialsList.length})
+                    </button>
+                    {studentProfile?.batchName && (
+                      <button
+                        className={`scope-pill-btn ${studyMaterialScope === "My Batch" ? "active" : ""}`}
+                        onClick={() => setStudyMaterialScope("My Batch")}
+                      >
+                        My Batch ({studentProfile.batchName})
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </section>
 
-                <div className="materials-list">
-                  {materialsList.length === 0 ? (
-                    <p style={{ padding: "12px", color: "var(--muted-color, #94a3b8)", fontSize: "0.9rem" }}>No study materials uploaded yet.</p>
-                  ) : (
-                    materialsList.map((material) => (
-                      <div key={material.id} className="material-item">
-                        <div className="material-left">
-                          <div className={`file-icon-wrap ${material.fileType || "pdf"}`}>
-                            <span className="file-icon-text">{(material.fileType || "pdf").toUpperCase()}</span>
-                          </div>
-                          <div className="material-info">
-                            <h4>{material.fileName || material.title}</h4>
-                            <p>Added: {material.uploadDate} &bull; {material.fileSize || "1.2 MB"}</p>
-                          </div>
-                        </div>
-                        <button
-                          className="download-icon-btn"
-                          onClick={() => handleDownloadMaterial(material)}
-                          disabled={downloadProgress !== null}
-                          aria-label={`Download ${material.fileName || material.title}`}
-                        >
-                          {downloadProgress === material.id ? (
-                            <span className="download-spinner"></span>
-                          ) : (
-                            <Download size={20} />
-                          )}
-                        </button>
-                      </div>
-                    ))
+              {/* Filters & Search Row */}
+              <section className="study-materials-filters-row">
+                <div className="study-materials-search-wrapper">
+                  <Search size={18} className="search-icon" />
+                  <input
+                    type="text"
+                    placeholder="Search materials by title, topic, or teacher..."
+                    value={studyMaterialSearch}
+                    onChange={(e) => setStudyMaterialSearch(e.target.value)}
+                  />
+                  {studyMaterialSearch && (
+                    <button
+                      className="clear-search-btn"
+                      onClick={() => setStudyMaterialSearch("")}
+                      aria-label="Clear search"
+                    >
+                      <X size={14} />
+                    </button>
                   )}
                 </div>
+
+                {/* Subject Filter Pills */}
+                <div className="study-materials-subject-pills">
+                  {["All", "Mathematics", "Physics", "Chemistry", "Science"].map((sub) => {
+                    const count = sub === "All"
+                      ? allMaterialsList.length
+                      : allMaterialsList.filter(m => String(m.subject || "").toLowerCase() === sub.toLowerCase()).length;
+                    return (
+                      <button
+                        key={sub}
+                        className={`sub-filter-pill ${studyMaterialSubject.toLowerCase() === sub.toLowerCase() ? "active" : ""}`}
+                        onClick={() => setStudyMaterialSubject(sub)}
+                      >
+                        <span>{sub}</span>
+                        <span className="pill-count">{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              {/* Study Materials Cards Grid */}
+              <section className="study-materials-grid-container">
+                {materialsList.length === 0 ? (
+                  <div className="study-materials-empty-state">
+                    <BookOpen size={48} className="empty-state-icon" />
+                    <h3>No Study Materials Found</h3>
+                    <p>
+                      {studyMaterialSearch
+                        ? `No materials matched "${studyMaterialSearch}". Try searching with different keywords.`
+                        : studyMaterialSubject !== "All"
+                        ? `No materials uploaded yet for ${studyMaterialSubject}.`
+                        : "No study materials have been uploaded by teachers yet."}
+                    </p>
+                    {(studyMaterialSearch || studyMaterialSubject !== "All" || studyMaterialScope !== "All") && (
+                      <button
+                        className="reset-filters-btn"
+                        onClick={() => {
+                          setStudyMaterialSearch("");
+                          setStudyMaterialSubject("All");
+                          setStudyMaterialScope("All");
+                        }}
+                      >
+                        Reset All Filters
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="study-materials-grid">
+                    {materialsList.map((material) => (
+                      <div
+                        key={material.id}
+                        className="study-material-card"
+                        onClick={() => setPreviewMaterial(material)}
+                        title="Click to view full study material"
+                      >
+                        <div className="sm-card-top-row">
+                          <div className={`sm-card-type-icon ${material.fileType || "pdf"}`}>
+                            <FileText size={22} />
+                            <span className="sm-card-type-label">{(material.fileType || "pdf").toUpperCase()}</span>
+                          </div>
+                          <span className={`sm-subject-badge ${(material.subject || "math").toLowerCase()}`}>
+                            {material.subject || "General"}
+                          </span>
+                        </div>
+
+                        <h3 className="sm-card-title">{material.fileName || material.title}</h3>
+                        <p className="sm-card-desc">
+                          {material.description || "Comprehensive subject study notes & reference materials."}
+                        </p>
+
+                        <div className="sm-card-meta-list">
+                          <div className="sm-meta-item">
+                            <User size={13} />
+                            <span>{material.teacher || "Teacher"}</span>
+                          </div>
+                          <div className="sm-meta-item">
+                            <CalendarDays size={13} />
+                            <span>{material.uploadDate}</span>
+                          </div>
+                          <div className="sm-meta-item">
+                            <span className="batch-indicator">{material.batch || "All Batches"}</span>
+                          </div>
+                        </div>
+
+                        <div className="sm-card-footer-row" onClick={(e) => e.stopPropagation()}>
+                          <span className="sm-file-size-tag">{material.fileSize || "1.2 MB"}</span>
+                          <div className="sm-card-btn-group">
+                            <button
+                              className="sm-preview-btn"
+                              onClick={() => setPreviewMaterial(material)}
+                              title="Preview Material"
+                            >
+                              <Eye size={15} />
+                              <span>View</span>
+                            </button>
+                            <button
+                              className="sm-download-btn"
+                              onClick={() => handleDownloadMaterial(material)}
+                              disabled={downloadProgress === material.id}
+                              title="Download Material"
+                            >
+                              {downloadProgress === material.id ? (
+                                <span className="download-spinner sm"></span>
+                              ) : (
+                                <Download size={15} />
+                              )}
+                              <span>Download</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </section>
             </div>
           )}
@@ -3241,6 +3461,111 @@ const StudentDashboard = ({ onNavigate }) => {
           </div>
         </div>
       )}
+
+      {/* Study Material Preview Modal */}
+      {previewMaterial && (
+        <div className="custom-modal-overlay" onClick={() => setPreviewMaterial(null)}>
+          <div className="custom-modal-content material-preview-modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="material-modal-badges-header">
+                <span className={`material-subject-pill ${(previewMaterial.subject || "math").toLowerCase()}`}>
+                  {previewMaterial.subject || "General"}
+                </span>
+                <span className="material-batch-pill">
+                  {previewMaterial.batch || "All Batches"}
+                </span>
+              </div>
+              <button className="modal-close-btn" onClick={() => setPreviewMaterial(null)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="modal-body material-preview-modal-body">
+              <div className="material-modal-info-card">
+                <div className={`material-modal-file-icon ${previewMaterial.fileType || "pdf"}`}>
+                  <FileText size={32} />
+                  <span>{(previewMaterial.fileType || "pdf").toUpperCase()}</span>
+                </div>
+                <div className="material-modal-details">
+                  <h3 className="material-preview-name">{previewMaterial.fileName || previewMaterial.title}</h3>
+                  <p className="material-preview-uploader">
+                    Uploaded by <strong>{previewMaterial.teacher || "Teacher"}</strong> &bull; {previewMaterial.uploadDate} &bull; {previewMaterial.fileSize || "1.2 MB"}
+                  </p>
+                </div>
+              </div>
+
+              {previewMaterial.description && (
+                <div className="material-preview-desc-panel">
+                  <h4>Description &amp; Instructions</h4>
+                  <p>{previewMaterial.description}</p>
+                </div>
+              )}
+
+              <div className="material-preview-content-area">
+                <h4>Document Preview</h4>
+                {previewMaterial.fileUrl && previewMaterial.fileUrl.startsWith("data:application/pdf") ? (
+                  <div className="material-pdf-embed-box">
+                    <iframe
+                      src={previewMaterial.fileUrl}
+                      title={previewMaterial.title || previewMaterial.fileName}
+                      className="material-pdf-iframe"
+                    />
+                  </div>
+                ) : previewMaterial.fileUrl && previewMaterial.fileUrl.startsWith("data:image/") ? (
+                  <div className="material-img-embed-box">
+                    <img src={previewMaterial.fileUrl} alt={previewMaterial.title || "Material preview"} />
+                  </div>
+                ) : (
+                  <div className="material-file-preview-card">
+                    <BookOpen size={48} className="mat-file-icon-accent" />
+                    <h5>{previewMaterial.fileName || previewMaterial.title}</h5>
+                    <p>Subject: <strong>{previewMaterial.subject}</strong> &bull; Batch: <strong>{previewMaterial.batch || "All Batches"}</strong></p>
+                    <p className="mat-preview-hint">This study material is ready for download and online reading.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="modal-footer material-preview-modal-footer">
+              {previewMaterial.fileUrl && (
+                <button
+                  type="button"
+                  className="open-tab-btn"
+                  onClick={() => {
+                    try {
+                      const win = window.open();
+                      if (win) {
+                        win.document.write(`<iframe src="${previewMaterial.fileUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                      }
+                    } catch (e) {
+                      console.error("Open tab error:", e);
+                    }
+                  }}
+                >
+                  <ExternalLink size={16} /> Open in New Tab
+                </button>
+              )}
+              <button
+                type="button"
+                className="action-submit-btn modal-download-btn"
+                onClick={() => handleDownloadMaterial(previewMaterial)}
+                disabled={downloadProgress === previewMaterial.id}
+              >
+                {downloadProgress === previewMaterial.id ? (
+                  <>
+                    <span className="download-spinner"></span> Downloading...
+                  </>
+                ) : (
+                  <>
+                    <Download size={18} /> Download ({previewMaterial.fileSize || "1.2 MB"})
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {toast && (
         <div style={{
           position: "fixed",

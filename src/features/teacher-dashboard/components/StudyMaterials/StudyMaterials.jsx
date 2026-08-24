@@ -452,8 +452,6 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
 
           if (parsed.length > 0) {
             setMaterials(parsed);
-          } else {
-            setMaterials(initialMaterials);
           }
         }
       } catch (err) {
@@ -532,31 +530,42 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
       } catch (e) {}
     }
 
+    const matId = typeof data.id === "number" ? data.id : (!isNaN(Number(data.id)) && String(data.id).trim() !== "" ? Number(data.id) : (Date.now() + Math.floor(Math.random() * 1000)));
+
+    const savedData = {
+      ...data,
+      id: matId,
+      teacher: teacherName,
+    };
+
     const payload = {
-      id: data.id,
+      id: matId,
       title: JSON.stringify({
-        title: data.title,
-        description: data.description,
-        fileName: data.fileName,
-        fileSize: data.fileSize,
-        fileType: data.fileType,
-        fileUrl: data.fileUrl,
-        batch: data.batch,
-        grade: data.grade,
-        uploadDate: data.uploadDate,
-        downloads: data.downloads,
+        title: savedData.title,
+        description: savedData.description,
+        fileName: savedData.fileName,
+        fileSize: savedData.fileSize,
+        fileType: savedData.fileType,
+        fileUrl: savedData.fileUrl,
+        batch: savedData.batch,
+        grade: savedData.grade,
+        uploadDate: savedData.uploadDate,
+        downloads: savedData.downloads,
       }),
-      subject: data.subject,
+      subject: savedData.subject,
       teacher: teacherName,
       flagged: false,
     };
 
     if (modal === "upload") {
-      saveMaterials([data, ...materials]);
+      saveMaterials([savedData, ...materials.filter(m => String(m.id) !== String(matId))]);
       showToast("Material uploaded successfully!");
 
       try {
-        await supabase.from("materials").insert(payload);
+        const { error: insertErr } = await supabase.from("materials").insert(payload);
+        if (insertErr) {
+          console.warn("Supabase materials insert notice:", insertErr);
+        }
 
         // Insert notification for the student along with current time
         const currentTime = new Date().toLocaleTimeString("en-US", {
@@ -565,7 +574,7 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
           hour12: true,
         });
 
-        const notifMsg = `New Study Material: "${data.title}" uploaded for ${data.batch || "your batch"} (${data.subject}).`;
+        const notifMsg = `New Study Material: "${savedData.title}" uploaded for ${savedData.batch || "your batch"} (${savedData.subject}).`;
 
         await supabase.from("notifications").insert([
           {
@@ -592,8 +601,8 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
             time: "Just now",
             date: new Date().toISOString(),
             read: false,
-            batch: data.batch,
-            subject: data.subject,
+            batch: savedData.batch,
+            subject: savedData.subject,
           };
           localStorage.setItem("gw_notifications_v3", JSON.stringify([newNotif, ...existing]));
         } catch (e) {}
@@ -601,14 +610,14 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
         console.error("Failed to insert material/notification:", err);
       }
     } else {
-      saveMaterials(materials.map((m) => (m.id === data.id ? data : m)));
+      saveMaterials(materials.map((m) => (String(m.id) === String(savedData.id) ? savedData : m)));
       showToast("Material updated successfully!");
 
       try {
         await supabase
           .from("materials")
           .update(payload)
-          .eq("id", data.id);
+          .eq("id", matId);
       } catch (err) {
         console.error("Failed to update database material:", err);
       }

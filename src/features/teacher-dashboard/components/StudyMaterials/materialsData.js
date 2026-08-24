@@ -7,7 +7,8 @@ export const SUBJECTS = [
   { id: "science",     label: "Science",     batch: "Batch C", grade: "Grade 9",  color: "green" },
 ];
 
-let _nextId = 4;
-export const generateId = () => `m${_nextId++}`;
+let _nextId = 100;
+export const generateId = () => Date.now() + (_nextId++);
 
 export const initialMaterials = [];
+

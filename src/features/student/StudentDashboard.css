@@ -1749,10 +1749,705 @@
 .study-materials-view-container {
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 24px;
   max-width: 1200px;
   margin: 0 auto;
 }
+
+.study-materials-header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.study-materials-header-left h2 {
+  font-size: 26px;
+  font-weight: 800;
+  font-family: "Sora", sans-serif;
+  color: #1e2a46;
+  margin-bottom: 4px;
+}
+
+.study-materials-header-left p {
+  font-size: 14.5px;
+  color: #64748b;
+  max-width: 650px;
+}
+
+.materials-scope-toggle {
+  display: flex;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 12px;
+  gap: 4px;
+}
+
+.scope-pill-btn {
+  border: none;
+  background: transparent;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.scope-pill-btn.active {
+  background: #ffffff;
+  color: #2D6BFF;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.study-materials-filters-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.study-materials-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 260px;
+  max-width: 400px;
+}
+
+.study-materials-search-wrapper .search-icon {
+  position: absolute;
+  left: 14px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.study-materials-search-wrapper input {
+  width: 100%;
+  padding: 10px 36px 10px 40px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 14px;
+  background-color: #ffffff;
+  color: #1e2a46;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.study-materials-search-wrapper input:focus {
+  outline: none;
+  border-color: #2D6BFF;
+  box-shadow: 0 0 0 3px rgba(45, 107, 255, 0.12);
+}
+
+.clear-search-btn {
+  position: absolute;
+  right: 12px;
+  background: #e2e8f0;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.study-materials-subject-pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sub-filter-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sub-filter-pill:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.sub-filter-pill.active {
+  background: #2D6BFF;
+  border-color: #2D6BFF;
+  color: #ffffff;
+}
+
+.sub-filter-pill .pill-count {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.sub-filter-pill.active .pill-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.study-materials-grid-container {
+  width: 100%;
+}
+
+.study-materials-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.study-material-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  box-shadow: 0 4px 16px rgba(30, 42, 70, 0.04);
+  transition: all 0.25s ease;
+  cursor: pointer;
+}
+
+.study-material-card:hover {
+  transform: translateY(-2px);
+  border-color: #bfdbfe;
+  box-shadow: 0 8px 24px rgba(45, 107, 255, 0.09);
+}
+
+.sm-card-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sm-card-type-icon {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.sm-card-type-icon.pdf {
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+.sm-card-type-icon.doc {
+  background: #eff6ff;
+  color: #3b82f6;
+}
+
+.sm-card-type-icon.ppt {
+  background: #fff7ed;
+  color: #f97316;
+}
+
+.sm-subject-badge {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.sm-subject-badge.mathematics,
+.sm-subject-badge.math {
+  background: #eff6ff;
+  color: #2D6BFF;
+}
+
+.sm-subject-badge.physics {
+  background: #fdf4ff;
+  color: #c026d3;
+}
+
+.sm-subject-badge.chemistry {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.sm-subject-badge.science {
+  background: #ecfdf5;
+  color: #10b981;
+}
+
+.sm-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1e2a46;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sm-card-desc {
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sm-card-meta-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.sm-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.batch-indicator {
+  background: #f8fafc;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  font-weight: 600;
+}
+
+.sm-card-footer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.sm-file-size-tag {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.sm-card-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sm-preview-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: #f1f5f9;
+  color: #334155;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sm-preview-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.sm-download-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(135deg, #2D6BFF, #1d4ed8);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sm-download-btn:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: scale(1.02);
+}
+
+.sm-download-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.study-materials-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  background: #ffffff;
+  border: 1px dashed #cbd5e1;
+  border-radius: 16px;
+  text-align: center;
+}
+
+.empty-state-icon {
+  color: #94a3b8;
+  margin-bottom: 12px;
+}
+
+.study-materials-empty-state h3 {
+  font-size: 17px;
+  font-weight: 700;
+  color: #1e2a46;
+  margin-bottom: 6px;
+}
+
+.study-materials-empty-state p {
+  font-size: 14px;
+  color: #64748b;
+  max-width: 440px;
+  margin-bottom: 16px;
+}
+
+.reset-filters-btn {
+  background: #2D6BFF;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Material modal styles */
+.material-preview-modal-dialog {
+  max-width: 720px;
+  width: 92%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.material-modal-badges-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.material-subject-pill {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #2D6BFF;
+}
+
+.material-subject-pill.physics {
+  background: #fdf4ff;
+  color: #c026d3;
+}
+
+.material-subject-pill.chemistry {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.material-subject-pill.science {
+  background: #ecfdf5;
+  color: #10b981;
+}
+
+.material-batch-pill {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.material-preview-modal-body {
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.material-modal-info-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.material-modal-file-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+  background: #fef2f2;
+  color: #ef4444;
+  flex-shrink: 0;
+}
+
+.material-preview-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: #1e2a46;
+  margin-bottom: 4px;
+}
+
+.material-preview-uploader {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.material-preview-desc-panel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.material-preview-desc-panel h4 {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1e2a46;
+  margin-bottom: 6px;
+}
+
+.material-preview-desc-panel p {
+  font-size: 14px;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.material-preview-content-area h4 {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1e2a46;
+  margin-bottom: 8px;
+}
+
+.material-pdf-embed-box {
+  width: 100%;
+  height: 380px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+}
+
+.material-pdf-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.material-img-embed-box img {
+  max-width: 100%;
+  max-height: 380px;
+  border-radius: 12px;
+  object-fit: contain;
+}
+
+.material-file-preview-card {
+  padding: 32px 20px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  text-align: center;
+}
+
+.mat-file-icon-accent {
+  color: #2D6BFF;
+  margin-bottom: 10px;
+}
+
+.material-file-preview-card h5 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e2a46;
+  margin-bottom: 4px;
+}
+
+.material-file-preview-card p {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.mat-preview-hint {
+  margin-top: 8px;
+  color: #94a3b8 !important;
+  font-size: 12px !important;
+}
+
+.material-preview-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.open-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.open-tab-btn:hover {
+  background: #e2e8f0;
+}
+
+.modal-download-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px !important;
+}
+
+.clickable-material-item {
+  cursor: pointer;
+}
+
+.material-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.material-sub-tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #2D6BFF;
+}
+
+.material-sub-tag.physics {
+  background: #fdf4ff;
+  color: #c026d3;
+}
+
+.material-sub-tag.chemistry {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.material-sub-tag.science {
+  background: #ecfdf5;
+  color: #10b981;
+}
+
+.material-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.preview-icon-btn {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.preview-icon-btn:hover {
+  color: #2D6BFF;
+  background-color: #e2e8f0;
+}
+
+.empty-materials-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  color: #94a3b8;
+  gap: 8px;
+  font-size: 13.5px;
+}
+
+.empty-icon {
+  color: #cbd5e1;
+}
+
+.card-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.count-pill {
+  font-size: 12px;
+  font-weight: 700;
+  background: #eff6ff;
+  color: #2D6BFF;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.download-spinner.sm {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
 
 /* ============================================================
    ASSIGNMENTS SCREEN VIEW
