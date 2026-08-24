@@ -123,7 +123,34 @@ export async function fetchWeeklyTests() {
   try {
     const { data, error } = await supabase.from('weekly_tests').select('*');
     if (error) { console.error('fetchWeeklyTests error:', error); return []; }
-    return (data || []).map(toCamelCase);
+    return (data || []).map(row => {
+      const camel = toCamelCase(row);
+      let teacherName = row.teacher || "";
+      let batchId = "";
+      let maxScore = 20;
+      let testPdfUrl = "";
+      let studentMarks = {};
+
+      try {
+        if (row.teacher && row.teacher.startsWith("{")) {
+          const parsed = JSON.parse(row.teacher);
+          teacherName = parsed.teacher || "";
+          batchId = parsed.batchId || "";
+          maxScore = parsed.maxScore || 20;
+          testPdfUrl = parsed.testPdfUrl || "";
+          studentMarks = parsed.studentMarks || {};
+        }
+      } catch(e) {}
+
+      return {
+        ...camel,
+        teacher: teacherName,
+        batchId,
+        maxScore,
+        testPdfUrl,
+        studentMarks
+      };
+    });
   } catch (e) {
     console.error('fetchWeeklyTests exception:', e);
     return [];
@@ -160,7 +187,30 @@ export async function uploadTestFile(file, path) {
  */
 export async function updateWeeklyTest(id, updates) {
   try {
-    const row = toSnakeCase(updates);
+    const { data: existing } = await supabase.from('weekly_tests').select('*').eq('id', id).maybeSingle();
+    if (!existing) return;
+
+    let parsed = { teacher: existing.teacher };
+    try {
+      if (existing.teacher && existing.teacher.startsWith("{")) {
+        parsed = JSON.parse(existing.teacher);
+      }
+    } catch (e) {}
+
+    if (updates.teacher !== undefined) parsed.teacher = updates.teacher;
+    if (updates.batchId !== undefined) parsed.batchId = updates.batchId;
+    if (updates.maxScore !== undefined) parsed.maxScore = updates.maxScore;
+    if (updates.testPdfUrl !== undefined) parsed.testPdfUrl = updates.testPdfUrl;
+    if (updates.studentMarks !== undefined) parsed.studentMarks = updates.studentMarks;
+
+    const row = {
+      teacher: JSON.stringify(parsed)
+    };
+    if (updates.subject !== undefined) row.subject = updates.subject;
+    if (updates.title !== undefined) row.title = updates.title;
+    if (updates.date !== undefined) row.date = updates.date;
+    if (updates.status !== undefined) row.status = updates.status;
+
     const { error } = await supabase.from('weekly_tests').update(row).eq('id', id);
     if (error) { console.error('updateWeeklyTest error:', error); }
   } catch (e) {
@@ -175,12 +225,35 @@ export async function updateWeeklyTest(id, updates) {
  */
 export async function addWeeklyTest(test) {
   try {
-    const row = toSnakeCase(test);
-    delete row.id;
-    delete row.created_at;
+    const serializedTeacher = JSON.stringify({
+      teacher: test.teacher || "Mr. Rajesh",
+      batchId: test.batchId || "",
+      maxScore: test.maxScore || 20,
+      testPdfUrl: test.testPdfUrl || "",
+      studentMarks: test.studentMarks || {}
+    });
+
+    const row = {
+      subject: test.subject,
+      title: test.title,
+      teacher: serializedTeacher,
+      date: test.date,
+      status: test.status || "Result Pending",
+      total_marks: test.maxScore || 20
+    };
+
     const { data, error } = await supabase.from('weekly_tests').insert(row).select().single();
     if (error) { console.error('addWeeklyTest error:', error); return null; }
-    return toCamelCase(data);
+    
+    const camel = toCamelCase(data);
+    return {
+      ...camel,
+      teacher: test.teacher || "Mr. Rajesh",
+      batchId: test.batchId || "",
+      maxScore: test.maxScore || 20,
+      testPdfUrl: test.testPdfUrl || "",
+      studentMarks: test.studentMarks || {}
+    };
   } catch (e) {
     console.error('addWeeklyTest exception:', e);
     return null;

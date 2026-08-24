@@ -190,6 +190,7 @@ const TeacherDashboard = ({ onNavigate }) => {
   const [assignments, setAssignments] = useState([]);
   const [materials, setMaterials] = useState(() => loadFromStorage("gw_materials_v2", []));
   const [viewAsgn, setViewAsgn] = useState(null);
+  const [viewTestId, setViewTestId] = useState(null);
 
   // Fetch live students, batches, notifications, and online classes from Supabase database
   useEffect(() => {
@@ -305,10 +306,26 @@ const TeacherDashboard = ({ onNavigate }) => {
       })
       .subscribe();
 
+    // Subscribe to weekly tests changes
+    const testsChannel = supabase
+      .channel("teacher-tests-channel")
+      .on("postgres_changes", { event: "*", schema: "public", table: "weekly_tests" }, async () => {
+        try {
+          const dbTests = await adminService.fetchWeeklyTests();
+          if (Array.isArray(dbTests) && isMounted) {
+            setWeeklyTests(dbTests);
+          }
+        } catch (e) {
+          console.error("Error refetching weekly tests:", e);
+        }
+      })
+      .subscribe();
+
     return () => {
       isMounted = false;
       supabase.removeChannel(notifChannel);
       supabase.removeChannel(assignmentsChannel);
+      supabase.removeChannel(testsChannel);
     };
   }, []);
 
@@ -594,6 +611,8 @@ const TeacherDashboard = ({ onNavigate }) => {
             setWeeklyTests={setWeeklyTests}
             students={assignedStudents}
             batches={assignedBatches}
+            viewTestId={viewTestId}
+            setViewTestId={setViewTestId}
           />
         );
       case "classes":
@@ -636,6 +655,9 @@ const TeacherDashboard = ({ onNavigate }) => {
             students={assignedStudents}
             setActiveNav={handleSetActiveNav}
             setViewAsgn={setViewAsgn}
+            weeklyTests={weeklyTests}
+            setWeeklyTests={setWeeklyTests}
+            setViewTestId={setViewTestId}
           />
         );
       case "profile":

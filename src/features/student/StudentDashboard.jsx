@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   LayoutDashboard,
   CalendarDays,
@@ -27,7 +27,8 @@ import {
   HelpCircle,
   GraduationCap,
   Paperclip,
-  Upload
+  Upload,
+  Loader2
 } from "lucide-react";
 import logo from "../../assets/logo.png";
 import avatarImg from "../../assets/avatar.png";
@@ -100,7 +101,7 @@ const StudentDashboard = ({ onNavigate }) => {
         if (loggedStudentStr) {
           try {
             studentEmail = JSON.parse(loggedStudentStr).email;
-          } catch (e) {}
+          } catch (e) { }
         }
 
         if (!studentEmail) {
@@ -280,99 +281,41 @@ const StudentDashboard = ({ onNavigate }) => {
   const [testSubmissions, setTestSubmissions] = useState({}); // testId -> { uploading, url }
   const submissionInputRefs = useRef({});
 
-  // Fetch weekly tests for this student from Supabase and LocalStorage
+  // Fetch weekly tests for this student's batch from Supabase
   useEffect(() => {
-    let active = true;
+    if (!studentProfile?.batch_id) return;
+    setWeeklyTestsLoading(true);
+    supabase
+      .from("weekly_tests")
+      .select("*")
+      .then(({ data, error }) => {
+        setWeeklyTestsLoading(false);
+        if (error || !data) return;
+        // Filter tests for this student's batch
+        const studentBatchId = String(studentProfile.batch_id);
+        const myTests = data.filter(
+          (t) => String(t.batch_id) === studentBatchId
+        );
+        setWeeklyTests(myTests);
+      });
+  }, [studentProfile]);
 
-    const fetchWeeklyTests = async () => {
-      setWeeklyTestsLoading(true);
-      try {
-        // 1. Fetch from Supabase
-        const { data, error } = await supabase
-          .from("weekly_tests")
-          .select("*")
-          .order("created_at", { ascending: false });
+  useEffect(() => {
+    if (!studentProfile?.batch_id) return;
+    setWeeklyTestsLoading(true);
+    fetchStudentWeeklyTests().finally(() => setWeeklyTestsLoading(false));
 
-        let dbTests = [];
-        if (!error && data) {
-          dbTests = data.map((t) => ({
-            id: t.id,
-            title: t.title || t.name,
-            subject: t.subject,
-            batchId: t.batch_id || t.batchId,
-            batch: t.batch || t.batch_id,
-            date: t.date || t.created_at,
-            maxScore: t.max_score || t.maxScore || 20,
-            status: t.status || "Result Pending",
-            testPdfUrl: t.test_pdf_url || t.testPdfUrl,
-            studentMarks: t.student_marks || t.studentMarks || {},
-          }));
-        }
-
-        // 2. Also merge from LocalStorage
-        let localTests = [];
-        try {
-          const raw = localStorage.getItem("gw_weeklytests_v4");
-          if (raw) localTests = JSON.parse(raw);
-        } catch {}
-
-        const mergedMap = new Map();
-        dbTests.forEach((t) => mergedMap.set(String(t.id), t));
-        localTests.forEach((t) => {
-          if (!mergedMap.has(String(t.id))) {
-            mergedMap.set(String(t.id), t);
-          }
-        });
-
-        const allTests = Array.from(mergedMap.values());
-
-        // Filter tests matching student's batch or subjects or teacher
-        const studentBatchId = String(studentProfile?.batch_id || studentProfile?.batchId || "").trim().toLowerCase();
-        const studentBatchName = String(studentProfile?.batchName || studentProfile?.batch || "").trim().toLowerCase();
-        const studentSubjs = (studentProfile?.subjects || []).map((s) => String(s).toLowerCase());
-
-        const myTests = allTests.filter((t) => {
-          if (!t) return false;
-          const tBatchId = String(t.batchId || t.batch_id || "").trim().toLowerCase();
-          const tBatchName = String(t.batch || "").trim().toLowerCase();
-          const tSubject = String(t.subject || "").trim().toLowerCase();
-
-          if (!studentBatchId && !studentBatchName && studentSubjs.length === 0) return true;
-
-          return (
-            (tBatchId && studentBatchId && (tBatchId === studentBatchId || tBatchId.includes(studentBatchId))) ||
-            (tBatchName && studentBatchName && (tBatchName === studentBatchName || tBatchName.includes(studentBatchName))) ||
-            (tBatchId && studentBatchName && (tBatchId === studentBatchName || tBatchId.includes(studentBatchName))) ||
-            (tBatchName && studentBatchId && (tBatchName === studentBatchId || tBatchName.includes(studentBatchId))) ||
-            (tSubject && studentSubjs.includes(tSubject))
-          );
-        });
-
-        if (active) {
-          setWeeklyTests(myTests.length > 0 ? myTests : allTests);
-          setWeeklyTestsLoading(false);
-        }
-      } catch (err) {
-        console.error("Error fetching weekly tests for student:", err);
-        if (active) setWeeklyTestsLoading(false);
-      }
-    };
-
-    fetchWeeklyTests();
-
-    // Subscribe to real-time weekly_tests changes
-    const testsChannel = supabase
-      .channel("student-weekly-tests-realtime")
+    const testChan = supabase
+      .channel("student-weekly-tests-channel")
       .on("postgres_changes", { event: "*", schema: "public", table: "weekly_tests" }, () => {
-        if (active) fetchWeeklyTests();
+        fetchStudentWeeklyTests();
       })
       .subscribe();
 
     return () => {
-      active = false;
-      supabase.removeChannel(testsChannel);
+      supabase.removeChannel(testChan);
     };
-  }, [studentProfile]);
+  }, [studentProfile, fetchStudentWeeklyTests]);
 
   const handleSubmitTestAnswer = async (test) => {
     const fileInput = submissionInputRefs.current[test.id];
@@ -386,90 +329,70 @@ const StudentDashboard = ({ onNavigate }) => {
     setTestSubmissions((prev) => ({ ...prev, [test.id]: { uploading: true, url: null } }));
 
     try {
-      let submissionUrl = null;
+      // Upload file to Supabase Storage
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const path = `submissions/${test.id}_${studentId}_${Date.now()}_${safeName}`;
+      const { error: uploadError } = await supabase.storage
+        .from("weekly-tests")
+        .upload(path, file, { upsert: true });
 
-      // 1. Read file as DataURL as a guaranteed fallback
-      const fileDataUrl = await new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target?.result || null);
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(file);
-      });
+      if (uploadError) throw uploadError;
 
-      // 2. Try uploading file to Supabase storage bucket
-      try {
-        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const path = `submissions/${test.id}_${Date.now()}_${safeName}`;
-        const { error: uploadError } = await supabase.storage
-          .from("weekly-tests")
-          .upload(path, file, { upsert: true });
+      const { data: urlData } = supabase.storage.from("weekly-tests").getPublicUrl(path);
+      const submissionUrl = urlData?.publicUrl;
 
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage.from("weekly-tests").getPublicUrl(path);
-          if (urlData?.publicUrl) submissionUrl = urlData.publicUrl;
-        }
-      } catch (storageErr) {
-        console.warn("Storage upload warning, using DataURL fallback:", storageErr);
-      }
-
-      if (!submissionUrl) {
-        submissionUrl = fileDataUrl;
-      }
-
-      // 3. Build updated studentMarks object
-      const currentMarks = { ...(test.student_marks || test.studentMarks || {}) };
-      const subRecord = {
-        submissionUrl,
-        fileName: file.name,
-        submittedAt: new Date().toISOString(),
-        score: currentMarks[sId]?.score ?? null,
-        remarks: currentMarks[sId]?.remarks || "",
+      // Update the studentMarks JSONB in weekly_tests to record submission
+      const currentMarks = test.student_marks || {};
+      const updatedMarks = {
+        ...currentMarks,
+        [studentId]: {
+          ...(currentMarks[studentId] || {}),
+          submissionUrl,
+          submittedAt: new Date().toISOString(),
+        },
       };
+      await supabase
+        .from("weekly_tests")
+        .update({ student_marks: updatedMarks })
+        .eq("id", test.id);
 
-      // Key by student id, student_id, name, and email for full lookup compatibility
-      [studentProfile?.id, studentProfile?.student_id, studentProfile?.name, studentProfile?.email, sId].forEach((key) => {
-        if (key) {
-          currentMarks[key] = {
-            ...(currentMarks[key] || {}),
-            ...subRecord,
-          };
-        }
+      const rawTeacher = (studentProfile?.assignedTeachers?.[0] || "Mr. Rajesh")
+        .toLowerCase()
+        .replace(/^(mr\.|mrs\.|ms\.)\s*/, "")
+        .trim();
+
+      const currentTime = new Date().toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
       });
 
-      // 4. Update in Supabase database
       try {
-        await supabase
-          .from("weekly_tests")
-          .update({ student_marks: currentMarks })
-          .eq("id", test.id);
-      } catch (dbErr) {
-        console.warn("Supabase weekly_tests DB update warning:", dbErr);
+        await supabase.from("notifications").insert({
+          type: `test-submission:${rawTeacher}:${test.id}:${studentProfile.id}`,
+          message: `${studentProfile.name} submitted test paper '${test.title}' (${test.subject})`,
+          time: currentTime,
+        });
+      } catch (nErr) {
+        console.error("Failed to insert test submission notification:", nErr);
       }
 
-      // 5. Update in LocalStorage
+      // Also notify the student themselves that their answer was submitted
       try {
-        const raw = localStorage.getItem("gw_weeklytests_v4");
-        const localTests = raw ? JSON.parse(raw) : [];
-        const updatedLocal = localTests.map((t) =>
-          String(t.id) === String(test.id)
-            ? { ...t, studentMarks: currentMarks, student_marks: currentMarks }
-            : t
-        );
-        localStorage.setItem("gw_weeklytests_v4", JSON.stringify(updatedLocal));
-      } catch (e) {}
+        await supabase.from("notifications").insert({
+          type: `test-submitted:${studentProfile.id}`,
+          message: `You successfully submitted your answer sheet for "${test.title}" (${test.subject}). Your teacher will grade it soon.`,
+          time: currentTime,
+        });
+      } catch (nErr) {
+        console.error("Failed to insert student self-notification:", nErr);
+      }
 
       setTestSubmissions((prev) => ({ ...prev, [test.id]: { uploading: false, url: submissionUrl } }));
-
-      // 6. Update local react state
+      // Refresh the test list
       setWeeklyTests((prev) =>
-        prev.map((t) =>
-          String(t.id) === String(test.id)
-            ? { ...t, studentMarks: currentMarks, student_marks: currentMarks }
-            : t
-        )
+        prev.map((t) => t.id === test.id ? { ...t, student_marks: updatedMarks } : t)
       );
-
-      showToast("Weekly test answer submitted successfully!", "success");
     } catch (err) {
       console.error("Submission failed:", err);
       setTestSubmissions((prev) => ({ ...prev, [test.id]: { uploading: false, url: null } }));
@@ -530,7 +453,7 @@ const StudentDashboard = ({ onNavigate }) => {
         try {
           const raw = localStorage.getItem("gw_classes_v3");
           if (raw) localClasses = JSON.parse(raw);
-        } catch (e) {}
+        } catch (e) { }
 
         const mergedMap = new Map();
         dbClasses.forEach((c) => mergedMap.set(String(c.id), c));
@@ -597,7 +520,7 @@ const StudentDashboard = ({ onNavigate }) => {
           stream = s;
           if (studentVideoRef.current) {
             studentVideoRef.current.srcObject = s;
-            studentVideoRef.current.play().catch(() => {});
+            studentVideoRef.current.play().catch(() => { });
           }
         })
         .catch((err) => console.warn("Student media access:", err));
@@ -716,7 +639,7 @@ const StudentDashboard = ({ onNavigate }) => {
                 if (row.description && row.description.startsWith("{")) {
                   parsedDesc = JSON.parse(row.description);
                 }
-              } catch (e) {}
+              } catch (e) { }
 
               const submissionsList = parsedDesc.submissions || [];
               const mySub = submissionsList.find(sub => sub.studentId === studentProfile.id);
@@ -778,7 +701,7 @@ const StudentDashboard = ({ onNavigate }) => {
 
   const handleStudentSubmissionSubmit = async () => {
     if (!submitModalAsgn) return;
-    
+
     try {
       const newSubmissionEntry = {
         studentId: studentProfile.id,
@@ -905,7 +828,7 @@ const StudentDashboard = ({ onNavigate }) => {
       return statusLower === "present" || statusLower === "late";
     }).length;
     const rateForSubject = totalForSubject > 0 ? Math.round((presentForSubject / totalForSubject) * 100) : 100;
-    
+
     const firstLogWithTeacher = logsForSubject.find(l => l.teacher);
     const teacherName = firstLogWithTeacher?.teacher || "TBD";
 
@@ -954,15 +877,32 @@ const StudentDashboard = ({ onNavigate }) => {
           const assignedTeachers = studentProfile?.assignedTeachers || [];
 
           const filteredDbNotifs = dbNotifs.filter((notif) => {
-            // Case 1: Do not show submission notifications to students
+            // Block teacher-side submission notifications
             if (notif.rawType && notif.rawType.startsWith("submission:")) {
               return false;
             }
 
-            // Case 2: If type starts with graded:, match student ID
+            // Block test-submission notifications meant for the teacher
+            if (notif.rawType && notif.rawType.startsWith("test-submission:")) {
+              return false;
+            }
+
+            // Allow student's own submission confirmation
+            if (notif.rawType && notif.rawType.startsWith("test-submitted:")) {
+              const notifStudentId = notif.rawType.split(":")[1];
+              return String(notifStudentId) === String(studentProfile.id);
+            }
+
+            // Allow graded assignment result for this student
             if (notif.rawType && notif.rawType.startsWith("graded:")) {
               const notifStudentId = notif.rawType.split(":")[1];
-              return notifStudentId === studentProfile.id;
+              return String(notifStudentId) === String(studentProfile.id);
+            }
+
+            // Allow test result for this student
+            if (notif.rawType && notif.rawType.startsWith("test-result:")) {
+              const notifStudentId = notif.rawType.split(":")[1];
+              return String(notifStudentId) === String(studentProfile.id);
             }
 
             // Case 3: Standard subject-based matching
@@ -1011,16 +951,25 @@ const StudentDashboard = ({ onNavigate }) => {
           const studentSubjects = studentProfile?.subjects || [];
           const assignedTeachers = studentProfile?.assignedTeachers || [];
           const rawType = payload.new.type || "study-material";
-          
+
           if (rawType.startsWith("submission:")) {
             return;
           }
-          
+
+          // Block teacher-side test submission notifications
+          if (rawType.startsWith("test-submission:")) {
+            return;
+          }
+
           let isNotificationForMe = false;
-          
-          if (rawType.startsWith("graded:")) {
+
+          // Student's own submission confirmation
+          if (rawType.startsWith("test-submitted:")) {
             const notifStudentId = rawType.split(":")[1];
-            isNotificationForMe = notifStudentId === studentProfile.id;
+            isNotificationForMe = String(notifStudentId) === String(studentProfile.id);
+          } else if (rawType.startsWith("graded:") || rawType.startsWith("test-result:")) {
+            const notifStudentId = rawType.split(":")[1];
+            isNotificationForMe = String(notifStudentId) === String(studentProfile.id);
           } else {
             const match = payload.new.message?.match(/\(([^)]+)\)/);
             if (match) {
@@ -1093,7 +1042,7 @@ const StudentDashboard = ({ onNavigate }) => {
                   ...parsedTitle,
                 };
               }
-            } catch (e) {}
+            } catch (e) { }
             return {
               id: row.id,
               title: row.title,
@@ -1119,7 +1068,7 @@ const StudentDashboard = ({ onNavigate }) => {
           const filtered = parsed.filter(m => {
             // Case 1: Match student's batch exactly
             if (m.batch === studentBatch || m.batch === studentProfile?.batchName) return true;
-            
+
             // Case 2: Match student's enrolled subject AND the material's teacher is assigned to the student loosely!
             const isTeacherMatched = assignedTeachers.some(tName => {
               if (!tName || !m.teacher) return false;
@@ -1857,7 +1806,7 @@ const StudentDashboard = ({ onNavigate }) => {
                             filteredHistory.map((row, idx) => {
                               const statusLower = row.status?.toLowerCase();
                               const lateStyle = statusLower === "late" ? { backgroundColor: "#fffbeb", color: "#d97706" } : {};
-                              
+
                               return (
                                 <tr key={idx}>
                                   <td>{formatDate(row.date)}</td>
@@ -2019,14 +1968,7 @@ const StudentDashboard = ({ onNavigate }) => {
                               </button>
                             </>
                           )}
-                          {asgn.status === "Evaluated" && (
-                            <button
-                              className="outline-btn"
-                              onClick={() => handleViewAssignmentDetails(asgn)}
-                            >
-                              View Submission
-                            </button>
-                          )}
+
                           {asgn.status === "Overdue" && (
                             <button
                               className="primary-solid-btn"
@@ -2211,20 +2153,31 @@ const StudentDashboard = ({ onNavigate }) => {
 
                         {/* Test paper download */}
                         {testPdfUrl && (
-                          <a
-                            href={testPdfUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            onClick={() => {
+                              if (testPdfUrl.startsWith("data:")) {
+                                const byteStr = atob(testPdfUrl.split(",")[1]);
+                                const mime = testPdfUrl.split(",")[0].split(":")[1].split(";")[0];
+                                const arr = new Uint8Array(byteStr.length);
+                                for (let i = 0; i < byteStr.length; i++) arr[i] = byteStr.charCodeAt(i);
+                                const blob = new Blob([arr], { type: mime });
+                                const url = URL.createObjectURL(blob);
+                                window.open(url, "_blank");
+                                setTimeout(() => URL.revokeObjectURL(url), 10000);
+                              } else {
+                                window.open(testPdfUrl, "_blank");
+                              }
+                            }}
                             style={{
                               display: "inline-flex", alignItems: "center", gap: "6px",
                               padding: "6px 14px", borderRadius: "8px",
                               background: "#eff6ff", border: "1px solid #bfdbfe",
                               color: "#2563eb", fontSize: "13px", fontWeight: 500,
-                              textDecoration: "none", width: "fit-content"
+                              cursor: "pointer", width: "fit-content"
                             }}
                           >
-                            <Download size={14} /> Download Test Paper (PDF)
-                          </a>
+                            <Download size={14} /> View / Download Test Paper
+                          </button>
                         )}
 
                         {/* Submission area */}
@@ -2235,45 +2188,62 @@ const StudentDashboard = ({ onNavigate }) => {
                           {submissionUrl ? (
                             <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
                               <CheckCircle size={16} style={{ color: "#22c55e" }} />
-                              <span style={{ fontSize: "13px", fontWeight: 500, color: "#166534" }}>Answer Submitted</span>
-                              <a
-                                href={submissionUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{
-                                  fontSize: "12px", color: "#2563eb", textDecoration: "underline"
-                                }}
-                              >
-                                View my submission
-                              </a>
+                              <span style={{ fontSize: "13px", fontWeight: 500, color: "#166534" }}>Answer Submitted — awaiting evaluation</span>
                             </div>
                           ) : (
-                            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                              <p style={{ fontSize: "13px", fontWeight: 500, color: "#475569", margin: 0 }}>
-                                Submit your answer:
-                              </p>
-                              <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                              <p style={{ fontSize: "13px", fontWeight: 600, color: "#374151", margin: 0 }}>Submit your answer sheet:</p>
+                              <label
+                                htmlFor={`test-file-${test.id}`}
+                                style={{
+                                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                                  gap: "8px", padding: "18px 16px", borderRadius: "10px",
+                                  border: "2px dashed #bfdbfe", background: "#eff6ff",
+                                  cursor: isUploading ? "not-allowed" : "pointer",
+                                  transition: "all 0.2s"
+                                }}
+                              >
+                                <Upload size={22} color="#2563eb" />
+                                <span style={{ fontSize: "13px", fontWeight: 500, color: "#2563eb" }}>Click to select PDF / DOC</span>
+                                <span style={{ fontSize: "11px", color: "#94a3b8" }}>Max size: 10MB</span>
                                 <input
+                                  id={`test-file-${test.id}`}
                                   type="file"
                                   accept=".pdf,.doc,.docx"
                                   ref={(el) => { submissionInputRefs.current[test.id] = el; }}
-                                  style={{ fontSize: "13px", flex: 1, minWidth: "180px" }}
+                                  style={{ display: "none" }}
                                   disabled={isUploading}
-                                />
-                                <button
-                                  onClick={() => handleSubmitTestAnswer(test)}
-                                  disabled={isUploading}
-                                  style={{
-                                    padding: "7px 18px", borderRadius: "8px",
-                                    background: isUploading ? "#94a3b8" : "#2563eb",
-                                    color: "#fff", border: "none", cursor: isUploading ? "not-allowed" : "pointer",
-                                    fontSize: "13px", fontWeight: 600
+                                  onChange={(e) => {
+                                    // Force re-render to show selected filename
+                                    const f = e.target.files?.[0];
+                                    if (f) {
+                                      const label = document.getElementById(`test-file-label-${test.id}`);
+                                      if (label) label.textContent = f.name;
+                                    }
                                   }}
-                                >
-                                  {isUploading ? "Uploading..." : "Submit"}
-                                </button>
-                              </div>
-                              <p style={{ fontSize: "11px", color: "#94a3b8", margin: 0 }}>PDF, DOC or DOCX accepted</p>
+                                />
+                              </label>
+                              <span id={`test-file-label-${test.id}`} style={{ fontSize: "12px", color: "#475569", fontStyle: "italic", textAlign: "center" }}>No file selected</span>
+                              <button
+                                onClick={() => handleSubmitTestAnswer(test)}
+                                disabled={isUploading}
+                                style={{
+                                  padding: "11px 0", borderRadius: "10px",
+                                  background: isUploading ? "#94a3b8" : "linear-gradient(135deg, #2563eb, #4f46e5)",
+                                  color: "#fff", border: "none",
+                                  cursor: isUploading ? "not-allowed" : "pointer",
+                                  fontSize: "14px", fontWeight: 700, width: "100%",
+                                  display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                                  boxShadow: isUploading ? "none" : "0 2px 10px rgba(37,99,235,0.35)",
+                                  transition: "all 0.2s"
+                                }}
+                              >
+                                {isUploading ? (
+                                  <><Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> Uploading...</>
+                                ) : (
+                                  <><Upload size={16} /> Submit Answer Sheet</>
+                                )}
+                              </button>
                             </div>
                           )}
                         </div>
@@ -2616,9 +2586,12 @@ const StudentDashboard = ({ onNavigate }) => {
                           } else if (notif.type === "assignment") {
                             Icon = ClipboardList;
                             iconClass = "asgn";
-                          } else if (notif.type === "test-results") {
+                          } else if (notif.type === "test-results" || notif.type === "test-result" || notif.type === "weekly-test") {
                             Icon = HelpCircle;
                             iconClass = "test";
+                          } else if (notif.type === "graded") {
+                            Icon = ClipboardList;
+                            iconClass = "asgn";
                           }
 
                           return (
@@ -2730,8 +2703,8 @@ const StudentDashboard = ({ onNavigate }) => {
                       <div className="info-item">
                         <span className="info-label">ALLOCATED TEACHER</span>
                         <span className="info-value">
-                          {studentProfile?.assignedTeachers && studentProfile.assignedTeachers.length > 0 
-                            ? studentProfile.assignedTeachers.join(", ") 
+                          {studentProfile?.assignedTeachers && studentProfile.assignedTeachers.length > 0
+                            ? studentProfile.assignedTeachers.join(", ")
                             : "None Assigned"}
                         </span>
                       </div>

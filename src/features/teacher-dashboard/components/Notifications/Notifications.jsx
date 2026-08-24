@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Bell, Check, Trash2, Calendar, ClipboardList, Info, AlertTriangle, Circle, Download } from "lucide-react";
+import { Bell, Check, Trash2, Calendar, ClipboardList, Info, AlertTriangle, Circle, Eye } from "lucide-react";
 import "./Notifications.css";
 
-const Notifications = ({ notifications, setNotifications, assignments, setAssignments, students, setActiveNav, setViewAsgn }) => {
+const Notifications = ({ notifications, setNotifications, assignments, setAssignments, students, setActiveNav, setViewAsgn, weeklyTests, setWeeklyTests, setViewTestId }) => {
   const [filter, setFilter] = useState("all"); // "all" | "unread" | "read"
 
   const filteredNotifications = notifications.filter((n) => {
@@ -137,6 +137,7 @@ const Notifications = ({ notifications, setNotifications, assignments, setAssign
               
               let asgnObj = null;
               let studentSub = null;
+              let testObj = null;
               if (n.type && n.type.startsWith("submission:")) {
                 const parts = n.type.split(":");
                 const asgnId = parts[2];
@@ -144,6 +145,14 @@ const Notifications = ({ notifications, setNotifications, assignments, setAssign
                 asgnObj = assignments?.find(a => a.id === asgnId);
                 if (asgnObj) {
                   studentSub = asgnObj.submissions?.find(s => s.studentId === studentId);
+                }
+              } else if (n.type && n.type.startsWith("test-submission:")) {
+                const parts = n.type.split(":");
+                const testId = Number(parts[2]);
+                const studentId = parts[3];
+                testObj = weeklyTests?.find(t => t.id === testId);
+                if (testObj) {
+                  studentSub = testObj.studentMarks?.[studentId];
                 }
               }
 
@@ -190,14 +199,12 @@ const Notifications = ({ notifications, setNotifications, assignments, setAssign
                         Grade
                       </button>
                     )}
-                    {studentSub?.attachmentUrl && (
-                      <a
-                        href={studentSub.attachmentUrl}
-                        download={studentSub.attachmentName || "answer_sheet.pdf"}
+                    {testObj && (
+                      <button
                         className="notif-row-action-btn"
-                        title="Download Answer Sheet"
+                        title="Grade Test"
                         style={{ 
-                          background: "#27a55e", 
+                          background: "#2D6BFF", 
                           color: "#ffffff", 
                           border: "none", 
                           borderRadius: "4px", 
@@ -206,12 +213,53 @@ const Notifications = ({ notifications, setNotifications, assignments, setAssign
                           cursor: "pointer",
                           display: "inline-flex",
                           alignItems: "center",
-                          textDecoration: "none",
                           height: "28px"
                         }}
+                        onClick={() => {
+                          if (setActiveNav && setViewTestId) {
+                             setViewTestId(testObj.id);
+                             setActiveNav("tests");
+                          }
+                        }}
                       >
-                        View PDF
-                      </a>
+                        Grade
+                      </button>
+                    )}
+                    {(studentSub?.attachmentUrl || studentSub?.submissionUrl) && (
+                      <button
+                        className="notif-row-action-btn"
+                        title="View Answer Sheet"
+                        style={{ 
+                          background: "#27a55e", 
+                          color: "#ffffff", 
+                          border: "none", 
+                          borderRadius: "4px", 
+                          padding: "4px 10px", 
+                          fontSize: "12px", 
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          height: "28px"
+                        }}
+                        onClick={() => {
+                          const url = studentSub.attachmentUrl || studentSub.submissionUrl;
+                          if (url.startsWith("data:")) {
+                            const byteStr = atob(url.split(",")[1]);
+                            const mime = url.split(",")[0].split(":")[1].split(";")[0];
+                            const arr = new Uint8Array(byteStr.length);
+                            for (let i = 0; i < byteStr.length; i++) arr[i] = byteStr.charCodeAt(i);
+                            const blob = new Blob([arr], { type: mime });
+                            const blobUrl = URL.createObjectURL(blob);
+                            window.open(blobUrl, "_blank");
+                            setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+                          } else {
+                            window.open(url, "_blank");
+                          }
+                        }}
+                      >
+                        <Eye size={12} /> View PDF
+                      </button>
                     )}
                     {!n.read && (
                       <button 
