@@ -384,11 +384,33 @@ const DeleteModal = ({ material, onClose, onConfirm }) => (
 );
 
 /* ── Main Component ────────────────────────────────────────── */
-const StudyMaterials = ({ batches = [], students = [] }) => {
-  const [materials, setMaterials] = useState([]);
+const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMaterials, batches = [], students = [] }) => {
+  const [localMaterials, setLocalMaterials] = useState(() => {
+    try {
+      const stored = localStorage.getItem("gw_materials_v2");
+      if (stored) return JSON.parse(stored);
+    } catch (e) {}
+    return initialMaterials;
+  });
 
-  // Fetch materials dynamically from Supabase
+  const materials = propMaterials && propMaterials.length > 0 ? propMaterials : localMaterials;
+
+  const setMaterials = (newMaterials) => {
+    const next = typeof newMaterials === "function" ? newMaterials(materials) : newMaterials;
+    if (propSetMaterials) {
+      propSetMaterials(next);
+    }
+    setLocalMaterials(next);
+    try {
+      localStorage.setItem("gw_materials_v2", JSON.stringify(next));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Fetch materials dynamically from Supabase & realtime sync
   useEffect(() => {
+    let isMounted = true;
     const loadMaterials = async () => {
       try {
         const { data, error } = await supabase
@@ -396,10 +418,10 @@ const StudyMaterials = ({ batches = [], students = [] }) => {
           .select("*")
           .order("created_at", { ascending: false });
 
-        if (!error && data) {
+        if (!error && data && isMounted) {
           const parsed = data.map((row) => {
             try {
-              if (row.title.startsWith("{")) {
+              if (row.title && typeof row.title === "string" && row.title.startsWith("{")) {
                 const parsedTitle = JSON.parse(row.title);
                 return {
                   id: row.id,
@@ -440,15 +462,22 @@ const StudyMaterials = ({ batches = [], students = [] }) => {
     };
 
     loadMaterials();
+
+    const materialsChannel = supabase
+      .channel("teacher-materials-channel")
+      .on("postgres_changes", { event: "*", schema: "public", table: "materials" }, () => {
+        loadMaterials();
+      })
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(materialsChannel);
+    };
   }, []);
 
   const saveMaterials = (newMaterials) => {
     setMaterials(newMaterials);
-    try {
-      localStorage.setItem("gw_materials_v2", JSON.stringify(newMaterials));
-    } catch (e) {
-      console.error(e);
-    }
   };
 
   const [searchQ, setSearchQ]           = useState("");

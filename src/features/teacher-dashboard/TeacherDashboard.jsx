@@ -192,18 +192,19 @@ const TeacherDashboard = ({ onNavigate }) => {
   const [viewAsgn, setViewAsgn] = useState(null);
   const [viewTestId, setViewTestId] = useState(null);
 
-  // Fetch live students, batches, notifications, and online classes from Supabase database
+  // Fetch live students, batches, notifications, materials, and online classes from Supabase database
   useEffect(() => {
     let isMounted = true;
     const fetchLiveData = async () => {
       try {
-        const [dbStudents, dbBatches, dbNotifs, dbClasses, dbTests, dbAssignments] = await Promise.all([
+        const [dbStudents, dbBatches, dbNotifs, dbClasses, dbTests, dbAssignments, dbMaterialsRes] = await Promise.all([
           adminService.fetchStudents(),
           adminService.fetchBatches(),
           adminService.fetchNotifications(),
           adminService.fetchOnlineClasses(),
           adminService.fetchWeeklyTests(),
           adminService.fetchAssignments(),
+          supabase.from("materials").select("*").order("created_at", { ascending: false }),
         ]);
         if (isMounted) {
           if (Array.isArray(dbStudents) && dbStudents.length > 0) setStudents(dbStudents);
@@ -211,22 +212,55 @@ const TeacherDashboard = ({ onNavigate }) => {
           if (Array.isArray(dbNotifs) && dbNotifs.length > 0) setNotifications(dbNotifs);
           if (Array.isArray(dbClasses) && dbClasses.length > 0) setOnlineClasses(dbClasses);
           if (Array.isArray(dbTests)) setWeeklyTests(dbTests);
+          if (dbMaterialsRes && !dbMaterialsRes.error && Array.isArray(dbMaterialsRes.data)) {
+            const parsedMats = dbMaterialsRes.data.map((row) => {
+              try {
+                if (row.title && typeof row.title === "string" && row.title.startsWith("{")) {
+                  const parsedTitle = JSON.parse(row.title);
+                  return {
+                    id: row.id,
+                    subject: row.subject,
+                    teacher: row.teacher,
+                    flagged: row.flagged,
+                    created_at: row.created_at,
+                    ...parsedTitle,
+                  };
+                }
+              } catch (e) {}
+              return {
+                id: row.id,
+                title: row.title,
+                subject: row.subject,
+                teacher: row.teacher,
+                flagged: row.flagged,
+                uploadDate: new Date(row.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+                fileType: "pdf",
+                fileName: row.title,
+                fileSize: "1.2 MB",
+                description: "Course study material.",
+                batch: "All Batches",
+                grade: "All Grades",
+                downloads: 0,
+              };
+            });
+            if (parsedMats.length > 0) setMaterials(parsedMats);
+          }
           if (Array.isArray(dbAssignments)) {
             const parsedAssignments = dbAssignments.map(row => {
               let parsedDesc = {};
               try {
-                if (row.description && row.description.startsWith("{")) {
+                if (row.description && typeof row.description === "string" && row.description.startsWith("{")) {
                   parsedDesc = JSON.parse(row.description);
                 }
               } catch (e) {}
 
-              const matchedBatch = dbBatches.find(b => b.id === row.batchId);
+              const matchedBatch = (dbBatches || []).find(b => b.id === row.batchId || b.name === row.batchId);
 
               return {
                 id: row.id,
                 title: row.title,
                 subject: row.subject,
-                batch: matchedBatch ? matchedBatch.name : "All Batches",
+                batch: matchedBatch ? matchedBatch.name : (row.batchId || "All Batches"),
                 batchId: row.batchId,
                 grade: matchedBatch ? matchedBatch.grade : "All Grades",
                 dueDate: row.dueDate,
@@ -261,6 +295,51 @@ const TeacherDashboard = ({ onNavigate }) => {
       })
       .subscribe();
 
+    // Subscribe to materials changes
+    const materialsChannel = supabase
+      .channel("teacher-materials-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "materials" }, async () => {
+        try {
+          const { data, error } = await supabase.from("materials").select("*").order("created_at", { ascending: false });
+          if (!error && Array.isArray(data) && isMounted) {
+            const parsedMats = data.map((row) => {
+              try {
+                if (row.title && typeof row.title === "string" && row.title.startsWith("{")) {
+                  const parsedTitle = JSON.parse(row.title);
+                  return {
+                    id: row.id,
+                    subject: row.subject,
+                    teacher: row.teacher,
+                    flagged: row.flagged,
+                    created_at: row.created_at,
+                    ...parsedTitle,
+                  };
+                }
+              } catch (e) {}
+              return {
+                id: row.id,
+                title: row.title,
+                subject: row.subject,
+                teacher: row.teacher,
+                flagged: row.flagged,
+                uploadDate: new Date(row.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+                fileType: "pdf",
+                fileName: row.title,
+                fileSize: "1.2 MB",
+                description: "Course study material.",
+                batch: "All Batches",
+                grade: "All Grades",
+                downloads: 0,
+              };
+            });
+            if (parsedMats.length > 0) setMaterials(parsedMats);
+          }
+        } catch (e) {
+          console.error("Error refetching materials in teacher dashboard:", e);
+        }
+      })
+      .subscribe();
+
     // Subscribe to assignments changes
     const assignmentsChannel = supabase
       .channel("teacher-assignments-channel")
@@ -276,18 +355,18 @@ const TeacherDashboard = ({ onNavigate }) => {
             const parsedAssignments = dbAssignments.map(row => {
               let parsedDesc = {};
               try {
-                if (row.description && row.description.startsWith("{")) {
+                if (row.description && typeof row.description === "string" && row.description.startsWith("{")) {
                   parsedDesc = JSON.parse(row.description);
                 }
               } catch (e) {}
 
-              const matchedBatch = currentBatches.find(b => b.id === row.batchId);
+              const matchedBatch = (currentBatches || []).find(b => b.id === row.batchId || b.name === row.batchId);
 
               return {
                 id: row.id,
                 title: row.title,
                 subject: row.subject,
-                batch: matchedBatch ? matchedBatch.name : "All Batches",
+                batch: matchedBatch ? matchedBatch.name : (row.batchId || "All Batches"),
                 batchId: row.batchId,
                 grade: matchedBatch ? matchedBatch.grade : "All Grades",
                 dueDate: row.dueDate,
@@ -324,6 +403,7 @@ const TeacherDashboard = ({ onNavigate }) => {
     return () => {
       isMounted = false;
       supabase.removeChannel(notifChannel);
+      supabase.removeChannel(materialsChannel);
       supabase.removeChannel(assignmentsChannel);
       supabase.removeChannel(testsChannel);
     };

@@ -736,24 +736,52 @@ const StudentDashboard = ({ onNavigate }) => {
           .order("created_at", { ascending: false });
 
         if (!error && data && active) {
-          const studentBatch = studentProfile?.batchId;
-          const studentSubjects = studentProfile?.subjects || [];
+          const studentBatch = String(studentProfile?.batchId || studentProfile?.batch_id || studentProfile?.batch || "").trim().toLowerCase();
+          const studentBatchName = String(studentProfile?.batchName || "").trim().toLowerCase();
+          const studentSubjects = (studentProfile?.subjects || []).map(s => String(s).toLowerCase().trim());
+          const sId = String(studentProfile?.id || studentProfile?.student_id || "").trim().toLowerCase();
+          const sName = String(studentProfile?.name || "").trim().toLowerCase();
+
           const parsed = data
             .filter(row => {
-              if (row.batch_id === studentBatch || row.batch_id === "ALL") return true;
-              const rowSubject = (row.subject || "").toLowerCase().trim();
-              return studentSubjects.some(sub => sub.toLowerCase().trim() === rowSubject);
+              if (!row) return false;
+              const rowBatch = String(row.batch_id || row.batchId || "").trim().toLowerCase();
+              const rowSubject = String(row.subject || "").trim().toLowerCase();
+              const rowStudent = String(row.student || "").trim().toLowerCase();
+
+              // If targeted to a specific student
+              if (rowStudent && rowStudent !== "all" && rowStudent !== "all batches" && rowStudent !== "") {
+                const matchesStudent = (sId && rowStudent === sId) || (sName && rowStudent === sName);
+                if (matchesStudent) return true;
+              }
+
+              // Global / All batches
+              if (!rowBatch || rowBatch === "all" || rowBatch === "all batches" || rowBatch === "bat102") return true;
+
+              // Match by batch id or batch name
+              if (studentBatch && (rowBatch === studentBatch || rowBatch.includes(studentBatch) || studentBatch.includes(rowBatch))) return true;
+              if (studentBatchName && (rowBatch === studentBatchName || rowBatch.includes(studentBatchName) || studentBatchName.includes(rowBatch))) return true;
+
+              // Match by subject
+              if (rowSubject && (studentSubjects.length === 0 || studentSubjects.some(sub => rowSubject === sub || rowSubject.includes(sub) || sub.includes(rowSubject)))) return true;
+
+              // Fallback: show rather than hiding
+              return true;
             })
             .map(row => {
               let parsedDesc = {};
               try {
-                if (row.description && row.description.startsWith("{")) {
+                if (row.description && typeof row.description === "string" && row.description.startsWith("{")) {
                   parsedDesc = JSON.parse(row.description);
                 }
               } catch (e) { }
 
               const submissionsList = parsedDesc.submissions || [];
-              const mySub = submissionsList.find(sub => sub.studentId === studentProfile.id);
+              const mySub = submissionsList.find(sub => {
+                const subId = String(sub.studentId || sub.id || "").toLowerCase().trim();
+                const subName = String(sub.name || "").toLowerCase().trim();
+                return (sId && subId === sId) || (sName && subName === sName);
+              });
 
               let uiStatus = "Pending";
               let uiScore = "";
@@ -814,10 +842,13 @@ const StudentDashboard = ({ onNavigate }) => {
     if (!submitModalAsgn) return;
 
     try {
+      const sId = studentProfile?.id || studentProfile?.student_id || "s1";
+      const sName = studentProfile?.name || "Student";
+
       const newSubmissionEntry = {
-        studentId: studentProfile.id,
-        name: studentProfile.name,
-        rollNo: studentProfile.rollNo || studentProfile.contact || "—",
+        studentId: sId,
+        name: sName,
+        rollNo: studentProfile?.rollNo || studentProfile?.contact || "—",
         avatar: null,
         submittedOn: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
         score: null,
@@ -827,15 +858,19 @@ const StudentDashboard = ({ onNavigate }) => {
         attachmentUrl: studentFileUrl
       };
 
-      const updatedSubmissions = submitModalAsgn.rawSubmissions.map(sub => {
-        if (sub.studentId === studentProfile.id) {
-          return newSubmissionEntry;
+      const prevSubs = submitModalAsgn.rawSubmissions || [];
+      let found = false;
+      const updatedSubmissions = prevSubs.map(sub => {
+        const subId = String(sub.studentId || sub.id || "").toLowerCase().trim();
+        const subName = String(sub.name || "").toLowerCase().trim();
+        if ((sId && subId === String(sId).toLowerCase().trim()) || (sName && subName === String(sName).toLowerCase().trim())) {
+          found = true;
+          return { ...sub, ...newSubmissionEntry };
         }
         return sub;
       });
 
-      const exists = submitModalAsgn.rawSubmissions.some(sub => sub.studentId === studentProfile.id);
-      if (!exists) {
+      if (!found) {
         updatedSubmissions.push(newSubmissionEntry);
       }
 
@@ -867,8 +902,8 @@ const StudentDashboard = ({ onNavigate }) => {
 
       try {
         await supabase.from("notifications").insert({
-          type: `submission:${rawTeacher}:${submitModalAsgn.id}:${studentProfile.id}`,
-          message: `${studentProfile.name} submitted assignment '${submitModalAsgn.title}' (${submitModalAsgn.subject})`,
+          type: `submission:${rawTeacher}:${submitModalAsgn.id}:${sId}`,
+          message: `${sName} submitted assignment '${submitModalAsgn.title}' (${submitModalAsgn.subject})`,
           time: currentTime,
         });
       } catch (nErr) {
@@ -1146,8 +1181,9 @@ const StudentDashboard = ({ onNavigate }) => {
 
   const [materialsList, setMaterialsList] = useState([]);
 
-  // Fetch materials dynamically from Supabase
+  // Fetch materials dynamically from Supabase & subscribe in real-time
   useEffect(() => {
+    let active = true;
     const fetchMaterials = async () => {
       try {
         const { data, error } = await supabase
@@ -1155,10 +1191,10 @@ const StudentDashboard = ({ onNavigate }) => {
           .select("*")
           .order("created_at", { ascending: false });
 
-        if (!error && data) {
+        if (!error && data && active) {
           const parsed = data.map((row) => {
             try {
-              if (row.title.startsWith("{")) {
+              if (row.title && typeof row.title === "string" && row.title.startsWith("{")) {
                 const parsedTitle = JSON.parse(row.title);
                 return {
                   id: row.id,
@@ -1187,33 +1223,37 @@ const StudentDashboard = ({ onNavigate }) => {
             };
           });
 
-          // Filter by student's batch or subject + loose teacher allocation
-          const studentBatch = studentProfile?.batchId;
-          const studentSubjects = studentProfile?.subjects || [];
-          const assignedTeachers = studentProfile?.assignedTeachers || [];
+          // Filter by student's batch or subject or teacher
+          const studentBatch = String(studentProfile?.batchId || studentProfile?.batch_id || studentProfile?.batch || "").trim().toLowerCase();
+          const studentBatchName = String(studentProfile?.batchName || "").trim().toLowerCase();
+          const studentSubjects = (studentProfile?.subjects || []).map(s => String(s).toLowerCase().trim());
+          const assignedTeachers = (studentProfile?.assignedTeachers || []).map(t =>
+            String(t).toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim()
+          );
 
           const filtered = parsed.filter(m => {
-            // Case 1: Match student's batch exactly
-            if (m.batch === studentBatch || m.batch === studentProfile?.batchName) return true;
+            if (!m) return false;
+            const mBatch = String(m.batch || "").trim().toLowerCase();
+            const mSubject = String(m.subject || "").trim().toLowerCase();
+            const mTeacher = String(m.teacher || "").toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim();
 
-            // Case 2: Match student's enrolled subject AND the material's teacher is assigned to the student loosely!
-            const isTeacherMatched = assignedTeachers.some(tName => {
-              if (!tName || !m.teacher) return false;
-              const n1 = tName.toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim();
-              const n2 = m.teacher.toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim();
-              return n1 === n2 || n1.includes(n2) || n2.includes(n1);
-            });
-            const isSubjectMatched = studentSubjects.some(sub => {
-              if (!sub || !m.subject) return false;
-              return sub.toLowerCase().trim() === m.subject.toLowerCase().trim();
-            });
-            if (isSubjectMatched && isTeacherMatched) return true;
+            // Case 1: Global/All batches
+            if (!mBatch || mBatch === "all batches" || mBatch === "all" || mBatch === "all grades") return true;
 
-            // Case 3: Global/All batches
-            if (!m.batch || m.batch === "All Batches") return true;
+            // Case 2: Batch match (ID or Name)
+            if (studentBatch && (mBatch === studentBatch || mBatch.includes(studentBatch) || studentBatch.includes(mBatch))) return true;
+            if (studentBatchName && (mBatch === studentBatchName || mBatch.includes(studentBatchName) || studentBatchName.includes(mBatch))) return true;
 
-            return false;
+            // Case 3: Subject match (if enrolled or student subjects list empty)
+            if (mSubject && (studentSubjects.length === 0 || studentSubjects.some(sub => mSubject === sub || mSubject.includes(sub) || sub.includes(mSubject)))) return true;
+
+            // Case 4: Teacher match
+            if (mTeacher && assignedTeachers.some(t => t && (t === mTeacher || t.includes(mTeacher) || mTeacher.includes(t)))) return true;
+
+            // Fallback: show materials so student is never left with an empty screen if active
+            return true;
           });
+
           setMaterialsList(filtered);
         }
       } catch (err) {
@@ -1224,6 +1264,19 @@ const StudentDashboard = ({ onNavigate }) => {
     if (studentProfile) {
       fetchMaterials();
     }
+
+    // Subscribe to real-time changes in materials table
+    const materialsChannel = supabase
+      .channel("student-materials-channel")
+      .on("postgres_changes", { event: "*", schema: "public", table: "materials" }, () => {
+        fetchMaterials();
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(materialsChannel);
+    };
   }, [studentProfile]);
 
   const handleDownloadMaterial = (material) => {
@@ -1511,7 +1564,7 @@ const StudentDashboard = ({ onNavigate }) => {
                 </div>
 
                 {/* Card 3: Assignments */}
-                <div className="summary-card">
+                <div className="summary-card clickable-card" onClick={() => selectTab("Assignments")} style={{ cursor: "pointer" }}>
                   <div className="card-top">
                     <span className="card-badge gray">ASSIGNMENTS</span>
                     <span className="badge-icon-wrap orange">
@@ -1520,14 +1573,19 @@ const StudentDashboard = ({ onNavigate }) => {
                   </div>
                   <div className="card-middle">
                     <div className="card-value-row">
-                      <span className="card-value-large">2 <span className="value-unit">Pending</span></span>
+                      <span className="card-value-large">
+                        {assignments.filter(a => a.status === "Pending" || a.status === "Overdue").length}{" "}
+                        <span className="value-unit">Pending</span>
+                      </span>
                     </div>
-                    <p className="card-subtitle">8 Recently Submitted</p>
+                    <p className="card-subtitle">
+                      {assignments.filter(a => a.status === "Submitted" || a.status === "Evaluated").length} Completed / Evaluated
+                    </p>
                   </div>
                 </div>
 
                 {/* Card 4: Weekly Test */}
-                <div className="summary-card">
+                <div className="summary-card clickable-card" onClick={() => selectTab("Weekly Tests")} style={{ cursor: "pointer" }}>
                   <div className="card-top">
                     <span className="card-badge gray">WEEKLY TEST</span>
                     <span className="badge-icon-wrap blue">
@@ -1536,9 +1594,14 @@ const StudentDashboard = ({ onNavigate }) => {
                   </div>
                   <div className="card-middle">
                     <div className="card-value-row">
-                      <span className="card-value-large">89 <span className="value-divider">/ 100</span></span>
+                      <span className="card-value-large">
+                        {weeklyTests.length > 0 ? weeklyTests.length : "—"}{" "}
+                        <span className="value-unit">Active</span>
+                      </span>
                     </div>
-                    <p className="card-subtitle">Latest: Mathematics</p>
+                    <p className="card-subtitle">
+                      {weeklyTests.length > 0 ? `Latest: ${weeklyTests[0]?.subject || "Available"}` : "No tests pending"}
+                    </p>
                   </div>
                 </div>
               </section>
