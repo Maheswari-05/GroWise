@@ -1,32 +1,238 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import {
   Search, Plus, Filter, BookOpen, FlaskConical, User, Calendar,
   CheckCircle2, AlertCircle, TrendingUp, BarChart2, Check, X,
-  ArrowLeft, Upload, FileText, Eye, Download, Loader2, Pencil, Trash2, ClipboardList, Paperclip
+  ArrowLeft, Upload, FileText, Eye, Download, Loader2, Pencil, Trash2, Paperclip
 } from "lucide-react";
 import * as adminService from "../../../../services/adminService";
 import supabase from "../../../../lib/supabase";
 import "./WeeklyTests.css";
 
-const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
+/* ── Delete Confirmation Modal ─────────────────────────────────────── */
+const DeleteTestModal = ({ test, onClose, onConfirm }) => (
+  <div className="wt-modal-overlay" onClick={onClose}>
+    <div className="wt-modal" style={{ maxWidth: "420px" }} onClick={(e) => e.stopPropagation()}>
+      <div className="wt-modal-header" style={{ borderBottom: "none", paddingBottom: "0" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#ef4444" }}>
+          <Trash2 size={24} />
+          <h3 style={{ margin: 0, color: "#0f172a" }}>Delete Weekly Test?</h3>
+        </div>
+        <button className="wt-modal-close" onClick={onClose}>
+          <X size={18} />
+        </button>
+      </div>
+      <div style={{ padding: "16px 20px", color: "#475569", fontSize: "14px" }}>
+        Are you sure you want to delete <strong>"{test.title}"</strong>? This action cannot be undone.
+      </div>
+      <div className="wt-modal-footer">
+        <button type="button" className="wt-btn-secondary" onClick={onClose}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="wt-btn-primary"
+          style={{ background: "#ef4444", borderColor: "#ef4444" }}
+          onClick={onConfirm}
+        >
+          <Trash2 size={14} /> Delete
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+/* ── Create / Edit Test Modal ─────────────────────────────────────── */
+const TestModal = ({ mode, initial, batches = [], onClose, onSave }) => {
+  const [title, setTitle] = useState(initial?.title || "");
+  const [subject, setSubject] = useState(initial?.subject || "Mathematics");
+  const [batchId, setBatchId] = useState(initial?.batchId || batches[0]?.id || "");
+  const [date, setDate] = useState(initial?.date || new Date().toISOString().split("T")[0]);
+  const [maxScore, setMaxScore] = useState(initial?.maxScore || 20);
+  const [pdfFile, setPdfFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const pdfInputRef = useRef(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+    setUploading(true);
+
+    try {
+      let testPdfUrl = initial?.testPdfUrl || null;
+
+      if (pdfFile) {
+        const safeName = pdfFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `papers/${Date.now()}_${safeName}`;
+        const uploadedUrl = await adminService.uploadTestFile(pdfFile, path);
+        if (uploadedUrl) testPdfUrl = uploadedUrl;
+      }
+
+      await onSave({
+        ...initial,
+        title,
+        subject,
+        batchId,
+        date,
+        maxScore: Number(maxScore) || 20,
+        testPdfUrl,
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="wt-modal-overlay" onClick={onClose}>
+      <div className="wt-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="wt-modal-header">
+          <h3>{mode === "create" ? "Create Weekly Test" : "Edit Weekly Test"}</h3>
+          <button className="wt-modal-close" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="wt-form-group">
+            <label>Test Title *</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Chapter 4 Trigonometry Test"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
+
+          <div className="wt-form-row">
+            <div className="wt-form-group">
+              <label>Subject *</label>
+              <select value={subject} onChange={(e) => setSubject(e.target.value)}>
+                <option value="Mathematics">Mathematics</option>
+                <option value="Science">Science</option>
+                <option value="Physics">Physics</option>
+                <option value="Chemistry">Chemistry</option>
+                <option value="Biology">Biology</option>
+                <option value="English">English</option>
+                <option value="Social Studies">Social Studies</option>
+              </select>
+            </div>
+
+            <div className="wt-form-group">
+              <label>Batch *</label>
+              <select value={batchId} onChange={(e) => setBatchId(e.target.value)}>
+                {batches.map((b) => (
+                  <option key={b.id || b.name} value={b.id || b.name}>
+                    {b.name} {b.grade ? `(${b.grade})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="wt-form-row">
+            <div className="wt-form-group">
+              <label>Test Date *</label>
+              <input
+                type="date"
+                required
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </div>
+
+            <div className="wt-form-group">
+              <label>Max Marks *</label>
+              <input
+                type="number"
+                min="1"
+                required
+                value={maxScore}
+                onChange={(e) => setMaxScore(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* PDF Upload */}
+          <div className="wt-form-group">
+            <label>Upload Test Paper (PDF) <span className="wt-optional-tag">{mode === "edit" ? "replace optional" : "optional"}</span></label>
+            <div
+              className={`wt-pdf-upload-zone ${pdfFile || initial?.testPdfUrl ? "has-file" : ""}`}
+              onClick={() => pdfInputRef.current?.click()}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const file = e.dataTransfer.files[0];
+                if (file && file.type === "application/pdf") setPdfFile(file);
+              }}
+            >
+              <input
+                ref={pdfInputRef}
+                type="file"
+                accept=".pdf"
+                style={{ display: "none" }}
+                onChange={(e) => setPdfFile(e.target.files[0] || null)}
+              />
+              {pdfFile ? (
+                <div className="wt-pdf-file-info">
+                  <FileText size={24} />
+                  <span>{pdfFile.name}</span>
+                  <button
+                    type="button"
+                    className="wt-pdf-remove-btn"
+                    onClick={(e) => { e.stopPropagation(); setPdfFile(null); }}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : initial?.testPdfUrl ? (
+                <div className="wt-pdf-file-info">
+                  <FileText size={24} color="#2D6BFF" />
+                  <span>Attached Test Paper PDF</span>
+                  <small style={{ color: "#2D6BFF" }}>Click to replace</small>
+                </div>
+              ) : (
+                <div className="wt-pdf-upload-placeholder">
+                  <Upload size={28} />
+                  <span>Click or drag & drop a PDF here</span>
+                  <small>Students will be able to download this test paper</small>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="wt-modal-footer">
+            <button type="button" className="wt-btn-secondary" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="wt-btn-primary" disabled={uploading}>
+              {uploading ? (
+                <><Loader2 size={14} className="wt-spin" /> Saving...</>
+              ) : mode === "create" ? (
+                "Create Test"
+              ) : (
+                "Save Changes"
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+/* ── Main WeeklyTests Component ─────────────────────────────────────── */
+const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches = [] }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBatch, setSelectedBatch] = useState("all");
   const [selectedSubject, setSelectedSubject] = useState("all");
   const [activeTestId, setActiveTestId] = useState(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [modalMode, setModalMode] = useState(null); // null | "create" | { mode: "edit", test }
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [viewAnalysisTestId, setViewAnalysisTestId] = useState(null);
 
   // Marks entry state
   const [tempMarks, setTempMarks] = useState({});
   const [tempRemarks, setTempRemarks] = useState({});
   const [publishingMarks, setPublishingMarks] = useState(false);
-  const [wtToast, setWtToast] = useState(null); // { message, type }
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-
-  const showWtToast = (message, type = "success") => {
-    setWtToast({ message, type });
-    setTimeout(() => setWtToast(null), 3000);
-  };
 
   const activeTest = weeklyTests.find((t) => t.id === activeTestId);
   const analysisTest = weeklyTests.find((t) => t.id === viewAnalysisTestId);
@@ -41,26 +247,19 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
     return matchesSearch && matchesBatch && matchesSubject;
   });
 
-  useEffect(() => {
-    if (!activeTestId) return;
-    const testObj = weeklyTests.find(t => t.id === activeTestId);
-    if (!testObj) return;
-
-    setViewAnalysisTestId(null);
-    const initialMarks = {};
-    const initialRemarks = {};
-    const batchStudents = (students || []).filter((s) => s && String(s.batchId || s.batch_id || "") === String(testObj.batchId));
-    batchStudents.forEach((student) => {
-      initialMarks[student.id] = testObj.studentMarks?.[student.id]?.score ?? "";
-      initialRemarks[student.id] = testObj.studentMarks?.[student.id]?.remarks ?? "";
-    });
-    setTempMarks(initialMarks);
-    setTempRemarks(initialRemarks);
-  }, [activeTestId, weeklyTests, students]);
-
   const handleOpenMarksEntry = (test) => {
     if (!test) return;
     setActiveTestId(test.id);
+    setViewAnalysisTestId(null);
+    const initialMarks = {};
+    const initialRemarks = {};
+    const batchStudents = (students || []).filter((s) => s && String(s.batchId) === String(test.batchId));
+    batchStudents.forEach((student) => {
+      initialMarks[student.id] = test.studentMarks?.[student.id]?.score ?? "";
+      initialRemarks[student.id] = test.studentMarks?.[student.id]?.remarks ?? "";
+    });
+    setTempMarks(initialMarks);
+    setTempRemarks(initialRemarks);
   };
 
   const handleSaveMarks = async (publish = false) => {
@@ -69,13 +268,12 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
 
     try {
       const updatedMarks = { ...(activeTest.studentMarks || {}) };
-      const batchStudents = (students || []).filter((s) => s && String(s.batchId || s.batch_id || "") === String(activeTest.batchId));
+      const batchStudents = (students || []).filter((s) => s && String(s.batchId) === String(activeTest.batchId));
 
       batchStudents.forEach((student) => {
         const scoreVal = tempMarks[student.id];
-        const existingMark = updatedMarks[student.id] || {};
         updatedMarks[student.id] = {
-          ...existingMark,
+          ...(updatedMarks[student.id] || {}),
           score: scoreVal === "" || scoreVal === null || scoreVal === undefined ? null : Number(scoreVal),
           remarks: tempRemarks[student.id] || "",
         };
@@ -84,8 +282,8 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
       const newStatus = publish
         ? "Published"
         : activeTest.status === "Published"
-          ? "Published"
-          : "Result Pending";
+        ? "Published"
+        : "Result Pending";
 
       const updatedTests = (weeklyTests || []).map((t) =>
         t.id === activeTest.id
@@ -97,7 +295,7 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
       // Persist to Supabase and localStorage
       try {
         localStorage.setItem("gw_weeklytests_v4", JSON.stringify(updatedTests));
-      } catch { }
+      } catch {}
 
       await adminService.updateWeeklyTest(activeTest.id, {
         studentMarks: updatedMarks,
@@ -111,17 +309,13 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
           if (mark && mark.score !== null) {
             const pct = Math.round((mark.score / activeTest.maxScore) * 100);
             try {
-              const currentTime = new Date().toLocaleTimeString("en-US", {
-                hour: "numeric",
-                minute: "2-digit",
-                hour12: true,
+              await adminService.addNotification({
+                studentId: student.id,
+                type: "test-result",
+                text: `Your result for "${activeTest.title}" has been published: ${mark.score}/${activeTest.maxScore} (${pct}%). ${mark.remarks ? "Remarks: " + mark.remarks : ""}`,
+                read: false,
               });
-              await supabase.from("notifications").insert({
-                type: `test-result:${student.id}`,
-                message: `Your result for "${activeTest.title}" has been published: ${mark.score}/${activeTest.maxScore} (${pct}%). ${mark.remarks ? "Remarks: " + mark.remarks : ""}`,
-                time: currentTime
-              });
-            } catch (_) { }
+            } catch (_) {}
           }
         }
       }
@@ -132,21 +326,8 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
     }
   };
 
-  const handleCreateTest = async (e) => {
-    e.preventDefault();
-    if (!newTestTitle.trim()) return;
-    setUploading(true);
-
-    try {
-      let testPdfUrl = null;
-
-      // Upload PDF if selected
-      if (testPdfFile) {
-        const safeName = testPdfFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const path = `papers/${Date.now()}_${safeName}`;
-        testPdfUrl = await adminService.uploadTestFile(testPdfFile, path);
-      }
-
+  const handleSaveTest = async (testData) => {
+    if (modalMode === "create") {
       const batchStudents = (students || []).filter(
         (s) => s && String(s.batchId) === String(testData.batchId)
       );
@@ -172,14 +353,14 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
 
       try {
         localStorage.setItem("gw_weeklytests_v4", JSON.stringify(nextTests));
-      } catch { }
+      } catch {}
 
       // Dispatch Notification
       try {
         const loggedTeacherStr = localStorage.getItem("gw_logged_teacher");
         let teacherName = "Teacher";
         if (loggedTeacherStr) {
-          try { teacherName = JSON.parse(loggedTeacherStr).name; } catch (e) { }
+          try { teacherName = JSON.parse(loggedTeacherStr).name; } catch (e) {}
         }
         const currentTime = new Date().toLocaleTimeString("en-US", {
           hour: "numeric",
@@ -202,13 +383,33 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
       } catch (err) {
         console.error("Failed to insert test notification:", err);
       }
-    } finally {
-      setUploading(false);
+    } else if (modalMode?.mode === "edit") {
+      const updatedTests = (weeklyTests || []).map((t) =>
+        t.id === testData.id ? { ...t, ...testData } : t
+      );
+      setWeeklyTests(updatedTests);
+
+      try {
+        localStorage.setItem("gw_weeklytests_v4", JSON.stringify(updatedTests));
+      } catch {}
+
+      await adminService.updateWeeklyTest(testData.id, testData);
     }
+    setModalMode(null);
   };
 
-  // Handle student submission upload from teacher's marks entry (teacher can see submitted files)
-  // Student-side upload is handled in StudentDashboard
+  const handleDeleteTest = async () => {
+    if (!deleteTarget) return;
+    const nextTests = (weeklyTests || []).filter((t) => t.id !== deleteTarget.id);
+    setWeeklyTests(nextTests);
+
+    try {
+      localStorage.setItem("gw_weeklytests_v4", JSON.stringify(nextTests));
+    } catch {}
+
+    await adminService.deleteWeeklyTest(deleteTarget.id);
+    setDeleteTarget(null);
+  };
 
   const getTestStats = (test) => {
     if (!test || !test.studentMarks) return { avgScore: 0, highestScore: 0, passRate: 0, totalGraded: 0 };
@@ -234,59 +435,10 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
   };
 
   const getBatchStudents = (batchId) =>
-    (students || []).filter((s) => s && String(s.batchId || s.batch_id || "") === String(batchId));
+    (students || []).filter((s) => s && String(s.batchId) === String(batchId));
 
   return (
     <div className="weekly-tests-container">
-      {/* In-app toast */}
-      {wtToast && (
-        <div style={{
-          position: "fixed", bottom: "24px", right: "24px", zIndex: 9999,
-          background: wtToast.type === "error" ? "#fef2f2" : "#f0fdf4",
-          border: `1px solid ${wtToast.type === "error" ? "#fecaca" : "#bbf7d0"}`,
-          color: wtToast.type === "error" ? "#dc2626" : "#16a34a",
-          borderRadius: "10px", padding: "12px 20px", fontWeight: 600,
-          fontSize: "14px", boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-          display: "flex", alignItems: "center", gap: "10px", maxWidth: "360px"
-        }}>
-          {wtToast.type === "error" ? "❌" : "✅"} {wtToast.message}
-        </div>
-      )}
-
-      {/* Confirm delete dialog */}
-      {confirmDeleteId && (
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9998,
-          display: "flex", alignItems: "center", justifyContent: "center"
-        }}>
-          <div style={{
-            background: "#fff", borderRadius: "14px", padding: "28px 32px",
-            maxWidth: "380px", width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
-            textAlign: "center"
-          }}>
-            <div style={{ fontSize: "2.2rem", marginBottom: "12px" }}>🗑️</div>
-            <h3 style={{ margin: "0 0 8px", color: "#0f172a", fontSize: "17px" }}>Delete Weekly Test?</h3>
-            <p style={{ color: "#64748b", fontSize: "14px", margin: "0 0 22px" }}>
-              This action cannot be undone. The test and all associated marks will be permanently removed.
-            </p>
-            <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
-              <button
-                onClick={() => setConfirmDeleteId(null)}
-                style={{ padding: "9px 22px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#f8fafc", color: "#374151", cursor: "pointer", fontWeight: 600, fontSize: "14px" }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                style={{ padding: "9px 22px", borderRadius: "8px", border: "none", background: "#ef4444", color: "#fff", cursor: "pointer", fontWeight: 600, fontSize: "14px" }}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 1. Marks Entry Panel */}
       {activeTest && (
         <div className="wt-marks-entry-panel">
@@ -295,40 +447,21 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
               <ArrowLeft size={16} /> Back to tests
             </button>
             <div className="wt-panel-title-area">
-              <h2 style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <ClipboardList size={22} />
-                {activeTest.title}
-              </h2>
-              <p style={{ margin: 0, color: "#64748b", fontSize: "14px" }}>
-                {batches.find((b) => String(b.id) === String(activeTest.batchId))?.name || "Batch"}
-                &nbsp;·&nbsp;Max Marks: {activeTest.maxScore}
-                &nbsp;·&nbsp;
-                <strong style={{ color: getSubmissionCount(activeTest) > 0 ? "#2563eb" : "#94a3b8" }}>
-                  {getSubmissionCount(activeTest)} of {getBatchStudents(activeTest.batchId).length} submitted
-                </strong>
+              <h2>Enter / Edit Marks</h2>
+              <p>
+                {activeTest.title} ·{" "}
+                {batches.find((b) => String(b.id) === String(activeTest.batchId))?.name || "Batch"} ·
+                Max Marks: {activeTest.maxScore}
               </p>
               {activeTest.testPdfUrl && (
-                <button
-                  onClick={() => {
-                    const url = activeTest.testPdfUrl;
-                    if (url.startsWith("data:")) {
-                      const byteStr = atob(url.split(",")[1]);
-                      const mime = url.split(",")[0].split(":")[1].split(";")[0];
-                      const arr = new Uint8Array(byteStr.length);
-                      for (let i = 0; i < byteStr.length; i++) arr[i] = byteStr.charCodeAt(i);
-                      const blob = new Blob([arr], { type: mime });
-                      const blobUrl = URL.createObjectURL(blob);
-                      window.open(blobUrl, "_blank");
-                      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-                    } else {
-                      window.open(url, "_blank");
-                    }
-                  }}
+                <a
+                  href={activeTest.testPdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="wt-pdf-link"
-                  style={{ cursor: "pointer", background: "none", border: "none", padding: 0, display: "inline-flex", alignItems: "center", gap: "4px", marginTop: "4px" }}
                 >
-                  <FileText size={14} /> View Question Paper (PDF)
-                </button>
+                  <FileText size={14} /> View Test Paper (PDF)
+                </a>
               )}
             </div>
           </div>
@@ -337,11 +470,12 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
             <table className="wt-marks-table">
               <thead>
                 <tr>
+                  <th>Roll No</th>
                   <th>Student Name</th>
                   <th>Submission</th>
-                  <th>Marks (/{activeTest.maxScore})</th>
+                  <th>Marks (Max: {activeTest.maxScore})</th>
                   <th>%</th>
-                  <th>Remarks / Feedback</th>
+                  <th>Remarks</th>
                 </tr>
               </thead>
               <tbody>
@@ -351,63 +485,31 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
                     score !== "" && !isNaN(score)
                       ? ((Number(score) / activeTest.maxScore) * 100).toFixed(0) + "%"
                       : "-";
-                  const submissionUrl = activeTest.studentMarks?.[student.id]?.submissionUrl;
+                  const allStudentMarks = activeTest.studentMarks || activeTest.student_marks || {};
+                  const studentRecord =
+                    allStudentMarks[student.id] ||
+                    allStudentMarks[student.name] ||
+                    allStudentMarks[student.email] ||
+                    Object.values(allStudentMarks).find((m) => m && m.submissionUrl);
+                  const submissionUrl = studentRecord?.submissionUrl;
 
                   return (
-                    <tr
-                      key={student.id}
-                      style={{
-                        background: hasSubmitted ? "#f0fdf4" : "transparent",
-                        borderLeft: hasSubmitted ? "3px solid #22c55e" : "3px solid transparent",
-                        transition: "background 0.2s"
-                      }}
-                    >
-                      <td className="wt-col-name">
-                        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                          <span style={{ fontWeight: 600 }}>{student.name}</span>
-                          {hasSubmitted && submittedAt && (
-                            <span style={{ fontSize: "11px", color: "#16a34a" }}>
-                              Submitted {new Date(submittedAt).toLocaleString("en-US", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true })}
-                            </span>
-                          )}
-                          {!hasSubmitted && (
-                            <span style={{ fontSize: "11px", color: "#94a3b8" }}>Not yet submitted</span>
-                          )}
-                        </div>
-                      </td>
+                    <tr key={student.id}>
+                      <td className="wt-col-roll">{student.rollNo || "-"}</td>
+                      <td className="wt-col-name">{student.name}</td>
                       <td className="wt-col-submission">
                         {submissionUrl ? (
-                          <button
+                          <a
+                            href={submissionUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="wt-view-submission-btn"
                             title="View student submission"
-                            style={{
-                              display: "inline-flex", alignItems: "center", gap: "6px",
-                              cursor: "pointer", background: "#eff6ff",
-                              border: "1px solid #bfdbfe", borderRadius: "8px",
-                              padding: "6px 12px", color: "#2563eb", fontSize: "12px",
-                              fontWeight: 600, transition: "all 0.2s"
-                            }}
-                            onClick={() => {
-                              if (submissionUrl.startsWith("data:")) {
-                                const byteStr = atob(submissionUrl.split(",")[1]);
-                                const mime = submissionUrl.split(",")[0].split(":")[1].split(";")[0];
-                                const arr = new Uint8Array(byteStr.length);
-                                for (let i = 0; i < byteStr.length; i++) arr[i] = byteStr.charCodeAt(i);
-                                const blob = new Blob([arr], { type: mime });
-                                const url = URL.createObjectURL(blob);
-                                window.open(url, "_blank");
-                                setTimeout(() => URL.revokeObjectURL(url), 10000);
-                              } else {
-                                window.open(submissionUrl, "_blank");
-                              }
-                            }}
                           >
-                            <Eye size={13} /> View Answer PDF
-                          </button>
+                            <Eye size={14} /> View File
+                          </a>
                         ) : (
-                          <span className="wt-no-submission" style={{ color: "#94a3b8", fontSize: "12px" }}>
-                            — Not submitted
-                          </span>
+                          <span className="wt-no-submission">Not submitted</span>
                         )}
                       </td>
                       <td className="wt-col-input">
@@ -443,7 +545,7 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
                 })}
                 {getBatchStudents(activeTest.batchId).length === 0 && (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: "center", color: "#94a3b8", padding: "24px" }}>
+                    <td colSpan={6} style={{ textAlign: "center", color: "#94a3b8", padding: "24px" }}>
                       No students found in this batch.
                     </td>
                   </tr>
@@ -455,6 +557,9 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
           <div className="wt-panel-actions">
             <button className="wt-btn-secondary" onClick={() => setActiveTestId(null)} disabled={publishingMarks}>
               Cancel
+            </button>
+            <button className="wt-btn-outline" onClick={() => handleSaveMarks(false)} disabled={publishingMarks}>
+              {publishingMarks ? <Loader2 size={14} className="wt-spin" /> : null} Save as Draft
             </button>
             <button className="wt-btn-primary" onClick={() => handleSaveMarks(true)} disabled={publishingMarks}>
               {publishingMarks ? <Loader2 size={14} className="wt-spin" /> : <Check size={14} />}
@@ -632,14 +737,7 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
                 }
 
                 return (
-                  <div
-                    key={test.id}
-                    className="wt-card"
-                    onClick={() => handleOpenMarksEntry(test)}
-                    style={{ cursor: "pointer", transition: "box-shadow 0.2s, transform 0.15s" }}
-                    onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 8px 28px rgba(37,99,235,0.13)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
-                    onMouseLeave={e => { e.currentTarget.style.boxShadow = ""; e.currentTarget.style.transform = ""; }}
-                  >
+                  <div key={test.id} className="wt-card">
                     <div className="wt-card-left">
                       <div className="wt-card-icon-box">
                         <span className="wt-card-icon">
@@ -688,65 +786,48 @@ const WeeklyTests = ({ weeklyTests, setWeeklyTests, students, batches }) => {
                           <span><Calendar size={14} /> {dateDisplay}</span>
                           {test.testPdfUrl && (
                             <a href={test.testPdfUrl} target="_blank" rel="noopener noreferrer" className="wt-paper-link">
-                              <FileText size={13} /> Test Paper
+                              <FileText size={13} /> Test Paper (PDF)
                             </a>
                           )}
-                          {/* Submission count pill — prominent */}
-                          <span
-                            style={{
-                              display: "inline-flex", alignItems: "center", gap: "4px",
-                              padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600,
-                              background: submissionCount > 0 ? "#eff6ff" : "#f1f5f9",
-                              color: submissionCount > 0 ? "#2563eb" : "#94a3b8",
-                              border: `1px solid ${submissionCount > 0 ? "#bfdbfe" : "#e2e8f0"}`
-                            }}
-                          >
-                            {submissionCount > 0 ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
-                            {submissionCount}/{totalStudents} submitted
-                          </span>
+                          {totalStudents > 0 && (
+                            <span className="wt-submission-badge">
+                              {submissionCount}/{totalStudents} submitted
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     <div className="wt-card-right">
-                      <div className="wt-card-pending-block">
-                        {isPublished ? (
-                          <span style={{ color: "#16a34a", fontWeight: 600, fontSize: "13px" }}>✓ Results Published</span>
-                        ) : (
-                          <>
-                            <AlertCircle size={16} />
-                            <span>Marks Pending</span>
-                          </>
-                        )}
-                      </div>
+                      {isPublished ? (
+                        <div className="wt-card-stats-block">
+                          <div className="wt-card-stat">
+                            <span className="wt-stat-label">CLASS AVG</span>
+                            <span className="wt-stat-value text-blue">
+                              {stats.avgScore} <span className="wt-stat-max">/{test.maxScore}</span>
+                            </span>
+                          </div>
+                          <div className="wt-card-stat">
+                            <span className="wt-stat-label">PASS RATE</span>
+                            <span className="wt-stat-value text-green">{stats.passRate}%</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="wt-card-pending-block">
+                          <AlertCircle size={16} />
+                          <span>Marks Pending</span>
+                        </div>
+                      )}
 
-                      <div className="wt-card-actions" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <button
-                          className="wt-btn-secondary"
-                          onClick={(e) => { e.stopPropagation(); handleOpenMarksEntry(test); }}
-                          style={{ display: "inline-flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap" }}
-                        >
-                          <Eye size={14} /> {isPublished ? "View & Edit Grades" : "View Submissions & Grade"}
+                      <div className="wt-card-actions">
+                        <button className="wt-btn-secondary" onClick={() => handleOpenMarksEntry(test)}>
+                          {isPublished ? "Edit Marks" : "Enter Marks"}
                         </button>
-                        <button
-                          className="wt-btn-delete"
-                          onClick={(e) => { e.stopPropagation(); handleDeleteTest(test.id); }}
-                          style={{
-                            background: "#fee2e2",
-                            color: "#ef4444",
-                            border: "none",
-                            borderRadius: "8px",
-                            padding: "8px 12px",
-                            cursor: "pointer",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            transition: "all 0.2s"
-                          }}
-                          title="Delete test"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {isPublished && (
+                          <button className="wt-btn-primary" onClick={() => setViewAnalysisTestId(test.id)}>
+                            <BarChart2 size={14} /> Analysis
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
