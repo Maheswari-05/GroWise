@@ -415,10 +415,13 @@ const Performance = ({
         ? Math.round((studentSessionsPresent / studentSessionsTotal) * 100)
         : Number(student.attendancePercent || student.attendance || 0);
 
-      // 2. Calculate student average score across weekly tests
-      let testScoresTotal = 0;
-      let testCount = 0;
+      // 2. Calculate student average score across weekly tests & assignments
+      let totalPoints = 0;
+      let gradedItemCount = 0;
+      let pendingSubmissionCount = 0;
+      let totalSubmissionsFound = 0;
 
+      // Check weekly tests
       filteredTests.forEach((test) => {
         const maxScore = Number(test.maxScore || test.totalMarks || 100);
         const marks = test.studentMarks || test.student_marks || {};
@@ -431,16 +434,73 @@ const Performance = ({
         if (foundKey) {
           const entry = marks[foundKey];
           const score = typeof entry === "object" ? entry?.score : entry;
+          const hasAttachment = entry && (entry.submissionUrl || entry.attachmentUrl);
+          if (hasAttachment) totalSubmissionsFound++;
+
           if (score !== null && score !== undefined && score !== "" && !isNaN(Number(score))) {
-            testScoresTotal += (Number(score) / (maxScore || 100)) * 100;
-            testCount++;
+            totalPoints += (Number(score) / (maxScore || 100)) * 100;
+            gradedItemCount++;
+          } else if (hasAttachment) {
+            pendingSubmissionCount++;
           }
         }
       });
 
-      const avgScoreCalc = testCount > 0
-        ? Math.round(testScoresTotal / testCount)
-        : Number(student.avgScore || student.score || 0);
+      // Check assignments
+      filteredAssignments.forEach((asgn) => {
+        const maxMarks = Number(asgn.maxMarks || asgn.totalMarks || 20);
+        const subs = Array.isArray(asgn.submissions) ? asgn.submissions : [];
+        const studentSub = subs.find(
+          (sub) =>
+            String(sub.studentId || sub.id || "").toLowerCase().trim() === sId ||
+            String(sub.name || "").toLowerCase().trim() === sName
+        );
+
+        if (studentSub) {
+          totalSubmissionsFound++;
+          if (studentSub.marks !== null && studentSub.marks !== undefined && studentSub.marks !== "" && !isNaN(Number(studentSub.marks))) {
+            totalPoints += (Number(studentSub.marks) / (maxMarks || 20)) * 100;
+            gradedItemCount++;
+          } else if (studentSub.score !== null && studentSub.score !== undefined && studentSub.score !== "" && !isNaN(Number(studentSub.score))) {
+            totalPoints += (Number(studentSub.score) / (maxMarks || 20)) * 100;
+            gradedItemCount++;
+          } else {
+            pendingSubmissionCount++;
+          }
+        }
+      });
+
+      let avgScoreDisplay = "-";
+      let avgScoreNum = 0;
+      let statusLabel = "Active";
+      let statusType = "pass";
+
+      if (gradedItemCount > 0) {
+        avgScoreNum = Math.round(totalPoints / gradedItemCount);
+        avgScoreDisplay = `${avgScoreNum}%`;
+        if (avgScoreNum >= 85) {
+          statusLabel = "Excellent";
+          statusType = "excel";
+        } else if (avgScoreNum >= 70) {
+          statusLabel = "Good";
+          statusType = "pass";
+        } else {
+          statusLabel = "Needs Attention";
+          statusType = "attn";
+        }
+      } else if (pendingSubmissionCount > 0 || totalSubmissionsFound > 0) {
+        avgScoreDisplay = "Pending Evaluation";
+        statusLabel = "Submitted";
+        statusType = "pass";
+      } else if (attPct > 0) {
+        avgScoreDisplay = "Active (Enrolled)";
+        statusLabel = "Active";
+        statusType = "pass";
+      } else {
+        avgScoreDisplay = "0%";
+        statusLabel = "Needs Attention";
+        statusType = "attn";
+      }
 
       const batchObj = safeBatches.find(
         (b) => String(b.id) === String(student.batchId) || b.name === student.batchName || b.name === student.batch
@@ -453,11 +513,14 @@ const Performance = ({
         batchName: batchObj?.name || student.batchName || student.batch || "Assigned Batch",
         grade: batchObj?.grade || "",
         attendancePercent: attPct,
-        avgScore: avgScoreCalc,
-        status: student.status || "active"
+        avgScore: avgScoreNum,
+        avgScoreDisplay: avgScoreDisplay,
+        status: statusLabel,
+        statusType: statusType,
+        pendingSubmissions: pendingSubmissionCount
       };
     }).sort((a, b) => b.avgScore - a.avgScore);
-  }, [filteredStudents, filteredAttendance, filteredTests, safeBatches]);
+  }, [filteredStudents, filteredAttendance, filteredTests, filteredAssignments, safeBatches]);
 
   // Export handlers
   const handleExport = (type) => {
@@ -705,14 +768,10 @@ const Performance = ({
                         {student.attendancePercent}%
                       </span>
                     </td>
-                    <td><strong>{student.avgScore}%</strong></td>
+                    <td><strong>{student.avgScoreDisplay}</strong></td>
                     <td>
-                      <span
-                        className={`perf-status-pill status-${
-                          student.avgScore >= 80 ? "excel" : student.avgScore >= 60 ? "pass" : "attn"
-                        }`}
-                      >
-                        {student.avgScore >= 85 ? "Excellent" : student.avgScore >= 70 ? "Good" : "Needs Attention"}
+                      <span className={`perf-status-pill status-${student.statusType}`}>
+                        {student.status}
                       </span>
                     </td>
                   </tr>

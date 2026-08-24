@@ -405,8 +405,24 @@ const TeacherDashboard = ({ onNavigate }) => {
       })
       .subscribe();
 
+    // Also listen to local storage events for instant cross-tab sync
+    const handleStorageUpdate = async () => {
+      try {
+        const dbAssignments = await adminService.fetchAssignments();
+        if (Array.isArray(dbAssignments) && isMounted) {
+          setAssignments(dbAssignments);
+        }
+        const dbTests = await adminService.fetchWeeklyTests();
+        if (Array.isArray(dbTests) && isMounted) {
+          setWeeklyTests(dbTests);
+        }
+      } catch (e) {}
+    };
+    window.addEventListener("storage", handleStorageUpdate);
+
     return () => {
       isMounted = false;
+      window.removeEventListener("storage", handleStorageUpdate);
       supabase.removeChannel(notifChannel);
       supabase.removeChannel(materialsChannel);
       supabase.removeChannel(assignmentsChannel);

@@ -33,6 +33,7 @@ import {
 } from "./assignmentsData";
 import AvatarPlaceholder from "../MyBatches/AvatarPlaceholder";
 import supabase from "../../../../lib/supabase";
+import * as adminService from "../../../../services/adminService";
 import "./Assignments.css";
 
 /* ── Constants ─────────────────────────────────────────────── */
@@ -751,29 +752,12 @@ const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssi
       } catch (e) {}
     }
 
-    const payload = {
-      id: data.id,
-      title: data.title,
-      subject: data.subject,
-      batch_id: data.batchId || "BAT102",
-      due_date: data.dueDate,
-      total_marks: Number(data.maxMarks),
-      status: "Active",
-      student: "ALL",
-      description: JSON.stringify({
-        description: data.description,
-        attachmentName: data.attachmentName || "",
-        attachmentUrl: data.attachmentUrl || "",
-        submissions: data.submissions || []
-      })
-    };
-
     if (modal === "create") {
       setAssignments(p => [data, ...p]);
       showToast("Assignment created successfully!");
 
       try {
-        await supabase.from("assignments").insert(payload);
+        await adminService.addAssignment(data);
 
         // Insert notification for the student along with the current time
         const currentTime = new Date().toLocaleTimeString("en-US", {
@@ -795,10 +779,7 @@ const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssi
       showToast("Assignment updated successfully!");
 
       try {
-        await supabase
-          .from("assignments")
-          .update(payload)
-          .eq("id", data.id);
+        await adminService.updateAssignment(data.id, data);
       } catch (err) {
         console.error("Failed to update database assignment:", err);
       }
@@ -815,19 +796,14 @@ const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssi
     showToast("Marks saved successfully!");
 
     try {
-      const payload = {
-        description: JSON.stringify({
+      await adminService.updateAssignment(updated.id, {
+        description: {
           description: updated.description,
           attachmentName: updated.attachmentName || "",
           attachmentUrl: updated.attachmentUrl || "",
           submissions: updated.submissions || []
-        })
-      };
-
-      await supabase
-        .from("assignments")
-        .update(payload)
-        .eq("id", updated.id);
+        }
+      });
 
       // Notify students who got newly graded
       for (const sub of (updated.submissions || [])) {
@@ -862,10 +838,7 @@ const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssi
     showToast(`"${deleteTarget.title}" deleted.`, "warning");
 
     try {
-      await supabase
-        .from("assignments")
-        .delete()
-        .eq("id", deleteTarget.id);
+      await adminService.deleteAssignment(deleteTarget.id);
     } catch (err) {
       console.error("Failed to delete database assignment:", err);
     }

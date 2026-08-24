@@ -25,13 +25,7 @@ const RecentSubmissions = ({ assignments = [], students = [], setActiveNav }) =>
     }
   });
 
-  const submissions = derivedSubmissions.length > 0
-    ? derivedSubmissions.slice(0, 5)
-    : [
-        { student: "Priya Sharma", avatar: null, assignment: "Geometry Problems", subject: "Mathematics", time: "10 min ago", status: "submitted" },
-        { student: "Aryan Patel", avatar: null, assignment: "Algebra Practice", subject: "Mathematics", time: "35 min ago", status: "reviewed" },
-        { student: "Rohan Gupta", avatar: null, assignment: "Physics Assignment", subject: "Science", time: "1 hour ago", status: "pending" },
-      ];
+  const submissions = derivedSubmissions.slice(0, 5);
   return (
     <div className="td-card recent-submissions">
       <div className="td-card-header">
@@ -53,44 +47,52 @@ const RecentSubmissions = ({ assignments = [], students = [], setActiveNav }) =>
             </tr>
           </thead>
           <tbody>
-            {submissions.map((row, idx) => {
-              const s = statusConfig[row.status];
-              const StatusIcon = s.icon;
-              return (
-                <tr key={idx}>
-                  <td>
-                    <div className="rs-student">
-                      <AvatarPlaceholder src={row.avatar} name={row.student} size={32} className="rs-avatar" />
-                      <span className="rs-student-name">{row.student}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="rs-assignment-cell">
-                      <span className="rs-assignment-name">{row.assignment}</span>
-                      <span className="rs-subject-tag">{row.subject}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="rs-time">{row.time}</span>
-                  </td>
-                  <td>
-                    <span
-                      className="rs-status-badge"
-                      style={{ color: s.color, background: s.bg }}
-                    >
-                      <StatusIcon size={11} />
-                      {s.label}
-                    </span>
-                  </td>
-                  <td>
-                    <button className="rs-action-btn" onClick={() => setActiveNav && setActiveNav("assignments")}>
-                      <Eye size={15} />
-                      Review
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
+            {submissions.length > 0 ? (
+              submissions.map((row, idx) => {
+                const s = statusConfig[row.status] || statusConfig.submitted;
+                const StatusIcon = s.icon;
+                return (
+                  <tr key={idx}>
+                    <td>
+                      <div className="rs-student">
+                        <AvatarPlaceholder src={row.avatar} name={row.student} size={32} className="rs-avatar" />
+                        <span className="rs-student-name">{row.student}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="rs-assignment-cell">
+                        <span className="rs-assignment-name">{row.assignment}</span>
+                        <span className="rs-subject-tag">{row.subject}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="rs-time">{row.time}</span>
+                    </td>
+                    <td>
+                      <span
+                        className="rs-status-badge"
+                        style={{ color: s.color, background: s.bg }}
+                      >
+                        <StatusIcon size={11} />
+                        {s.label}
+                      </span>
+                    </td>
+                    <td>
+                      <button className="rs-action-btn" onClick={() => setActiveNav && setActiveNav("assignments")}>
+                        <Eye size={15} />
+                        Review
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan="5" style={{ textAlign: "center", padding: "20px", color: "#94a3b8" }}>
+                  No student submissions yet.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

@@ -108,17 +108,6 @@ export async function fetchAttendanceLogs() {
   }
 }
 
-export async function fetchAssignments() {
-  try {
-    const { data, error } = await supabase.from('assignments').select('*');
-    if (error) { console.error('fetchAssignments error:', error); return []; }
-    return (data || []).map(toCamelCase);
-  } catch (e) {
-    console.error('fetchAssignments exception:', e);
-    return [];
-  }
-}
-
 export async function fetchWeeklyTests() {
   try {
     let localTests = [];
@@ -229,6 +218,7 @@ export async function updateWeeklyTest(id, updates) {
         return t;
       });
       localStorage.setItem("gw_weeklytests_v4", JSON.stringify(updatedLocal));
+      window.dispatchEvent(new Event("storage"));
     } catch (e) {}
 
     // Update Supabase
@@ -317,6 +307,7 @@ export async function addWeeklyTest(test) {
       const local = raw ? JSON.parse(raw) : [];
       const updated = [resultObj, ...local.filter(t => String(t.id) !== String(testId))];
       localStorage.setItem("gw_weeklytests_v4", JSON.stringify(updated));
+      window.dispatchEvent(new Event("storage"));
     } catch(e) {}
 
     return resultObj;
@@ -330,8 +321,168 @@ export async function deleteWeeklyTest(id) {
   try {
     const { error } = await supabase.from('weekly_tests').delete().eq('id', id);
     if (error) { console.error('deleteWeeklyTest error:', error); }
+    try {
+      const raw = localStorage.getItem("gw_weeklytests_v4");
+      const local = raw ? JSON.parse(raw) : [];
+      const updated = local.filter(t => String(t.id) !== String(id));
+      localStorage.setItem("gw_weeklytests_v4", JSON.stringify(updated));
+      window.dispatchEvent(new Event("storage"));
+    } catch(e) {}
   } catch (e) {
     console.error('deleteWeeklyTest exception:', e);
+  }
+}
+
+// ============================================================
+// ASSIGNMENTS FUNCTIONS
+// ============================================================
+
+export async function fetchAssignments() {
+  try {
+    let data = [];
+    try {
+      const { data: dbData, error } = await supabase
+        .from('assignments')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (!error && dbData) {
+        data = dbData.map(toCamelCase);
+      }
+    } catch (e) {
+      console.warn('fetchAssignments Supabase warning:', e);
+    }
+
+    // Merge with LocalStorage
+    try {
+      const raw = localStorage.getItem('gw_assignments_v2');
+      const localAsgns = raw ? JSON.parse(raw) : [];
+      const mergedMap = new Map();
+      data.forEach((a) => mergedMap.set(String(a.id), a));
+      localAsgns.forEach((a) => {
+        if (!mergedMap.has(String(a.id))) {
+          mergedMap.set(String(a.id), a);
+        }
+      });
+      return Array.from(mergedMap.values());
+    } catch (e) {
+      return data;
+    }
+  } catch (e) {
+    console.error('fetchAssignments exception:', e);
+    return [];
+  }
+}
+
+export async function addAssignment(assignment) {
+  try {
+    const row = {
+      title: assignment.title,
+      subject: assignment.subject,
+      batch_id: assignment.batchId || assignment.batch || 'b1',
+      due_date: assignment.dueDate,
+      total_marks: Number(assignment.maxMarks || assignment.totalMarks || 20),
+      status: assignment.status || 'Active',
+      student: assignment.student || 'ALL',
+      description: typeof assignment.description === 'string' && assignment.description.startsWith('{')
+        ? assignment.description
+        : JSON.stringify({
+            description: assignment.description || '',
+            attachmentName: assignment.attachmentName || '',
+            attachmentUrl: assignment.attachmentUrl || '',
+            submissions: assignment.submissions || []
+          })
+    };
+
+    let created = null;
+    try {
+      const { data, error } = await supabase.from('assignments').insert(row).select().single();
+      if (!error && data) {
+        created = toCamelCase(data);
+      }
+    } catch (dbErr) {
+      console.warn('Supabase addAssignment warning:', dbErr);
+    }
+
+    const finalAsgn = created || {
+      ...assignment,
+      id: assignment.id || 'asgn_' + Date.now(),
+      createdAt: new Date().toISOString()
+    };
+
+    // Update LocalStorage
+    try {
+      const raw = localStorage.getItem('gw_assignments_v2');
+      const asgns = raw ? JSON.parse(raw) : [];
+      const updated = [finalAsgn, ...asgns.filter((a) => String(a.id) !== String(finalAsgn.id))];
+      localStorage.setItem('gw_assignments_v2', JSON.stringify(updated));
+      window.dispatchEvent(new Event('storage'));
+    } catch (e) {}
+
+    return finalAsgn;
+  } catch (e) {
+    console.error('addAssignment exception:', e);
+    return null;
+  }
+}
+
+export async function updateAssignment(id, updates) {
+  try {
+    const idStr = String(id);
+    const row = {};
+    if (updates.title !== undefined) row.title = updates.title;
+    if (updates.subject !== undefined) row.subject = updates.subject;
+    if (updates.batchId !== undefined) row.batch_id = updates.batchId;
+    if (updates.dueDate !== undefined) row.due_date = updates.dueDate;
+    if (updates.maxMarks !== undefined) row.total_marks = Number(updates.maxMarks);
+    if (updates.totalMarks !== undefined) row.total_marks = Number(updates.totalMarks);
+    if (updates.status !== undefined) row.status = updates.status;
+    if (updates.description !== undefined) {
+      row.description = typeof updates.description === 'string'
+        ? updates.description
+        : JSON.stringify(updates.description);
+    }
+
+    // Update Supabase
+    try {
+      await supabase.from('assignments').update(row).eq('id', id);
+    } catch (dbErr) {
+      console.warn('Supabase updateAssignment warning:', dbErr);
+    }
+
+    // Update LocalStorage
+    try {
+      const raw = localStorage.getItem('gw_assignments_v2');
+      const asgns = raw ? JSON.parse(raw) : [];
+      const updated = asgns.map((a) => (String(a.id) === idStr ? { ...a, ...updates } : a));
+      localStorage.setItem('gw_assignments_v2', JSON.stringify(updated));
+      window.dispatchEvent(new Event('storage'));
+    } catch (e) {}
+  } catch (e) {
+    console.error('updateAssignment exception:', e);
+  }
+}
+
+export async function deleteAssignment(id) {
+  try {
+    const idStr = String(id);
+
+    // Delete from Supabase
+    try {
+      await supabase.from('assignments').delete().eq('id', id);
+    } catch (dbErr) {
+      console.warn('Supabase deleteAssignment warning:', dbErr);
+    }
+
+    // Delete from LocalStorage
+    try {
+      const raw = localStorage.getItem('gw_assignments_v2');
+      const asgns = raw ? JSON.parse(raw) : [];
+      const updated = asgns.filter((a) => String(a.id) !== idStr);
+      localStorage.setItem('gw_assignments_v2', JSON.stringify(updated));
+      window.dispatchEvent(new Event('storage'));
+    } catch (e) {}
+  } catch (e) {
+    console.error('deleteAssignment exception:', e);
   }
 }
 

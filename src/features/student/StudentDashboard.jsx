@@ -1136,6 +1136,22 @@ const StudentDashboard = ({ onNavigate }) => {
         return item;
       }));
 
+      try {
+        const rawAsgns = localStorage.getItem("gw_assignments_v2");
+        const parsedAsgns = rawAsgns ? JSON.parse(rawAsgns) : [];
+        const updatedLocalAsgns = parsedAsgns.map(a => {
+          if (String(a.id) === String(submitModalAsgn.id)) {
+            return {
+              ...a,
+              submissions: updatedSubmissions
+            };
+          }
+          return a;
+        });
+        localStorage.setItem("gw_assignments_v2", JSON.stringify(updatedLocalAsgns));
+        window.dispatchEvent(new Event("storage"));
+      } catch (e) {}
+
       showToast("Assignment submitted successfully!");
       setSubmitModalAsgn(null);
       setSubmitNotes("");
