@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import {
   Search, Plus, Filter, BookOpen, FlaskConical, User, Calendar,
   CheckCircle2, AlertCircle, TrendingUp, BarChart2, Check, X,
-  ArrowLeft, Upload, FileText, Eye, Download, Loader2
+  ArrowLeft, Upload, FileText, Eye, Download, Loader2, Pencil, Trash2, ClipboardList, Paperclip
 } from "lucide-react";
 import * as adminService from "../../../../services/adminService";
 import supabase from "../../../../lib/supabase";
