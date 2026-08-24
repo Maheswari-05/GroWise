@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Search, Plus, Filter, BookOpen, FlaskConical, User, Calendar,
   CheckCircle2, AlertCircle, TrendingUp, BarChart2, Check, X,
@@ -61,10 +61,23 @@ const TestModal = ({ mode, initial, batches = [], onClose, onSave }) => {
       let testPdfUrl = initial?.testPdfUrl || null;
 
       if (pdfFile) {
-        const safeName = pdfFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const path = `papers/${Date.now()}_${safeName}`;
-        const uploadedUrl = await adminService.uploadTestFile(pdfFile, path);
-        if (uploadedUrl) testPdfUrl = uploadedUrl;
+        // Read file as Data URL first
+        const dataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (ev) => resolve(ev.target?.result || null);
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(pdfFile);
+        });
+
+        testPdfUrl = dataUrl;
+
+        // Also try storage upload
+        try {
+          const safeName = pdfFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          const path = `papers/${Date.now()}_${safeName}`;
+          const uploadedUrl = await adminService.uploadTestFile(pdfFile, path);
+          if (uploadedUrl) testPdfUrl = uploadedUrl;
+        } catch (e) {}
       }
 
       await onSave({
@@ -220,22 +233,20 @@ const TestModal = ({ mode, initial, batches = [], onClose, onSave }) => {
 };
 
 /* ── Main WeeklyTests Component ─────────────────────────────────────── */
-const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches = [] }) => {
+const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches = [], viewTestId = null, setViewTestId }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBatch, setSelectedBatch] = useState("all");
   const [selectedSubject, setSelectedSubject] = useState("all");
   const [activeTestId, setActiveTestId] = useState(null);
   const [modalMode, setModalMode] = useState(null); // null | "create" | { mode: "edit", test }
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [viewAnalysisTestId, setViewAnalysisTestId] = useState(null);
 
   // Marks entry state
   const [tempMarks, setTempMarks] = useState({});
   const [tempRemarks, setTempRemarks] = useState({});
   const [publishingMarks, setPublishingMarks] = useState(false);
 
-  const activeTest = weeklyTests.find((t) => t.id === activeTestId);
-  const analysisTest = weeklyTests.find((t) => t.id === viewAnalysisTestId);
+  const activeTest = (weeklyTests || []).find((t) => String(t?.id) === String(activeTestId));
 
   // Filter tests
   const filteredTests = (weeklyTests || []).filter((test) => {
@@ -247,16 +258,119 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
     return matchesSearch && matchesBatch && matchesSubject;
   });
 
-  const handleOpenMarksEntry = (test) => {
+  // Automatically open marks/submissions entry if navigating from a notification
+  useEffect(() => {
+    if (viewTestId) {
+      const target = (weeklyTests || []).find((t) => String(t.id) === String(viewTestId));
+      if (target) {
+        handleOpenMarksEntry(target);
+        if (setViewTestId) setViewTestId(null);
+      }
+    }
+  }, [viewTestId, weeklyTests]);
+
+  // Real-time synchronization
+  useEffect(() => {
+    let isMounted = true;
+    const fetchLatest = async () => {
+      try {
+        const dbTests = await adminService.fetchWeeklyTests();
+        if (isMounted && Array.isArray(dbTests) && dbTests.length > 0) {
+          setWeeklyTests(dbTests);
+        }
+      } catch (e) {}
+    };
+    fetchLatest();
+
+    const channel = supabase
+      .channel("weekly-tests-component-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "weekly_tests" }, () => {
+        fetchLatest();
+      })
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, [setWeeklyTests]);
+
+  const handleOpenPdf = (url, fileName = "submission.pdf") => {
+    if (!url) return;
+    if (url.startsWith("data:")) {
+      try {
+        const parts = url.split(",");
+        const mimeMatch = parts[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : "application/pdf";
+        const byteStr = atob(parts[1]);
+        const arr = new Uint8Array(byteStr.length);
+        for (let i = 0; i < byteStr.length; i++) arr[i] = byteStr.charCodeAt(i);
+        const blob = new Blob([arr], { type: mime });
+        const blobUrl = URL.createObjectURL(blob);
+        const newWindow = window.open(blobUrl, "_blank");
+        if (!newWindow || newWindow.closed || typeof newWindow.closed === "undefined") {
+          const a = document.createElement("a");
+          a.href = blobUrl;
+          a.download = fileName;
+          a.target = "_blank";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+      } catch (e) {
+        console.error("Error opening data URL:", e);
+        window.open(url, "_blank");
+      }
+    } else {
+      window.open(url, "_blank");
+    }
+  };
+
+  const handleOpenMarksEntry = async (test) => {
     if (!test) return;
     setActiveTestId(test.id);
-    setViewAnalysisTestId(null);
+
+    try {
+      const freshTests = await adminService.fetchWeeklyTests();
+      if (Array.isArray(freshTests)) {
+        setWeeklyTests(freshTests);
+        const freshTest = freshTests.find((t) => String(t.id) === String(test.id)) || test;
+        const initialMarks = {};
+        const initialRemarks = {};
+        const batchStudents = getBatchStudents(test.batchId);
+        batchStudents.forEach((student) => {
+          const allMarks = freshTest.studentMarks || freshTest.student_marks || {};
+          const record =
+            allMarks[student.id] ||
+            allMarks[String(student.id)] ||
+            allMarks[student.student_id] ||
+            allMarks[student.name] ||
+            allMarks[student.email] ||
+            {};
+          initialMarks[student.id] = record.score ?? "";
+          initialRemarks[student.id] = record.remarks ?? "";
+        });
+        setTempMarks(initialMarks);
+        setTempRemarks(initialRemarks);
+        return;
+      }
+    } catch (e) {}
+
     const initialMarks = {};
     const initialRemarks = {};
-    const batchStudents = (students || []).filter((s) => s && String(s.batchId) === String(test.batchId));
+    const batchStudents = getBatchStudents(test.batchId);
     batchStudents.forEach((student) => {
-      initialMarks[student.id] = test.studentMarks?.[student.id]?.score ?? "";
-      initialRemarks[student.id] = test.studentMarks?.[student.id]?.remarks ?? "";
+      const allMarks = test.studentMarks || test.student_marks || {};
+      const record =
+        allMarks[student.id] ||
+        allMarks[String(student.id)] ||
+        allMarks[student.student_id] ||
+        allMarks[student.name] ||
+        allMarks[student.email] ||
+        {};
+      initialMarks[student.id] = record.score ?? "";
+      initialRemarks[student.id] = record.remarks ?? "";
     });
     setTempMarks(initialMarks);
     setTempRemarks(initialRemarks);
@@ -267,16 +381,35 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
     setPublishingMarks(true);
 
     try {
-      const updatedMarks = { ...(activeTest.studentMarks || {}) };
-      const batchStudents = (students || []).filter((s) => s && String(s.batchId) === String(activeTest.batchId));
+      const updatedMarks = { ...(activeTest.studentMarks || activeTest.student_marks || {}) };
+      const batchStudents = getBatchStudents(activeTest.batchId);
 
       batchStudents.forEach((student) => {
         const scoreVal = tempMarks[student.id];
-        updatedMarks[student.id] = {
-          ...(updatedMarks[student.id] || {}),
-          score: scoreVal === "" || scoreVal === null || scoreVal === undefined ? null : Number(scoreVal),
-          remarks: tempRemarks[student.id] || "",
+        const numScore = scoreVal === "" || scoreVal === null || scoreVal === undefined ? null : Number(scoreVal);
+        const remarkText = tempRemarks[student.id] || "";
+
+        // Find existing record in updatedMarks to preserve submissionUrl
+        const existingRecord =
+          updatedMarks[student.id] ||
+          updatedMarks[String(student.id)] ||
+          updatedMarks[student.student_id] ||
+          updatedMarks[student.name] ||
+          updatedMarks[student.email] ||
+          Object.values(updatedMarks).find((m) => m && (m.studentName === student.name || m.submissionUrl)) ||
+          {};
+
+        const markRecord = {
+          ...existingRecord,
+          score: numScore,
+          remarks: remarkText,
+          studentName: student.name || existingRecord.studentName,
         };
+
+        updatedMarks[student.id] = markRecord;
+        if (student.student_id) updatedMarks[student.student_id] = markRecord;
+        if (student.name) updatedMarks[student.name] = markRecord;
+        if (student.email) updatedMarks[student.email] = markRecord;
       });
 
       const newStatus = publish
@@ -287,7 +420,7 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
 
       const updatedTests = (weeklyTests || []).map((t) =>
         t.id === activeTest.id
-          ? { ...t, studentMarks: updatedMarks, status: newStatus }
+          ? { ...t, studentMarks: updatedMarks, student_marks: updatedMarks, status: newStatus }
           : t
       );
       setWeeklyTests(updatedTests);
@@ -304,18 +437,37 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
 
       // Send notifications to each student when publishing
       if (publish) {
+        const maxScore = activeTest.maxScore || 20;
+        const currentTime = new Date().toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        });
+
         for (const student of batchStudents) {
           const mark = updatedMarks[student.id];
-          if (mark && mark.score !== null) {
-            const pct = Math.round((mark.score / activeTest.maxScore) * 100);
+          if (mark && mark.score !== null && mark.score !== undefined) {
+            const pct = Math.round((Number(mark.score) / maxScore) * 100);
+            const notifMsg = `Your result for "${activeTest.title}" (${activeTest.subject || "Weekly Test"}) has been published: ${mark.score}/${maxScore} (${pct}%). ${mark.remarks ? "Remarks: " + mark.remarks : ""}`;
             try {
-              await adminService.addNotification({
-                studentId: student.id,
-                type: "test-result",
-                text: `Your result for "${activeTest.title}" has been published: ${mark.score}/${activeTest.maxScore} (${pct}%). ${mark.remarks ? "Remarks: " + mark.remarks : ""}`,
-                read: false,
-              });
-            } catch (_) {}
+              const notifsToInsert = [
+                {
+                  type: `test-result:${student.id}`,
+                  message: notifMsg,
+                  time: currentTime,
+                }
+              ];
+              if (student.student_id && student.student_id !== student.id) {
+                notifsToInsert.push({
+                  type: `test-result:${student.student_id}`,
+                  message: notifMsg,
+                  time: currentTime,
+                });
+              }
+              await supabase.from("notifications").insert(notifsToInsert);
+            } catch (err) {
+              console.error("Failed to insert test result notification:", err);
+            }
           }
         }
       }
@@ -370,13 +522,13 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
 
         await supabase.from("notifications").insert([
           {
-            type: `weekly-test:${teacherName}`,
+            type: "weekly-test",
             message: `New Test Scheduled: ${testData.title} (${testData.subject})`,
             time: currentTime,
           },
           {
             type: "batch",
-            message: `New Weekly Test "${testData.title}" uploaded for ${testData.subject}.`,
+            message: `New Weekly Test "${testData.title}" (${testData.subject}) uploaded for ${testData.subject}.`,
             time: currentTime,
           }
         ]);
@@ -411,31 +563,23 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
     setDeleteTarget(null);
   };
 
-  const getTestStats = (test) => {
-    if (!test || !test.studentMarks) return { avgScore: 0, highestScore: 0, passRate: 0, totalGraded: 0 };
-    const marksArray = Object.values(test.studentMarks || {})
-      .map((m) => m?.score)
-      .filter((s) => s !== null && s !== undefined && s !== "" && !isNaN(s));
-
-    if (marksArray.length === 0) return { avgScore: 0, highestScore: 0, passRate: 0, totalGraded: 0 };
-
-    const maxScore = test.maxScore || 20;
-    const total = marksArray.reduce((acc, curr) => acc + Number(curr), 0);
-    const avgScore = (total / marksArray.length).toFixed(1);
-    const highestScore = Math.max(...marksArray.map(Number));
-    const passed = marksArray.filter((s) => Number(s) >= maxScore * 0.5).length;
-    const passRate = ((passed / marksArray.length) * 100).toFixed(0);
-
-    return { avgScore, highestScore, passRate, totalGraded: marksArray.length };
-  };
-
   const getSubmissionCount = (test) => {
-    if (!test?.studentMarks) return 0;
-    return Object.values(test.studentMarks).filter((m) => m?.submissionUrl).length;
+    if (!test) return 0;
+    const allMarks = test.studentMarks || test.student_marks || {};
+    return Object.values(allMarks).filter((m) => m && (m.submissionUrl || m.attachmentUrl)).length;
   };
 
-  const getBatchStudents = (batchId) =>
-    (students || []).filter((s) => s && String(s.batchId) === String(batchId));
+  const getBatchStudents = (batchId) => {
+    if (!batchId) return students || [];
+    const bStr = String(batchId).trim().toLowerCase();
+    const matched = (students || []).filter((s) => {
+      if (!s) return false;
+      const sBatchId = String(s.batchId || s.batch_id || s.batch || "").trim().toLowerCase();
+      const sBatchName = String(s.batchName || "").trim().toLowerCase();
+      return sBatchId === bStr || sBatchName === bStr;
+    });
+    return matched.length > 0 ? matched : (students || []);
+  };
 
   return (
     <div className="weekly-tests-container">
@@ -450,19 +594,8 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
               <h2>Enter / Edit Marks</h2>
               <p>
                 {activeTest.title} ·{" "}
-                {batches.find((b) => String(b.id) === String(activeTest.batchId))?.name || "Batch"} ·
-                Max Marks: {activeTest.maxScore}
+                {batches.find((b) => String(b.id) === String(activeTest.batchId))?.name || "Batch"} · Max Marks: {activeTest.maxScore}
               </p>
-              {activeTest.testPdfUrl && (
-                <a
-                  href={activeTest.testPdfUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="wt-pdf-link"
-                >
-                  <FileText size={14} /> View Test Paper (PDF)
-                </a>
-              )}
             </div>
           </div>
 
@@ -472,10 +605,10 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
                 <tr>
                   <th>Roll No</th>
                   <th>Student Name</th>
-                  <th>Submission</th>
-                  <th>Marks (Max: {activeTest.maxScore})</th>
-                  <th>%</th>
-                  <th>Remarks</th>
+                  <th>Answer Sheet</th>
+                  <th>Marks (/{activeTest.maxScore})</th>
+                  <th>Percentage</th>
+                  <th>Remarks / Feedback</th>
                 </tr>
               </thead>
               <tbody>
@@ -485,13 +618,46 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
                     score !== "" && !isNaN(score)
                       ? ((Number(score) / activeTest.maxScore) * 100).toFixed(0) + "%"
                       : "-";
-                  const allStudentMarks = activeTest.studentMarks || activeTest.student_marks || {};
-                  const studentRecord =
-                    allStudentMarks[student.id] ||
-                    allStudentMarks[student.name] ||
-                    allStudentMarks[student.email] ||
-                    Object.values(allStudentMarks).find((m) => m && m.submissionUrl);
-                  const submissionUrl = studentRecord?.submissionUrl;
+
+                  const allMarks = activeTest.studentMarks || activeTest.student_marks || {};
+
+                  // Find submission record with robust multi-field lookup
+                  let studentRecord =
+                    allMarks[student.id] ||
+                    allMarks[String(student.id)] ||
+                    allMarks[student.student_id] ||
+                    allMarks[student.studentId] ||
+                    allMarks[student.name] ||
+                    allMarks[student.email] ||
+                    allMarks[student.rollNo];
+
+                  if (!studentRecord || (!studentRecord.submissionUrl && !studentRecord.attachmentUrl)) {
+                    const foundEntry = Object.entries(allMarks).find(([k, v]) => {
+                      if (!v) return false;
+                      const kLow = String(k).toLowerCase().trim();
+                      const sName = String(student.name || "").toLowerCase().trim();
+                      const sEmail = String(student.email || "").toLowerCase().trim();
+                      const sId = String(student.id || "").toLowerCase().trim();
+                      const sId2 = String(student.student_id || "").toLowerCase().trim();
+
+                      return (
+                        (sId && kLow === sId) ||
+                        (sId2 && kLow === sId2) ||
+                        (sName && (kLow === sName || (v.studentName && v.studentName.toLowerCase().trim() === sName))) ||
+                        (sEmail && kLow === sEmail)
+                      );
+                    });
+                    if (foundEntry) studentRecord = foundEntry[1];
+                  }
+
+                  // Fallback: if only 1 student in batch and there is a submission in allMarks
+                  if (!studentRecord || (!studentRecord.submissionUrl && !studentRecord.attachmentUrl)) {
+                    const anySub = Object.values(allMarks).find((m) => m && (m.submissionUrl || m.attachmentUrl));
+                    if (anySub) studentRecord = anySub;
+                  }
+
+                  const submissionUrl = studentRecord?.submissionUrl || studentRecord?.attachmentUrl;
+                  const submissionName = studentRecord?.fileName || `${student.name}_Answer_Sheet.pdf`;
 
                   return (
                     <tr key={student.id}>
@@ -499,17 +665,28 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
                       <td className="wt-col-name">{student.name}</td>
                       <td className="wt-col-submission">
                         {submissionUrl ? (
-                          <a
-                            href={submissionUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            type="button"
                             className="wt-view-submission-btn"
-                            title="View student submission"
+                            style={{
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              background: "#eff6ff",
+                              border: "1px solid #bfdbfe",
+                              borderRadius: "8px",
+                              padding: "6px 12px",
+                              color: "#2563eb",
+                              fontSize: "12px",
+                              fontWeight: 600,
+                            }}
+                            onClick={() => handleOpenPdf(submissionUrl, submissionName)}
                           >
-                            <Eye size={14} /> View File
-                          </a>
+                            <Eye size={14} /> View PDF
+                          </button>
                         ) : (
-                          <span className="wt-no-submission">Not submitted</span>
+                          <span className="wt-no-submission">Not Submitted</span>
                         )}
                       </td>
                       <td className="wt-col-input">
@@ -533,7 +710,7 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
                         <input
                           type="text"
                           value={tempRemarks[student.id] ?? ""}
-                          placeholder="Add feedback"
+                          placeholder="Add feedback / remarks"
                           className="wt-remarks-input"
                           onChange={(e) =>
                             setTempRemarks({ ...tempRemarks, [student.id]: e.target.value })
@@ -569,108 +746,8 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
         </div>
       )}
 
-      {/* 2. Analysis View */}
-      {analysisTest && (
-        <div className="wt-analysis-panel">
-          <div className="wt-panel-header">
-            <button className="wt-back-btn" onClick={() => setViewAnalysisTestId(null)}>
-              <ArrowLeft size={16} /> Back to tests
-            </button>
-            <div className="wt-panel-title-area">
-              <h2>Test Analysis & Insights</h2>
-              <p>
-                {analysisTest.title} ·{" "}
-                {batches.find((b) => String(b.id) === String(analysisTest.batchId))?.name || "Batch"}
-              </p>
-            </div>
-          </div>
-
-          {(() => {
-            const stats = getTestStats(analysisTest);
-            return (
-              <div className="wt-analysis-content">
-                <div className="wt-analysis-stats-grid">
-                  <div className="wt-analysis-stat-card">
-                    <span className="wt-stat-label">Class Average</span>
-                    <h3 className="wt-stat-value">
-                      {stats.avgScore} <span className="wt-stat-slash">/ {analysisTest.maxScore}</span>
-                    </h3>
-                    <p className="wt-stat-sub">Based on {stats.totalGraded} students</p>
-                  </div>
-                  <div className="wt-analysis-stat-card">
-                    <span className="wt-stat-label">Highest Score</span>
-                    <h3 className="wt-stat-value text-green">
-                      {stats.highestScore} <span className="wt-stat-slash">/ {analysisTest.maxScore}</span>
-                    </h3>
-                    <p className="wt-stat-sub">Top mark in class</p>
-                  </div>
-                  <div className="wt-analysis-stat-card">
-                    <span className="wt-stat-label">Pass Percentage</span>
-                    <h3 className="wt-stat-value text-blue">{stats.passRate}%</h3>
-                    <p className="wt-stat-sub">Min passing score: 50%</p>
-                  </div>
-                </div>
-
-                <div className="wt-analysis-students-breakdown">
-                  <h3>Marks Summary Breakdown</h3>
-                  <table className="wt-analysis-table">
-                    <thead>
-                      <tr>
-                        <th>Roll No</th>
-                        <th>Student Name</th>
-                        <th>Submission</th>
-                        <th>Marks</th>
-                        <th>Percentage</th>
-                        <th>Status</th>
-                        <th>Remarks</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {getBatchStudents(analysisTest.batchId).map((student) => {
-                        const record = analysisTest.studentMarks?.[student.id];
-                        const score = record?.score;
-                        const percentVal = score !== null && score !== undefined ? (score / analysisTest.maxScore) * 100 : null;
-                        const isPass = percentVal !== null ? percentVal >= 50 : false;
-
-                        return (
-                          <tr key={student.id}>
-                            <td>{student.rollNo || "-"}</td>
-                            <td>{student.name}</td>
-                            <td>
-                              {record?.submissionUrl ? (
-                                <a href={record.submissionUrl} target="_blank" rel="noopener noreferrer" className="wt-view-submission-btn">
-                                  <Eye size={14} /> View
-                                </a>
-                              ) : (
-                                <span className="wt-no-submission">—</span>
-                              )}
-                            </td>
-                            <td>{score !== null && score !== undefined ? `${score} / ${analysisTest.maxScore}` : "Not Graded"}</td>
-                            <td>{percentVal !== null ? `${percentVal.toFixed(0)}%` : "-"}</td>
-                            <td>
-                              {score !== null && score !== undefined ? (
-                                <span className={`wt-badge ${isPass ? "wt-badge-published" : "wt-badge-pending"}`}>
-                                  {isPass ? "Pass" : "Fail"}
-                                </span>
-                              ) : (
-                                <span className="wt-badge-pending">Pending</span>
-                              )}
-                            </td>
-                            <td className="wt-analysis-remark-text">{record?.remarks || "No remarks"}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-      )}
-
-      {/* 3. Main Tests List */}
-      {!activeTest && !analysisTest && (
+      {/* 2. Main Tests List */}
+      {!activeTest && (
         <>
           <div className="wt-action-bar">
             <div className="wt-filters-container">
@@ -724,7 +801,6 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
               filteredTests.map((test) => {
                 const batch = batches.find((b) => String(b.id) === String(test.batchId) || b.name === test.batchId);
                 const isPublished = test.status === "Published";
-                const stats = getTestStats(test);
                 const submissionCount = getSubmissionCount(test);
                 const totalStudents = getBatchStudents(test.batchId).length;
 
@@ -736,6 +812,10 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
                     : d.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
                 }
 
+                const allMarks = test.studentMarks || test.student_marks || {};
+                const firstSub = Object.values(allMarks).find((m) => m && (m.submissionUrl || m.attachmentUrl));
+                const firstSubUrl = firstSub?.submissionUrl || firstSub?.attachmentUrl;
+
                 return (
                   <div key={test.id} className="wt-card">
                     <div className="wt-card-left">
@@ -745,89 +825,90 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
                         </span>
                       </div>
                       <div className="wt-card-details">
-                        <div className="wt-card-title-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                            <h3 className="wt-card-title">{test.title}</h3>
-                            <span className={`wt-badge ${isPublished ? "wt-badge-published" : "wt-badge-pending"}`}>
-                              {test.status}
-                            </span>
-                          </div>
-                          {/* Card Action Buttons (Eye, Pencil, Trash2) like Assignments section */}
-                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                            <button
-                              className="wt-btn-secondary"
-                              style={{ padding: "5px 8px", fontSize: "12px" }}
-                              onClick={() => handleOpenMarksEntry(test)}
-                              title="View Submissions & Enter Marks"
-                            >
-                              <Eye size={14} /> View / Marks
-                            </button>
-                            <button
-                              className="wt-btn-secondary"
-                              style={{ padding: "5px 8px", fontSize: "12px" }}
-                              onClick={() => setModalMode({ mode: "edit", test })}
-                              title="Edit Test"
-                            >
-                              <Pencil size={14} /> Edit
-                            </button>
-                            <button
-                              className="wt-btn-secondary"
-                              style={{ padding: "5px 8px", fontSize: "12px", color: "#ef4444", borderColor: "#fecaca" }}
-                              onClick={() => setDeleteTarget(test)}
-                              title="Delete Test"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
+                        <div className="wt-card-title-row">
+                          <h3 className="wt-card-title">{test.title}</h3>
+                          <span className={`wt-badge ${isPublished ? "wt-badge-published" : "wt-badge-pending"}`}>
+                            {test.status}
+                          </span>
                         </div>
 
-                        <div className="wt-card-meta">
+                        <div className="wt-card-meta" style={{ display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap" }}>
                           <span><User size={14} /> {batch?.name || test.batchId || "Batch"} {batch?.grade ? `(${batch.grade})` : ""}</span>
                           <span><Calendar size={14} /> {dateDisplay}</span>
                           {test.testPdfUrl && (
-                            <a href={test.testPdfUrl} target="_blank" rel="noopener noreferrer" className="wt-paper-link">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenPdf(test.testPdfUrl, `${test.title}_Paper.pdf`)}
+                              className="wt-paper-link"
+                              style={{ background: "none", border: "none", cursor: "pointer", color: "#2563eb", display: "inline-flex", alignItems: "center", gap: "4px", padding: 0 }}
+                            >
                               <FileText size={13} /> Test Paper (PDF)
-                            </a>
+                            </button>
                           )}
-                          {totalStudents > 0 && (
-                            <span className="wt-submission-badge">
-                              {submissionCount}/{totalStudents} submitted
-                            </span>
+                          {firstSubUrl && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenPdf(firstSubUrl, firstSub?.fileName || `${test.title}_Answer_Sheet.pdf`)}
+                              style={{ background: "none", border: "none", cursor: "pointer", color: "#059669", display: "inline-flex", alignItems: "center", gap: "4px", padding: 0, fontWeight: 600 }}
+                            >
+                              <Eye size={13} /> Student Answer (PDF)
+                            </button>
                           )}
                         </div>
                       </div>
                     </div>
 
                     <div className="wt-card-right">
-                      {isPublished ? (
-                        <div className="wt-card-stats-block">
-                          <div className="wt-card-stat">
-                            <span className="wt-stat-label">CLASS AVG</span>
-                            <span className="wt-stat-value text-blue">
-                              {stats.avgScore} <span className="wt-stat-max">/{test.maxScore}</span>
-                            </span>
-                          </div>
-                          <div className="wt-card-stat">
-                            <span className="wt-stat-label">PASS RATE</span>
-                            <span className="wt-stat-value text-green">{stats.passRate}%</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="wt-card-pending-block">
-                          <AlertCircle size={16} />
-                          <span>Marks Pending</span>
-                        </div>
-                      )}
+                      <div className="wt-card-pending-block">
+                        {isPublished ? (
+                          <span style={{ color: "#16a34a", fontWeight: 600, fontSize: "13px" }}>✓ Results Published</span>
+                        ) : (
+                          <>
+                            <AlertCircle size={16} />
+                            <span>Marks Pending</span>
+                          </>
+                        )}
+                      </div>
 
-                      <div className="wt-card-actions">
-                        <button className="wt-btn-secondary" onClick={() => handleOpenMarksEntry(test)}>
-                          {isPublished ? "Edit Marks" : "Enter Marks"}
-                        </button>
-                        {isPublished && (
-                          <button className="wt-btn-primary" onClick={() => setViewAnalysisTestId(test.id)}>
-                            <BarChart2 size={14} /> Analysis
+                      <div className="wt-card-actions" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        {firstSubUrl && (
+                          <button
+                            type="button"
+                            className="wt-btn-secondary"
+                            onClick={() => handleOpenPdf(firstSubUrl, firstSub?.fileName || `${test.title}_Answer.pdf`)}
+                            title="View Student's Submitted Answer PDF"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "5px",
+                              background: "#ecfdf5",
+                              color: "#059669",
+                              borderColor: "#a7f3d0",
+                              fontWeight: 600,
+                            }}
+                          >
+                            <Eye size={14} /> View Student PDF
                           </button>
                         )}
+                        <button className="wt-btn-primary" onClick={() => handleOpenMarksEntry(test)}>
+                          {isPublished ? "Edit Marks" : "Enter Marks"}
+                        </button>
+                        <button
+                          className="wt-btn-secondary"
+                          onClick={() => setModalMode({ mode: "edit", test })}
+                          title="Edit Test Details"
+                          style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}
+                        >
+                          <Pencil size={14} /> Edit
+                        </button>
+                        <button
+                          className="wt-btn-secondary"
+                          style={{ color: "#ef4444", borderColor: "#fecaca", display: "inline-flex", alignItems: "center", gap: "5px" }}
+                          onClick={() => setDeleteTarget(test)}
+                          title="Delete Test"
+                        >
+                          <Trash2 size={14} /> Delete
+                        </button>
                       </div>
                     </div>
                   </div>

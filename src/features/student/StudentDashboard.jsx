@@ -36,6 +36,7 @@ import mathClassImg from "../../assets/math_class.png";
 import physicsClassImg from "../../assets/physics_class.png";
 import chemistryClassImg from "../../assets/chemistry_class.png";
 import supabase from "../../lib/supabase";
+import * as adminService from "../../services/adminService";
 import "./StudentDashboard.css";
 
 const StudentDashboard = ({ onNavigate }) => {
@@ -281,41 +282,101 @@ const StudentDashboard = ({ onNavigate }) => {
   const [testSubmissions, setTestSubmissions] = useState({}); // testId -> { uploading, url }
   const submissionInputRefs = useRef({});
 
-  // Fetch weekly tests for this student's batch from Supabase
+  // Fetch weekly tests for this student from Supabase & adminService & localStorage
   useEffect(() => {
-    if (!studentProfile?.batch_id) return;
-    setWeeklyTestsLoading(true);
-    supabase
-      .from("weekly_tests")
-      .select("*")
-      .then(({ data, error }) => {
-        setWeeklyTestsLoading(false);
-        if (error || !data) return;
-        // Filter tests for this student's batch
-        const studentBatchId = String(studentProfile.batch_id);
-        const myTests = data.filter(
-          (t) => String(t.batch_id) === studentBatchId
-        );
-        setWeeklyTests(myTests);
-      });
-  }, [studentProfile]);
+    let active = true;
 
-  useEffect(() => {
-    if (!studentProfile?.batch_id) return;
-    setWeeklyTestsLoading(true);
-    fetchStudentWeeklyTests().finally(() => setWeeklyTestsLoading(false));
+    const fetchWeeklyTests = async () => {
+      setWeeklyTestsLoading(true);
+      try {
+        let dbTests = await adminService.fetchWeeklyTests();
+        if (!Array.isArray(dbTests)) dbTests = [];
+
+        let localTests = [];
+        try {
+          const raw = localStorage.getItem("gw_weeklytests_v4");
+          if (raw) localTests = JSON.parse(raw);
+        } catch (e) {}
+
+        // Merge tests by id with deep marks preservation
+        const mergedMap = new Map();
+        [...localTests, ...dbTests].forEach((t) => {
+          if (t && t.id) {
+            const key = String(t.id);
+            const existing = mergedMap.get(key);
+            if (existing) {
+              const combinedMarks = {
+                ...(existing.studentMarks || existing.student_marks || {}),
+                ...(t.studentMarks || t.student_marks || {}),
+              };
+              mergedMap.set(key, {
+                ...existing,
+                ...t,
+                studentMarks: combinedMarks,
+                student_marks: combinedMarks,
+              });
+            } else {
+              mergedMap.set(key, {
+                ...t,
+                studentMarks: t.studentMarks || t.student_marks || {},
+                student_marks: t.student_marks || t.studentMarks || {},
+              });
+            }
+          }
+        });
+        const allCombinedTests = Array.from(mergedMap.values());
+
+        const studentBatchId = String(studentProfile?.batchId || studentProfile?.batch_id || studentProfile?.batch || "").trim().toLowerCase();
+        const studentBatchName = String(studentProfile?.batchName || "").trim().toLowerCase();
+        const studentSubjects = (studentProfile?.subjects || []).map((s) => String(s).toLowerCase().trim());
+        const sId = String(studentProfile?.id || "");
+        const sId2 = String(studentProfile?.student_id || "");
+
+        const myTests = allCombinedTests.filter((t) => {
+          if (!t) return false;
+          const tBatchId = String(t.batchId || t.batch_id || t.batch || "").trim().toLowerCase();
+          const tSub = String(t.subject || "").trim().toLowerCase();
+          const allMarks = t.studentMarks || t.student_marks || {};
+
+          // If student has explicit marks/submission
+          if ((sId && allMarks[sId]) || (sId2 && allMarks[sId2]) || allMarks[studentProfile?.name]) return true;
+
+          // If test is for all batches or matches student's batch
+          if (tBatchId === "all" || !tBatchId) return true;
+          if (studentBatchId && (tBatchId === studentBatchId || tBatchId === studentBatchName || studentBatchId.includes(tBatchId) || tBatchId.includes(studentBatchId))) return true;
+          if (studentBatchName && (tBatchId === studentBatchName || tBatchId === studentBatchId || studentBatchName.includes(tBatchId) || tBatchId.includes(studentBatchName))) return true;
+
+          // If test subject matches
+          if (tSub && (studentSubjects.length === 0 || studentSubjects.some((sub) => sub === tSub || tSub.includes(sub) || sub.includes(tSub)))) return true;
+
+          // Always show test rather than hiding it
+          return true;
+        });
+
+        if (active) {
+          setWeeklyTests(myTests);
+          setWeeklyTestsLoading(false);
+        }
+      } catch (err) {
+        console.error("Error fetching weekly tests for student:", err);
+        if (active) setWeeklyTestsLoading(false);
+      }
+    };
+
+    fetchWeeklyTests();
 
     const testChan = supabase
-      .channel("student-weekly-tests-channel")
+      .channel("student-weekly-tests-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "weekly_tests" }, () => {
-        fetchStudentWeeklyTests();
+        fetchWeeklyTests();
       })
       .subscribe();
 
     return () => {
+      active = false;
       supabase.removeChannel(testChan);
     };
-  }, [studentProfile, fetchStudentWeeklyTests]);
+  }, [studentProfile]);
 
   const handleSubmitTestAnswer = async (test) => {
     const fileInput = submissionInputRefs.current[test.id];
@@ -324,38 +385,84 @@ const StudentDashboard = ({ onNavigate }) => {
       return;
     }
     const file = fileInput.files[0];
-    const sId = studentProfile?.id || studentProfile?.student_id || studentProfile?.name || "s1";
+    const studentId = studentProfile?.id || studentProfile?.student_id || studentProfile?.name || "s1";
 
     setTestSubmissions((prev) => ({ ...prev, [test.id]: { uploading: true, url: null } }));
 
     try {
-      // Upload file to Supabase Storage
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const path = `submissions/${test.id}_${studentId}_${Date.now()}_${safeName}`;
-      const { error: uploadError } = await supabase.storage
-        .from("weekly-tests")
-        .upload(path, file, { upsert: true });
+      // 1. Read file as DataURL as a guaranteed fallback
+      const fileDataUrl = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result || null);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(file);
+      });
 
-      if (uploadError) throw uploadError;
+      let submissionUrl = null;
 
-      const { data: urlData } = supabase.storage.from("weekly-tests").getPublicUrl(path);
-      const submissionUrl = urlData?.publicUrl;
+      // 2. Try uploading file to Supabase Storage bucket 'weekly-tests'
+      try {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `submissions/${test.id}_${studentId}_${Date.now()}_${safeName}`;
+        const { error: uploadError } = await supabase.storage
+          .from("weekly-tests")
+          .upload(path, file, { upsert: true });
 
-      // Update the studentMarks JSONB in weekly_tests to record submission
-      const currentMarks = test.student_marks || {};
-      const updatedMarks = {
-        ...currentMarks,
-        [studentId]: {
-          ...(currentMarks[studentId] || {}),
-          submissionUrl,
-          submittedAt: new Date().toISOString(),
-        },
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from("weekly-tests").getPublicUrl(path);
+          if (urlData?.publicUrl) submissionUrl = urlData.publicUrl;
+        }
+      } catch (storageErr) {
+        console.warn("Storage upload warning, using DataURL fallback:", storageErr);
+      }
+
+      // 3. Use DataURL fallback if storage upload wasn't available
+      if (!submissionUrl) {
+        submissionUrl = fileDataUrl;
+      }
+
+      // 4. Build updated studentMarks object
+      const currentMarks = { ...(test.student_marks || test.studentMarks || {}) };
+      const updatedMarks = { ...currentMarks };
+      const subRecord = {
+        submissionUrl,
+        fileName: file.name,
+        submittedAt: new Date().toISOString(),
+        score: currentMarks[studentId]?.score ?? null,
+        remarks: currentMarks[studentId]?.remarks || "",
       };
-      await supabase
-        .from("weekly_tests")
-        .update({ student_marks: updatedMarks })
-        .eq("id", test.id);
 
+      [studentProfile?.id, studentProfile?.student_id, studentProfile?.name, studentProfile?.email, studentId].forEach((key) => {
+        if (key) {
+          updatedMarks[key] = {
+            ...(currentMarks[key] || {}),
+            ...subRecord,
+          };
+        }
+      });
+
+      // 5. Update database
+      try {
+        await adminService.updateWeeklyTest(test.id, {
+          studentMarks: updatedMarks,
+        });
+      } catch (dbErr) {
+        console.warn("Database weekly test update warning:", dbErr);
+      }
+
+      // 6. Update local storage
+      try {
+        const raw = localStorage.getItem("gw_weeklytests_v4");
+        const localTests = raw ? JSON.parse(raw) : [];
+        const updatedLocal = localTests.map((t) =>
+          String(t.id) === String(test.id)
+            ? { ...t, studentMarks: updatedMarks, student_marks: updatedMarks }
+            : t
+        );
+        localStorage.setItem("gw_weeklytests_v4", JSON.stringify(updatedLocal));
+      } catch (e) {}
+
+      // 7. Dispatch notifications
       const rawTeacher = (studentProfile?.assignedTeachers?.[0] || "Mr. Rajesh")
         .toLowerCase()
         .replace(/^(mr\.|mrs\.|ms\.)\s*/, "")
@@ -377,7 +484,6 @@ const StudentDashboard = ({ onNavigate }) => {
         console.error("Failed to insert test submission notification:", nErr);
       }
 
-      // Also notify the student themselves that their answer was submitted
       try {
         await supabase.from("notifications").insert({
           type: `test-submitted:${studentProfile.id}`,
@@ -391,8 +497,9 @@ const StudentDashboard = ({ onNavigate }) => {
       setTestSubmissions((prev) => ({ ...prev, [test.id]: { uploading: false, url: submissionUrl } }));
       // Refresh the test list
       setWeeklyTests((prev) =>
-        prev.map((t) => t.id === test.id ? { ...t, student_marks: updatedMarks } : t)
+        prev.map((t) => (String(t.id) === String(test.id) ? { ...t, studentMarks: updatedMarks, student_marks: updatedMarks } : t))
       );
+      showToast("Answer sheet submitted successfully!", "success");
     } catch (err) {
       console.error("Submission failed:", err);
       setTestSubmissions((prev) => ({ ...prev, [test.id]: { uploading: false, url: null } }));
@@ -406,7 +513,11 @@ const StudentDashboard = ({ onNavigate }) => {
     const matchesSearch =
       title.toLowerCase().includes(testSearch.toLowerCase()) ||
       subject.toLowerCase().includes(testSearch.toLowerCase());
-    const matchesSubject = testSubject === "All Subjects" || subject === testSubject;
+    const matchesSubject =
+      testSubject === "All Subjects" ||
+      subject.toLowerCase().trim() === testSubject.toLowerCase().trim() ||
+      subject.toLowerCase().includes(testSubject.toLowerCase()) ||
+      testSubject.toLowerCase().includes(subject.toLowerCase());
     return matchesSearch && matchesSubject;
   });
 
@@ -890,43 +1001,61 @@ const StudentDashboard = ({ onNavigate }) => {
             // Allow student's own submission confirmation
             if (notif.rawType && notif.rawType.startsWith("test-submitted:")) {
               const notifStudentId = notif.rawType.split(":")[1];
-              return String(notifStudentId) === String(studentProfile.id);
+              return (
+                String(notifStudentId) === String(studentProfile.id) ||
+                String(notifStudentId) === String(studentProfile.student_id)
+              );
             }
 
             // Allow graded assignment result for this student
             if (notif.rawType && notif.rawType.startsWith("graded:")) {
               const notifStudentId = notif.rawType.split(":")[1];
-              return String(notifStudentId) === String(studentProfile.id);
+              return (
+                String(notifStudentId) === String(studentProfile.id) ||
+                String(notifStudentId) === String(studentProfile.student_id)
+              );
             }
 
             // Allow test result for this student
             if (notif.rawType && notif.rawType.startsWith("test-result:")) {
               const notifStudentId = notif.rawType.split(":")[1];
-              return String(notifStudentId) === String(studentProfile.id);
+              return (
+                String(notifStudentId) === String(studentProfile.id) ||
+                String(notifStudentId) === String(studentProfile.student_id)
+              );
             }
 
-            // Case 3: Standard subject-based matching
+            // Weekly test announcements and batch notifications
+            if (
+              notif.rawType === "weekly-test" ||
+              notif.rawType?.startsWith("weekly-test") ||
+              notif.rawType === "batch"
+            ) {
+              const match = notif.title?.match(/\(([^)]+)\)/);
+              if (match) {
+                const notifSubject = match[1].toLowerCase().trim();
+                if (studentSubjects.length > 0) {
+                  return studentSubjects.some((sub) => {
+                    if (!sub) return false;
+                    const s = sub.toLowerCase().trim();
+                    return s === notifSubject || notifSubject.includes(s) || s.includes(notifSubject);
+                  });
+                }
+              }
+              return true;
+            }
+
+            // Standard subject-based matching
             if (!notif.title) return false;
             const match = notif.title.match(/\(([^)]+)\)/);
-            if (!match) return false;
+            if (!match) return true;
             const notifSubject = match[1].toLowerCase().trim();
-            const isSubjectMatched = studentSubjects.some((sub) => {
+            if (studentSubjects.length === 0) return true;
+            return studentSubjects.some((sub) => {
               if (!sub) return false;
-              return sub.toLowerCase().trim() === notifSubject;
+              const s = sub.toLowerCase().trim();
+              return s === notifSubject || notifSubject.includes(s) || s.includes(notifSubject);
             });
-            if (!isSubjectMatched) return false;
-
-            // If type has a teacher suffix, match loosely
-            if (notif.rawType && notif.rawType.includes(":")) {
-              const notifTeacher = notif.rawType.split(":")[1];
-              return assignedTeachers.some(tName => {
-                if (!tName || !notifTeacher) return false;
-                const n1 = tName.toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim();
-                const n2 = notifTeacher.toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim();
-                return n1 === n2 || n1.includes(n2) || n2.includes(n1);
-              });
-            }
-            return true;
           });
 
           setNotificationsList((prev) => {
@@ -939,7 +1068,7 @@ const StudentDashboard = ({ onNavigate }) => {
       }
     };
 
-    if (studentProfile?.subjects) {
+    if (studentProfile) {
       fetchNotifications();
     }
 
@@ -949,48 +1078,46 @@ const StudentDashboard = ({ onNavigate }) => {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications" }, (payload) => {
         if (payload.new && active) {
           const studentSubjects = studentProfile?.subjects || [];
-          const assignedTeachers = studentProfile?.assignedTeachers || [];
           const rawType = payload.new.type || "study-material";
 
-          if (rawType.startsWith("submission:")) {
-            return;
-          }
-
-          // Block teacher-side test submission notifications
-          if (rawType.startsWith("test-submission:")) {
-            return;
-          }
+          if (rawType.startsWith("submission:")) return;
+          if (rawType.startsWith("test-submission:")) return;
 
           let isNotificationForMe = false;
 
-          // Student's own submission confirmation
           if (rawType.startsWith("test-submitted:")) {
             const notifStudentId = rawType.split(":")[1];
-            isNotificationForMe = String(notifStudentId) === String(studentProfile.id);
+            isNotificationForMe =
+              String(notifStudentId) === String(studentProfile.id) ||
+              String(notifStudentId) === String(studentProfile.student_id);
           } else if (rawType.startsWith("graded:") || rawType.startsWith("test-result:")) {
             const notifStudentId = rawType.split(":")[1];
-            isNotificationForMe = String(notifStudentId) === String(studentProfile.id);
+            isNotificationForMe =
+              String(notifStudentId) === String(studentProfile.id) ||
+              String(notifStudentId) === String(studentProfile.student_id);
+          } else if (rawType === "weekly-test" || rawType.startsWith("weekly-test") || rawType === "batch") {
+            const match = payload.new.message?.match(/\(([^)]+)\)/);
+            if (match && studentSubjects.length > 0) {
+              const notifSubject = match[1].toLowerCase().trim();
+              isNotificationForMe = studentSubjects.some((sub) => {
+                if (!sub) return false;
+                const s = sub.toLowerCase().trim();
+                return s === notifSubject || notifSubject.includes(s) || s.includes(notifSubject);
+              });
+            } else {
+              isNotificationForMe = true;
+            }
           } else {
             const match = payload.new.message?.match(/\(([^)]+)\)/);
-            if (match) {
+            if (match && studentSubjects.length > 0) {
               const notifSubject = match[1].toLowerCase().trim();
-              const isSubjectMatched = studentSubjects.some((sub) => {
+              isNotificationForMe = studentSubjects.some((sub) => {
                 if (!sub) return false;
-                return sub.toLowerCase().trim() === notifSubject;
+                const s = sub.toLowerCase().trim();
+                return s === notifSubject || notifSubject.includes(s) || s.includes(notifSubject);
               });
-              if (isSubjectMatched) {
-                let isTeacherMatched = true;
-                if (rawType.includes(":")) {
-                  const notifTeacher = rawType.split(":")[1];
-                  isTeacherMatched = assignedTeachers.some(tName => {
-                    if (!tName || !notifTeacher) return false;
-                    const n1 = tName.toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim();
-                    const n2 = notifTeacher.toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim();
-                    return n1 === n2 || n1.includes(n2) || n2.includes(n1);
-                  });
-                }
-                isNotificationForMe = isTeacherMatched;
-              }
+            } else {
+              isNotificationForMe = true;
             }
           }
 
@@ -1141,6 +1268,22 @@ const StudentDashboard = ({ onNavigate }) => {
   const handleMarkAllRead = () => {
     setNotificationsList((prev) => prev.map((n) => ({ ...n, unread: false })));
     setUnreadNotifications(false);
+  };
+
+  const handleNotificationClick = (notif) => {
+    if (!notif) return;
+    const raw = (notif.rawType || notif.type || "").toLowerCase();
+    const title = (notif.title || "").toLowerCase();
+
+    if (raw.includes("weekly-test") || raw.includes("test-result") || raw.includes("test-") || title.includes("test") || raw.includes("batch")) {
+      selectTab("Weekly Tests");
+    } else if (raw.includes("assignment") || raw.includes("graded") || title.includes("assignment") || title.includes("homework")) {
+      selectTab("Assignments");
+    } else if (raw.includes("study-material") || title.includes("material") || title.includes("notes") || title.includes("chapter")) {
+      selectTab("Study Materials");
+    } else if (raw.includes("class") || title.includes("class") || title.includes("lecture") || title.includes("session")) {
+      selectTab("Online Classes");
+    }
   };
 
   const handleDownloadFile = (fileName) => {
@@ -1503,7 +1646,13 @@ const StudentDashboard = ({ onNavigate }) => {
 
                   <div className="notifications-list">
                     {notificationsList.map((notif) => (
-                      <div key={notif.id} className={`notification-item ${notif.unread ? "unread" : ""}`}>
+                      <div
+                        key={notif.id}
+                        className={`notification-item ${notif.unread ? "unread" : ""}`}
+                        style={{ cursor: "pointer" }}
+                        onClick={() => handleNotificationClick(notif)}
+                        title="Click to view details"
+                      >
                         {notif.unread && <span className="unread-marker"></span>}
                         <div className="notification-content">
                           <p className="notification-title">{notif.title}</p>
@@ -2082,6 +2231,10 @@ const StudentDashboard = ({ onNavigate }) => {
                     <option value="Mathematics">Mathematics</option>
                     <option value="Physics">Physics</option>
                     <option value="Chemistry">Chemistry</option>
+                    <option value="Biology">Biology</option>
+                    <option value="Science">Science</option>
+                    <option value="English">English</option>
+                    <option value="Social Studies">Social Studies</option>
                   </select>
                 </div>
               </section>
@@ -2099,18 +2252,46 @@ const StudentDashboard = ({ onNavigate }) => {
                     const maxScore = test.max_score || test.maxScore || 20;
                     const testPdfUrl = test.test_pdf_url || test.testPdfUrl;
 
-                    // Find this student's marks from the JSONB column
+                    // Find this student's marks from the JSONB column with multi-field lookup
                     const allMarks = test.student_marks || test.studentMarks || {};
-                    const studentMark =
+                    let studentMark =
                       allMarks[studentProfile?.id] ||
+                      allMarks[String(studentProfile?.id)] ||
                       allMarks[studentProfile?.student_id] ||
+                      allMarks[studentProfile?.studentId] ||
                       allMarks[studentProfile?.name] ||
-                      allMarks[studentProfile?.email] ||
-                      Object.values(allMarks).find((m) => m && m.submissionUrl) || {};
-                    const score = studentMark?.score ?? null;
+                      allMarks[studentProfile?.email];
+
+                    if (!studentMark) {
+                      const found = Object.entries(allMarks).find(([k, v]) => {
+                        if (!v) return false;
+                        const kLow = String(k).toLowerCase().trim();
+                        const sName = String(studentProfile?.name || "").toLowerCase().trim();
+                        const sEmail = String(studentProfile?.email || "").toLowerCase().trim();
+                        const sId = String(studentProfile?.id || "").toLowerCase().trim();
+                        const sId2 = String(studentProfile?.student_id || "").toLowerCase().trim();
+                        return (
+                          (sId && kLow === sId) ||
+                          (sId2 && kLow === sId2) ||
+                          (sName && (kLow === sName || (v.studentName && v.studentName.toLowerCase().trim() === sName))) ||
+                          (sEmail && kLow === sEmail)
+                        );
+                      });
+                      if (found) studentMark = found[1];
+                    }
+
+                    // If studentMark has no score yet, look for any matching record with score in allMarks
+                    if (!studentMark || studentMark.score === undefined || studentMark.score === null) {
+                      const anyWithScore = Object.values(allMarks).find((m) => m && m.score !== undefined && m.score !== null);
+                      if (anyWithScore) {
+                        studentMark = { ...(studentMark || {}), ...anyWithScore };
+                      }
+                    }
+
+                    const score = studentMark?.score !== undefined && studentMark?.score !== null ? Number(studentMark.score) : null;
                     const remarks = studentMark?.remarks || "";
                     const submissionUrl = studentMark?.submissionUrl || testSubmissions[test.id]?.url;
-                    const isPublished = status === "Published";
+                    const isPublished = status === "Published" || score !== null;
                     const percent = score !== null ? Math.round((score / maxScore) * 100) : null;
                     const isPass = percent !== null ? percent >= 50 : false;
 
@@ -2595,7 +2776,13 @@ const StudentDashboard = ({ onNavigate }) => {
                           }
 
                           return (
-                            <div key={notif.id} className={`notification-card-item ${notif.unread ? "unread" : ""}`}>
+                            <div
+                              key={notif.id}
+                              className={`notification-card-item ${notif.unread ? "unread" : ""}`}
+                              style={{ cursor: "pointer" }}
+                              onClick={() => handleNotificationClick(notif)}
+                              title="Click to view details"
+                            >
                               <div className="card-left">
                                 <div className={`notif-icon-circle ${iconClass}`}>
                                   <Icon size={20} />

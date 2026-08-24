@@ -327,14 +327,54 @@ const SubmissionsPanel = ({ asgn, onClose, onSave }) => {
                       <div>
                         <span style={{ fontSize: "11px", fontWeight: "bold", color: "#64748b", textTransform: "uppercase" }}>Answer File:</span>
                         <div style={{ marginTop: "4px" }}>
-                          <a
-                            href={sub.attachmentUrl}
-                            download={sub.attachmentName || "answer_sheet.pdf"}
+                          <button
+                            type="button"
                             className="outline-btn"
-                            style={{ display: "inline-flex", alignItems: "center", gap: "6px", textDecoration: "none", fontSize: "12px", padding: "4px 8px", background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "4px", color: "#2D6BFF" }}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              fontSize: "12px",
+                              padding: "5px 10px",
+                              background: "#eff6ff",
+                              border: "1px solid #bfdbfe",
+                              borderRadius: "6px",
+                              color: "#2563eb",
+                              cursor: "pointer",
+                              fontWeight: 600
+                            }}
+                            onClick={() => {
+                              const url = sub.attachmentUrl;
+                              if (url.startsWith("data:")) {
+                                try {
+                                  const parts = url.split(",");
+                                  const mimeMatch = parts[0].match(/:(.*?);/);
+                                  const mime = mimeMatch ? mimeMatch[1] : "application/pdf";
+                                  const byteStr = atob(parts[1]);
+                                  const arr = new Uint8Array(byteStr.length);
+                                  for (let i = 0; i < byteStr.length; i++) arr[i] = byteStr.charCodeAt(i);
+                                  const blob = new Blob([arr], { type: mime });
+                                  const blobUrl = URL.createObjectURL(blob);
+                                  const win = window.open(blobUrl, "_blank");
+                                  if (!win) {
+                                    const a = document.createElement("a");
+                                    a.href = blobUrl;
+                                    a.download = sub.attachmentName || "submission.pdf";
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                  }
+                                  setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+                                } catch (e) {
+                                  window.open(url, "_blank");
+                                }
+                              } else {
+                                window.open(url, "_blank");
+                              }
+                            }}
                           >
                             <Download size={12} /> Open/Download PDF ({sub.attachmentName || "answer_sheet.pdf"})
-                          </a>
+                          </button>
                         </div>
                       </div>
                     ) : (

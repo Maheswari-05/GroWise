@@ -146,13 +146,16 @@ const Notifications = ({ notifications, setNotifications, assignments, setAssign
                 if (asgnObj) {
                   studentSub = asgnObj.submissions?.find(s => s.studentId === studentId);
                 }
-              } else if (n.type && n.type.startsWith("test-submission:")) {
+              } else if (n.type && (n.type.startsWith("test-submission:") || n.type.startsWith("weekly-test"))) {
                 const parts = n.type.split(":");
-                const testId = Number(parts[2]);
+                const testId = parts[2];
                 const studentId = parts[3];
-                testObj = weeklyTests?.find(t => t.id === testId);
+                testObj =
+                  weeklyTests?.find(t => String(t.id) === String(testId)) ||
+                  weeklyTests?.find(t => (n.text || n.message || "").toLowerCase().includes((t.title || "").toLowerCase()));
                 if (testObj) {
-                  studentSub = testObj.studentMarks?.[studentId];
+                  const allMarks = testObj.studentMarks || testObj.student_marks || {};
+                  studentSub = allMarks[studentId] || Object.values(allMarks).find(m => m?.submissionUrl);
                 }
               }
 

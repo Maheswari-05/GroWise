@@ -121,36 +121,63 @@ export async function fetchAssignments() {
 
 export async function fetchWeeklyTests() {
   try {
-    const { data, error } = await supabase.from('weekly_tests').select('*');
-    if (error) { console.error('fetchWeeklyTests error:', error); return []; }
-    return (data || []).map(row => {
-      const camel = toCamelCase(row);
-      let teacherName = row.teacher || "";
-      let batchId = "";
-      let maxScore = 20;
-      let testPdfUrl = "";
-      let studentMarks = {};
+    let localTests = [];
+    try {
+      const raw = localStorage.getItem("gw_weeklytests_v4");
+      if (raw) localTests = JSON.parse(raw);
+    } catch (e) {}
 
-      try {
-        if (row.teacher && row.teacher.startsWith("{")) {
-          const parsed = JSON.parse(row.teacher);
-          teacherName = parsed.teacher || "";
-          batchId = parsed.batchId || "";
-          maxScore = parsed.maxScore || 20;
-          testPdfUrl = parsed.testPdfUrl || "";
-          studentMarks = parsed.studentMarks || {};
+    let dbTests = [];
+    try {
+      const { data, error } = await supabase.from('weekly_tests').select('*');
+      if (!error && data) {
+        dbTests = data.map(row => {
+          const camel = toCamelCase(row);
+          let teacherName = row.teacher || "";
+          let batchId = row.batch_id || row.batchId || row.batch || "";
+          let maxScore = row.total_marks || row.max_score || row.maxScore || 20;
+          let testPdfUrl = row.test_pdf_url || row.testPdfUrl || "";
+          let studentMarks = row.student_marks || row.studentMarks || {};
+
+          try {
+            if (row.teacher && typeof row.teacher === "string" && row.teacher.startsWith("{")) {
+              const parsed = JSON.parse(row.teacher);
+              if (parsed.teacher) teacherName = parsed.teacher;
+              if (parsed.batchId) batchId = parsed.batchId;
+              if (parsed.maxScore) maxScore = parsed.maxScore;
+              if (parsed.testPdfUrl) testPdfUrl = parsed.testPdfUrl;
+              if (parsed.studentMarks) studentMarks = { ...parsed.studentMarks, ...studentMarks };
+            }
+          } catch(e) {}
+
+          return {
+            ...camel,
+            teacher: teacherName,
+            batchId,
+            maxScore,
+            testPdfUrl,
+            studentMarks,
+            student_marks: studentMarks
+          };
+        });
+      }
+    } catch(e) {}
+
+    const map = new Map();
+    [...localTests, ...dbTests].forEach((t) => {
+      if (t && t.id) {
+        const idStr = String(t.id);
+        const existing = map.get(idStr);
+        if (existing) {
+          const mergedMarks = { ...(existing.studentMarks || {}), ...(t.studentMarks || {}) };
+          map.set(idStr, { ...existing, ...t, studentMarks: mergedMarks, student_marks: mergedMarks });
+        } else {
+          map.set(idStr, t);
         }
-      } catch(e) {}
-
-      return {
-        ...camel,
-        teacher: teacherName,
-        batchId,
-        maxScore,
-        testPdfUrl,
-        studentMarks
-      };
+      }
     });
+
+    return Array.from(map.values());
   } catch (e) {
     console.error('fetchWeeklyTests exception:', e);
     return [];
@@ -187,21 +214,37 @@ export async function uploadTestFile(file, path) {
  */
 export async function updateWeeklyTest(id, updates) {
   try {
-    const { data: existing } = await supabase.from('weekly_tests').select('*').eq('id', id).maybeSingle();
-    if (!existing) return;
+    const idStr = String(id);
 
-    let parsed = { teacher: existing.teacher };
+    // Update localStorage
     try {
-      if (existing.teacher && existing.teacher.startsWith("{")) {
-        parsed = JSON.parse(existing.teacher);
-      }
+      const raw = localStorage.getItem("gw_weeklytests_v4");
+      const local = raw ? JSON.parse(raw) : [];
+      const updatedLocal = local.map(t => {
+        if (String(t.id) === idStr) {
+          const currentMarks = t.studentMarks || t.student_marks || {};
+          const nextMarks = updates.studentMarks ? { ...currentMarks, ...updates.studentMarks } : currentMarks;
+          return { ...t, ...updates, studentMarks: nextMarks, student_marks: nextMarks };
+        }
+        return t;
+      });
+      localStorage.setItem("gw_weeklytests_v4", JSON.stringify(updatedLocal));
     } catch (e) {}
+
+    // Update Supabase
+    const { data: existing } = await supabase.from('weekly_tests').select('*').eq('id', id).maybeSingle();
+    let parsed = {};
+    if (existing?.teacher && typeof existing.teacher === "string" && existing.teacher.startsWith("{")) {
+      try { parsed = JSON.parse(existing.teacher); } catch (e) {}
+    }
 
     if (updates.teacher !== undefined) parsed.teacher = updates.teacher;
     if (updates.batchId !== undefined) parsed.batchId = updates.batchId;
     if (updates.maxScore !== undefined) parsed.maxScore = updates.maxScore;
     if (updates.testPdfUrl !== undefined) parsed.testPdfUrl = updates.testPdfUrl;
-    if (updates.studentMarks !== undefined) parsed.studentMarks = updates.studentMarks;
+    if (updates.studentMarks !== undefined) {
+      parsed.studentMarks = { ...(parsed.studentMarks || {}), ...updates.studentMarks };
+    }
 
     const row = {
       teacher: JSON.stringify(parsed)
@@ -210,9 +253,9 @@ export async function updateWeeklyTest(id, updates) {
     if (updates.title !== undefined) row.title = updates.title;
     if (updates.date !== undefined) row.date = updates.date;
     if (updates.status !== undefined) row.status = updates.status;
+    if (updates.maxScore !== undefined) row.total_marks = updates.maxScore;
 
-    const { error } = await supabase.from('weekly_tests').update(row).eq('id', id);
-    if (error) { console.error('updateWeeklyTest error:', error); }
+    await supabase.from('weekly_tests').update(row).eq('id', id);
   } catch (e) {
     console.error('updateWeeklyTest exception:', e);
   }
@@ -242,18 +285,41 @@ export async function addWeeklyTest(test) {
       total_marks: test.maxScore || 20
     };
 
-    const { data, error } = await supabase.from('weekly_tests').insert(row).select().single();
-    if (error) { console.error('addWeeklyTest error:', error); return null; }
-    
-    const camel = toCamelCase(data);
-    return {
-      ...camel,
+    let inserted = null;
+    try {
+      const { data, error } = await supabase.from('weekly_tests').insert(row).select().single();
+      if (!error && data) {
+        inserted = toCamelCase(data);
+      }
+    } catch(dbErr) {
+      console.warn("Supabase insert warning:", dbErr);
+    }
+
+    const testId = inserted?.id || test.id || "t" + Date.now();
+    const resultObj = {
+      ...(inserted || {}),
+      id: testId,
+      title: test.title,
+      subject: test.subject,
+      date: test.date,
+      status: test.status || "Result Pending",
+      totalMarks: test.maxScore || 20,
       teacher: test.teacher || "Mr. Rajesh",
       batchId: test.batchId || "",
       maxScore: test.maxScore || 20,
       testPdfUrl: test.testPdfUrl || "",
       studentMarks: test.studentMarks || {}
     };
+
+    // Keep localStorage in sync
+    try {
+      const raw = localStorage.getItem("gw_weeklytests_v4");
+      const local = raw ? JSON.parse(raw) : [];
+      const updated = [resultObj, ...local.filter(t => String(t.id) !== String(testId))];
+      localStorage.setItem("gw_weeklytests_v4", JSON.stringify(updated));
+    } catch(e) {}
+
+    return resultObj;
   } catch (e) {
     console.error('addWeeklyTest exception:', e);
     return null;

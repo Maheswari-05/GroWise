@@ -609,8 +609,8 @@ const TeacherDashboard = ({ onNavigate }) => {
           <WeeklyTests
             weeklyTests={weeklyTests}
             setWeeklyTests={setWeeklyTests}
-            students={assignedStudents}
-            batches={assignedBatches}
+            students={students && students.length > 0 ? students : assignedStudents}
+            batches={assignedBatches && assignedBatches.length > 0 ? assignedBatches : batches}
             viewTestId={viewTestId}
             setViewTestId={setViewTestId}
           />
