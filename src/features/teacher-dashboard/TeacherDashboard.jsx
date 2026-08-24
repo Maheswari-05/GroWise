@@ -726,9 +726,11 @@ const TeacherDashboard = ({ onNavigate }) => {
         return (
           <Performance
             weeklyTests={weeklyTests}
+            assignments={assignments}
             attendanceRecords={attendanceRecords}
             students={assignedStudents}
             batches={assignedBatches}
+            teacherProfile={teacherProfile}
           />
         );
       case "notifications":
