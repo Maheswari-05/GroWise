@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   X,
   Mail,
@@ -16,6 +16,7 @@ import {
   XCircle,
 } from "lucide-react";
 import AvatarPlaceholder from "./AvatarPlaceholder";
+import supabase from "../../../../lib/supabase";
 import "./StudentProfile.css";
 
 const TABS = [
@@ -224,6 +225,38 @@ const TestsTab = ({ student }) => (
 /* ── Main StudentProfile ────────────────────────────────── */
 const StudentProfile = ({ student, batchName, onClose }) => {
   const [activeTab, setActiveTab] = useState("overview");
+  const [realAttendance, setRealAttendance] = useState(null);
+
+  // Fetch real attendance data
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      try {
+        const { data: logs, error } = await supabase
+          .from('attendance_logs')
+          .select('status')
+          .eq('student_id', student.id);
+
+        if (error) throw error;
+
+        if (logs && logs.length > 0) {
+          const presentCount = logs.filter(log => log.status === 'Present').length;
+          const percentage = Math.round((presentCount / logs.length) * 100);
+          setRealAttendance(percentage);
+        }
+      } catch (error) {
+        console.error('Error fetching student attendance:', error);
+      }
+    };
+
+    if (student?.id) {
+      fetchAttendance();
+    }
+  }, [student?.id]);
+
+  // Use real attendance if available, otherwise fallback
+  const attendancePercent = realAttendance !== null 
+    ? realAttendance 
+    : (typeof student?.attendancePercent === 'number' ? student.attendancePercent : 100);
 
   return (
     <div className="sp-overlay" onClick={onClose}>
@@ -275,7 +308,7 @@ const StudentProfile = ({ student, batchName, onClose }) => {
 
         {/* Tab Content */}
         <div className="sp-content">
-          {activeTab === "overview"    && <OverviewTab    student={student} />}
+          {activeTab === "overview"    && <OverviewTab    student={{...student, attendancePercent: attendancePercent}} />}
           {activeTab === "attendance"  && <AttendanceTab  student={student} />}
           {activeTab === "assignments" && <AssignmentsTab student={student} />}
           {activeTab === "tests"       && <TestsTab       student={student} />}

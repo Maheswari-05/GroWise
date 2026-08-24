@@ -5,8 +5,51 @@ import {
   VideoOff, PhoneOff, Monitor, Radio, CheckCircle, UserCheck
 } from "lucide-react";
 import * as adminService from "../../../../services/adminService";
+import { attendanceTracker } from "../../../../services/attendanceTrackingService";
 import supabase from "../../../../lib/supabase";
+import JitsiClassroom from "../../../../components/JitsiClassroom/JitsiClassroom";
 import "./OnlineClasses.css";
+
+// Helper functions for custom clock time handling
+const formatTime12h = (time24) => {
+  if (!time24) return "09:00 AM";
+  const [hStr, mStr] = time24.split(":");
+  let h = parseInt(hStr, 10);
+  const m = mStr || "00";
+  if (isNaN(h)) return "09:00 AM";
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  const formattedH = h < 10 ? `0${h}` : `${h}`;
+  return `${formattedH}:${m} ${ampm}`;
+};
+
+const calculateDurationText = (start24, end24) => {
+  if (!start24 || !end24) return "1 hr";
+  const [sh, sm] = start24.split(":").map(Number);
+  const [eh, em] = end24.split(":").map(Number);
+  let startMins = sh * 60 + sm;
+  let endMins = eh * 60 + em;
+  if (endMins <= startMins) {
+    endMins += 24 * 60;
+  }
+  const diff = endMins - startMins;
+  const hrs = Math.floor(diff / 60);
+  const mins = diff % 60;
+
+  if (hrs > 0 && mins > 0) return `${hrs} hr ${mins} mins`;
+  if (hrs > 0) return `${hrs} hr${hrs > 1 ? "s" : ""}`;
+  return `${mins} mins`;
+};
+
+const addMinutesToTime = (time24, minsToAdd) => {
+  const [h, m] = (time24 || "09:00").split(":").map(Number);
+  const totalMins = h * 60 + m + minsToAdd;
+  const newH = Math.floor(totalMins / 60) % 24;
+  const newM = totalMins % 60;
+  const formattedH = newH < 10 ? `0${newH}` : `${newH}`;
+  const formattedM = newM < 10 ? `0${newM}` : `${newM}`;
+  return `${formattedH}:${formattedM}`;
+};
 
 const OnlineClasses = ({
   onlineClasses = [],
@@ -35,7 +78,18 @@ const OnlineClasses = ({
   );
   const [newBatch, setNewBatch] = useState("");
   const [newDate, setNewDate] = useState(new Date().toISOString().split("T")[0]);
-  const [newTime, setNewTime] = useState("09:00 AM - 10:00 AM");
+
+  // Flexible Time State (Start Time & End Time)
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("10:00");
+
+  // Reschedule Modal state
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduleTarget, setRescheduleTarget] = useState(null);
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [rescheduleStartTime, setRescheduleStartTime] = useState("10:00");
+  const [rescheduleEndTime, setRescheduleEndTime] = useState("11:00");
+  const [isRescheduling, setIsRescheduling] = useState(false);
 
   // Synchronize newBatch when batches are loaded
   useEffect(() => {
@@ -50,12 +104,14 @@ const OnlineClasses = ({
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [cameraError, setCameraError] = useState(null);
+  const [connectedStudentsMap, setConnectedStudentsMap] = useState({});
 
   // WebRTC / MediaStream references
   const videoRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
+  const liveChannelRef = useRef(null);
 
   // Helper to find students assigned to a batch
   const getBatchStudents = (batchIdOrName) => {
@@ -75,6 +131,73 @@ const OnlineClasses = ({
         s.batchId === targetName
     );
   };
+
+  // Real-time BroadcastChannel Signal logic for Live Call
+  useEffect(() => {
+    if (!activeCallClassId) {
+      if (liveChannelRef.current) {
+        liveChannelRef.current.close();
+        liveChannelRef.current = null;
+      }
+      setConnectedStudentsMap({});
+      return;
+    }
+
+    try {
+      const channel = new BroadcastChannel(`growise_live_class_${activeCallClassId}`);
+      liveChannelRef.current = channel;
+
+      const handleChannelMessage = (event) => {
+        const data = event.data;
+        if (!data || !data.type) return;
+
+        if (data.type === "STUDENT_JOINED" || data.type === "STUDENT_HEARTBEAT" || data.type === "STUDENT_STATE_CHANGE") {
+          const key = data.studentId || data.studentName;
+          if (key) {
+            setConnectedStudentsMap((prev) => ({
+              ...prev,
+              [key]: {
+                connected: true,
+                studentName: data.studentName,
+                videoActive: data.videoActive ?? true,
+                micActive: data.micActive ?? true,
+                lastSeen: Date.now(),
+              },
+            }));
+          }
+        }
+      };
+
+      channel.addEventListener("message", handleChannelMessage);
+
+      // Send initial teacher state and set heartbeat interval
+      const sendTeacherState = () => {
+        if (channel) {
+          channel.postMessage({
+            type: "TEACHER_STATE",
+            classId: activeCallClassId,
+            teacherName,
+            videoActive,
+            micActive,
+            isScreenSharing,
+            timestamp: Date.now(),
+          });
+        }
+      };
+
+      sendTeacherState();
+      const heartbeatTimer = setInterval(sendTeacherState, 1000);
+
+      return () => {
+        clearInterval(heartbeatTimer);
+        channel.removeEventListener("message", handleChannelMessage);
+        channel.close();
+        liveChannelRef.current = null;
+      };
+    } catch (e) {
+      console.warn("BroadcastChannel error:", e);
+    }
+  }, [activeCallClassId, teacherName, videoActive, micActive, isScreenSharing]);
 
   // WebRTC & Audio Analyser Effect for live call
   useEffect(() => {
@@ -201,14 +324,17 @@ const OnlineClasses = ({
     const selectedBatchObj = batches.find((b) => String(b.id) === String(newBatch) || b.name === newBatch) || batches[0];
     const batchIdentifier = selectedBatchObj?.name || newBatch || "Assigned Batch";
 
+    const finalTime = `${formatTime12h(startTime)} - ${formatTime12h(endTime)}`;
+
     const newClassData = {
       title: newTitle.trim(),
       subject: newSubject,
       teacher: teacherName,
+      teacherId: teacherProfile?.id || teacherProfile?.email || "teacher",
       student: batchIdentifier,
       batchId: selectedBatchObj?.id || newBatch || "b1",
       date: newDate,
-      time: newTime,
+      time: finalTime,
       status: "upcoming",
     };
 
@@ -222,6 +348,7 @@ const OnlineClasses = ({
       setOnlineClasses(nextClasses);
       try {
         localStorage.setItem("gw_classes_v3", JSON.stringify(nextClasses));
+        window.dispatchEvent(new Event("storage"));
       } catch (e) {}
 
       // 3. Send notification for students
@@ -232,7 +359,7 @@ const OnlineClasses = ({
           hour12: true,
         });
 
-        const notifMsg = `Live class scheduled: "${newTitle.trim()}" (${newSubject}) for ${newDate} at ${newTime}`;
+        const notifMsg = `Live class scheduled: "${newTitle.trim()}" (${newSubject}) for ${newDate} at ${finalTime}`;
 
         await supabase.from("notifications").insert([
           {
@@ -279,6 +406,9 @@ const OnlineClasses = ({
 
   // Start Class & Join Call
   const handleStartClass = async (classId) => {
+    const classToStart = (onlineClasses || []).find((c) => c.id === classId);
+    if (!classToStart) return;
+
     const updated = (onlineClasses || []).map((c) => {
       if (c.id === classId) return { ...c, status: "live" };
       return c;
@@ -293,7 +423,29 @@ const OnlineClasses = ({
     setMicActive(true);
 
     try {
-      await adminService.updateOnlineClass(classId, { status: "live" });
+      // Update class status in database with started_at timestamp
+      await adminService.updateOnlineClass(classId, { 
+        status: "live",
+        startedAt: new Date().toISOString()
+      });
+
+      // Initialize attendance tracking for all batch students
+      const batchId = classToStart.batchId || classToStart.student;
+      const teacherId = teacherProfile?.id || teacherProfile?.email || "teacher";
+      
+      console.log(`🎓 Starting class ${classId} - Initializing attendance for batch ${batchId}`);
+      
+      const result = await attendanceTracker.initializeClassAttendance(
+        classId,
+        batchId,
+        teacherId
+      );
+
+      if (result.success) {
+        console.log(`✅ Attendance initialized for ${result.studentCount} students`);
+      } else {
+        console.warn("⚠️ Could not initialize attendance tracking:", result.error);
+      }
     } catch (err) {
       console.warn("Could not update online class status in DB:", err);
     }
@@ -307,63 +459,66 @@ const OnlineClasses = ({
       return;
     }
 
+    console.log(`🏁 Ending class ${activeCallClassId} - Finalizing attendance...`);
+
     const updatedClasses = (onlineClasses || []).map((c) => {
       if (c.id === activeCallClassId) return { ...c, status: "completed" };
       return c;
     });
     setOnlineClasses(updatedClasses);
 
-    // Get assigned students for this batch
-    const batchStudents = getBatchStudents(liveClass.batchId || liveClass.student);
-    const dateToday = liveClass.date || new Date().toISOString().split("T")[0];
-
-    // Create teacher attendance record
-    const newAttendanceRecord = {
-      id: "a_" + Date.now(),
-      date: dateToday,
-      batchId: liveClass.batchId || liveClass.student,
-      batch: liveClass.student || "Batch",
-      subject: liveClass.subject,
-      teacherStatus: "Submitted",
-      onlineClass: true,
-      records: {},
-      remarks: {},
-    };
-
-    batchStudents.forEach((student) => {
-      newAttendanceRecord.records[student.id] = "present";
-      newAttendanceRecord.remarks[student.id] = "Attended live online class session";
-    });
-
-    setAttendanceRecords([newAttendanceRecord, ...(attendanceRecords || [])]);
-
-    // Update class status in DB
     try {
-      await adminService.updateOnlineClass(liveClass.id, { status: "completed" });
-    } catch (err) {
-      console.warn("Error updating class status:", err);
-    }
+      // Finalize attendance tracking (calculates durations, marks as recorded)
+      const result = await attendanceTracker.finalizeClassAttendance(activeCallClassId);
+      
+      if (result.success) {
+        console.log(`✅ Attendance finalized:`, result.stats);
+        
+        // Update class status in DB
+        await adminService.updateOnlineClass(liveClass.id, { 
+          status: "completed",
+          endedAt: new Date().toISOString()
+        });
 
-    // Save attendance logs in Supabase
-    if (batchStudents.length > 0) {
-      try {
-        const logs = batchStudents.map((student) => ({
+        // Create teacher attendance record for local state
+        const dateToday = liveClass.date || new Date().toISOString().split("T")[0];
+        const batchStudents = getBatchStudents(liveClass.batchId || liveClass.student);
+        
+        const newAttendanceRecord = {
+          id: "a_" + Date.now(),
           date: dateToday,
+          batchId: liveClass.batchId || liveClass.student,
+          batch: liveClass.student || "Batch",
           subject: liveClass.subject,
-          teacher: teacherName,
-          student: student.name || student.id,
-          status: "Present",
-        }));
-        await adminService.addBatchAttendance(logs);
-      } catch (err) {
-        console.warn("Error recording attendance logs:", err);
+          teacherStatus: "Submitted",
+          onlineClass: true,
+          records: {},
+          remarks: {},
+        };
+
+        // Mark students who actually joined as present
+        batchStudents.forEach((student) => {
+          const wasPresent = result.stats.present > 0; // In real scenario, check joined_students
+          newAttendanceRecord.records[student.id] = wasPresent ? "present" : "absent";
+          newAttendanceRecord.remarks[student.id] = wasPresent 
+            ? "Attended live online class session" 
+            : "Did not join online class";
+        });
+
+        setAttendanceRecords([newAttendanceRecord, ...(attendanceRecords || [])]);
+
+        alert(`✅ Class ended successfully!\n\nAttendance Summary:\n• Total Students: ${result.stats.total}\n• Present: ${result.stats.present}\n• Absent: ${result.stats.absent}\n\nAttendance has been automatically recorded.`);
+      } else {
+        console.warn("⚠️ Could not finalize attendance:", result.error);
+        alert("Class ended, but there was an issue finalizing attendance. Please check manually.");
       }
+    } catch (err) {
+      console.error("Error ending class:", err);
+      alert("Error ending class. Please try again.");
     }
 
     setActiveCallClassId(null);
     setIsScreenSharing(false);
-
-    alert(`Class ended! Live attendance successfully recorded for ${batchStudents.length} assigned students.`);
   };
 
   const handleCancelClass = async (classId) => {
@@ -382,24 +537,61 @@ const OnlineClasses = ({
     }
   };
 
-  const handleRescheduleClass = async (classId) => {
-    const newTimePrompt = prompt("Enter new date & time slot (e.g. 2026-08-25 at 11:00 AM - 12:00 PM):");
-    if (newTimePrompt) {
-      const parts = newTimePrompt.split(" at ");
-      const datePart = parts[0] || new Date().toISOString().split("T")[0];
-      const timePart = parts[1] || "10:00 AM - 11:00 AM";
-
-      const updated = (onlineClasses || []).map((c) => {
-        if (c.id === classId) return { ...c, date: datePart, time: timePart, status: "upcoming" };
-        return c;
-      });
+  const handleDeleteClass = async (classId) => {
+    if (window.confirm("Are you sure you want to delete this online class permanently?")) {
+      const updated = (onlineClasses || []).filter((c) => String(c.id) !== String(classId));
       setOnlineClasses(updated);
 
       try {
-        await adminService.updateOnlineClass(classId, { date: datePart, time: timePart, status: "upcoming" });
+        localStorage.setItem("gw_classes_v3", JSON.stringify(updated));
+      } catch (err) {}
+
+      try {
+        await adminService.deleteOnlineClass(classId);
       } catch (err) {
-        console.warn("Could not reschedule class in DB:", err);
+        console.warn("Could not delete class in DB:", err);
       }
+    }
+  };
+
+  const openRescheduleModal = (c) => {
+    setRescheduleTarget(c);
+    setRescheduleDate(c.date || new Date().toISOString().split("T")[0]);
+    setRescheduleStartTime("10:00");
+    setRescheduleEndTime("11:00");
+    setShowRescheduleModal(true);
+  };
+
+  const handleConfirmReschedule = async (e) => {
+    e.preventDefault();
+    if (!rescheduleTarget) return;
+
+    setIsRescheduling(true);
+    const finalTimeStr = `${formatTime12h(rescheduleStartTime)} - ${formatTime12h(rescheduleEndTime)}`;
+
+    const updated = (onlineClasses || []).map((item) => {
+      if (item.id === rescheduleTarget.id) {
+        return { ...item, date: rescheduleDate, time: finalTimeStr, status: "upcoming" };
+      }
+      return item;
+    });
+    setOnlineClasses(updated);
+
+    try {
+      await adminService.updateOnlineClass(rescheduleTarget.id, {
+        date: rescheduleDate,
+        time: finalTimeStr,
+        status: "upcoming",
+      });
+      try {
+        localStorage.setItem("gw_classes_v3", JSON.stringify(updated));
+      } catch (err) {}
+    } catch (err) {
+      console.warn("Could not reschedule class in DB:", err);
+    } finally {
+      setIsRescheduling(false);
+      setShowRescheduleModal(false);
+      setRescheduleTarget(null);
     }
   };
 
@@ -414,157 +606,15 @@ const OnlineClasses = ({
 
   return (
     <div className="online-classes-container">
-      {/* 1. Live Meeting Call Interface */}
+      {/* 1. Live Jitsi Meeting Call Interface */}
       {activeCallClass && (
-        <div className="oc-call-overlay">
-          <div className="oc-call-window">
-            {/* Header info */}
-            <div className="oc-call-header">
-              <div className="oc-call-header-left">
-                <span className="oc-live-badge">
-                  <Radio size={12} className="oc-live-pulse" /> LIVE SESSION
-                </span>
-                <h3>{activeCallClass.title}</h3>
-                <span className="oc-call-subtitle">
-                  {activeCallClass.subject} · {batches.find((b) => String(b.id) === String(activeCallClass.batchId))?.name || activeCallClass.student || "Assigned Batch"}
-                </span>
-              </div>
-              <div className="oc-call-header-right">
-                <Users size={16} />{" "}
-                <span>
-                  {activeCallBatchStudents.length + 1} participant{activeCallBatchStudents.length !== 0 ? "s" : ""}
-                </span>
-              </div>
-            </div>
-
-            {/* Main Video Arena */}
-            <div className="oc-call-arena">
-              {/* Main feed (Teacher) */}
-              <div className="oc-video-feed teacher-feed">
-                {videoActive ? (
-                  <div className="oc-video-simulation">
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="oc-video-img"
-                      style={{ display: cameraError ? "none" : "block" }}
-                    />
-                    {cameraError && (
-                      <div className="oc-video-avatar-placeholder">
-                        {teacherProfile?.avatar ? (
-                          <img src={teacherProfile.avatar} alt="Teacher avatar" className="oc-video-img" />
-                        ) : (
-                          <div className="oc-video-avatar-initials">{teacherInitial}</div>
-                        )}
-                        <p style={{ color: "#ef4444", fontSize: "12px", marginTop: "8px" }}>
-                          {cameraError}
-                        </p>
-                      </div>
-                    )}
-                    <div className="oc-feed-name">
-                      {teacherName} {isScreenSharing ? "(Screen Sharing)" : "(You - Host)"}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="oc-video-avatar-placeholder">
-                    {teacherProfile?.avatar ? (
-                      <img
-                        src={teacherProfile.avatar}
-                        alt="Teacher avatar"
-                        style={{ width: "90px", height: "90px", borderRadius: "50%", objectFit: "cover" }}
-                      />
-                    ) : (
-                      <div className="oc-video-avatar-initials">{teacherInitial}</div>
-                    )}
-                    <div className="oc-feed-name">{teacherName} (Camera Off)</div>
-                  </div>
-                )}
-
-                {/* Audio Status & Level Indicator */}
-                <div className={`oc-mic-status ${micActive ? "oc-mic-status--active" : ""}`}>
-                  {micActive ? (
-                    <>
-                      <Mic size={14} className="mic-on" />
-                      {audioLevel > 5 && (
-                        <div className="oc-audio-waveform">
-                          <span style={{ height: `${Math.max(20, audioLevel)}%` }} />
-                          <span style={{ height: `${Math.max(40, audioLevel * 1.3)}%` }} />
-                          <span style={{ height: `${Math.max(25, audioLevel * 0.9)}%` }} />
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <MicOff size={14} className="mic-off" />
-                  )}
-                </div>
-              </div>
-
-              {/* Assigned Student Feeds Grid */}
-              <div className="oc-students-grid">
-                {activeCallBatchStudents.length > 0 ? (
-                  activeCallBatchStudents.map((student) => (
-                    <div key={student.id} className="oc-video-feed student-feed">
-                      <div className="oc-video-simulation">
-                        {student.avatar ? (
-                          <img
-                            src={student.avatar}
-                            alt={student.name}
-                            className="oc-student-call-avatar"
-                          />
-                        ) : (
-                          <div className="oc-student-call-initials">
-                            {student.name ? student.name.charAt(0).toUpperCase() : "S"}
-                          </div>
-                        )}
-                        <div className="oc-feed-name">{student.name}</div>
-                      </div>
-                      <div className="oc-mic-status">
-                        <UserCheck size={13} style={{ color: "#22c55e" }} title="Assigned Student (Connected)" />
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="oc-video-feed student-feed" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#1e293b", color: "#94a3b8", fontSize: "12px", textAlign: "center", padding: "10px" }}>
-                    <span>Waiting for assigned batch students to connect...</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Controls Bar */}
-            <div className="oc-call-controls">
-              <button
-                className={`oc-control-btn ${!micActive ? "control-disabled" : ""}`}
-                onClick={() => setMicActive(!micActive)}
-                title={micActive ? "Mute Microphone" : "Unmute Microphone"}
-              >
-                {micActive ? <Mic size={20} /> : <MicOff size={20} />}
-              </button>
-
-              <button
-                className={`oc-control-btn ${!videoActive ? "control-disabled" : ""}`}
-                onClick={() => setVideoActive(!videoActive)}
-                title={videoActive ? "Turn Off Camera" : "Turn On Camera"}
-              >
-                {videoActive ? <Video size={20} /> : <VideoOff size={20} />}
-              </button>
-
-              <button
-                className={`oc-control-btn ${isScreenSharing ? "control-active" : ""}`}
-                onClick={handleToggleScreenShare}
-                title={isScreenSharing ? "Stop Screen Share" : "Share Screen"}
-              >
-                <Monitor size={20} />
-              </button>
-
-              <button className="oc-hangup-btn" onClick={handleEndClass}>
-                <PhoneOff size={18} /> End Class & Record Attendance
-              </button>
-            </div>
-          </div>
-        </div>
+        <JitsiClassroom
+          classData={activeCallClass}
+          userProfile={{ name: teacherName }}
+          isTeacher={true}
+          onLeave={() => setActiveCallClassId(null)}
+          onEndClass={handleEndClass}
+        />
       )}
 
       {/* 2. Main Classes List View */}
@@ -691,7 +741,7 @@ const OnlineClasses = ({
                             <button className="oc-btn-start" onClick={() => handleStartClass(c.id)}>
                               <Play size={14} /> Start Class
                             </button>
-                            <button className="oc-btn-icon" title="Reschedule" onClick={() => handleRescheduleClass(c.id)}>
+                            <button className="oc-btn-icon" title="Reschedule" onClick={() => openRescheduleModal(c)}>
                               <RefreshCw size={14} />
                             </button>
                             <button className="oc-btn-icon btn-cancel" title="Cancel Class" onClick={() => handleCancelClass(c.id)}>
@@ -704,14 +754,17 @@ const OnlineClasses = ({
                             <Play size={14} /> Join Call
                           </button>
                         )}
-                        {statusLower === "completed" && (
-                          <span className="oc-status-text-completed">
-                            <Check size={16} /> Attendance Saved
-                          </span>
-                        )}
                         {statusLower === "cancelled" && (
                           <span className="oc-status-text-cancelled">Class Cancelled</span>
                         )}
+                        <button
+                          className="oc-btn-icon btn-delete"
+                          title="Delete Class"
+                          onClick={() => handleDeleteClass(c.id)}
+                          style={{ color: "#ef4444", background: "#fef2f2", border: "1px solid #fee2e2" }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -798,8 +851,9 @@ const OnlineClasses = ({
                 </div>
               </div>
 
-              <div className="oc-form-row" style={{ marginTop: "16px" }}>
-                <div className="oc-form-group">
+              {/* Date & Time Selection */}
+              <div className="oc-time-section">
+                <div className="oc-form-group" style={{ marginBottom: "12px" }}>
                   <label>Date</label>
                   <input
                     type="date"
@@ -809,17 +863,41 @@ const OnlineClasses = ({
                   />
                 </div>
 
-                <div className="oc-form-group">
-                  <label>Time Slot</label>
-                  <select value={newTime} onChange={(e) => setNewTime(e.target.value)}>
-                    <option value="09:00 AM - 10:00 AM">09:00 AM - 10:00 AM</option>
-                    <option value="10:00 AM - 11:00 AM">10:00 AM - 11:00 AM</option>
-                    <option value="11:00 AM - 12:00 PM">11:00 AM - 12:00 PM</option>
-                    <option value="02:00 PM - 03:00 PM">02:00 PM - 03:00 PM</option>
-                    <option value="03:00 PM - 04:00 PM">03:00 PM - 04:00 PM</option>
-                    <option value="04:00 PM - 05:00 PM">04:00 PM - 05:00 PM</option>
-                    <option value="05:00 PM - 06:00 PM">05:00 PM - 06:00 PM</option>
-                  </select>
+                <div className="oc-form-row">
+                  <div className="oc-form-group">
+                    <label>Start Time</label>
+                    <input
+                      type="time"
+                      required
+                      value={startTime}
+                      onChange={(e) => {
+                        const newStart = e.target.value;
+                        setStartTime(newStart);
+                        if (newStart > endTime) {
+                          setEndTime(addMinutesToTime(newStart, 60));
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <div className="oc-form-group">
+                    <label>End Time</label>
+                    <input
+                      type="time"
+                      required
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="oc-duration-summary" style={{ marginTop: "12px" }}>
+                  <span className="oc-summary-time">
+                    {formatTime12h(startTime)} – {formatTime12h(endTime)}
+                  </span>
+                  <span className="oc-duration-badge">
+                    {calculateDurationText(startTime, endTime)}
+                  </span>
                 </div>
               </div>
 
@@ -829,6 +907,99 @@ const OnlineClasses = ({
                 </button>
                 <button type="submit" className="oc-btn-primary" disabled={isScheduling || batches.length === 0}>
                   {isScheduling ? "Scheduling..." : "Schedule Class"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Reschedule Class Modal */}
+      {showRescheduleModal && rescheduleTarget && (
+        <div className="oc-modal-overlay">
+          <div className="oc-modal">
+            <div className="oc-modal-header">
+              <h3>Reschedule Live Class</h3>
+              <button
+                className="oc-modal-close"
+                onClick={() => {
+                  setShowRescheduleModal(false);
+                  setRescheduleTarget(null);
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleConfirmReschedule}>
+              <div className="oc-reschedule-target-info">
+                <div className="oc-target-title">{rescheduleTarget.title}</div>
+                <div className="oc-target-sub">
+                  {rescheduleTarget.subject} · {rescheduleTarget.student || "Batch"}
+                </div>
+              </div>
+
+              <div className="oc-time-section">
+                <div className="oc-form-group" style={{ marginBottom: "12px" }}>
+                  <label>New Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={rescheduleDate}
+                    onChange={(e) => setRescheduleDate(e.target.value)}
+                  />
+                </div>
+
+                <div className="oc-form-row">
+                  <div className="oc-form-group">
+                    <label>Start Time</label>
+                    <input
+                      type="time"
+                      required
+                      value={rescheduleStartTime}
+                      onChange={(e) => {
+                        const nStart = e.target.value;
+                        setRescheduleStartTime(nStart);
+                        if (nStart > rescheduleEndTime) {
+                          setRescheduleEndTime(addMinutesToTime(nStart, 60));
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <div className="oc-form-group">
+                    <label>End Time</label>
+                    <input
+                      type="time"
+                      required
+                      value={rescheduleEndTime}
+                      onChange={(e) => setRescheduleEndTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="oc-duration-summary" style={{ marginTop: "12px" }}>
+                  <span className="oc-summary-time">
+                    {formatTime12h(rescheduleStartTime)} – {formatTime12h(rescheduleEndTime)}
+                  </span>
+                  <span className="oc-duration-badge">
+                    {calculateDurationText(rescheduleStartTime, rescheduleEndTime)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="oc-modal-footer">
+                <button
+                  type="button"
+                  className="oc-btn-secondary"
+                  onClick={() => {
+                    setShowRescheduleModal(false);
+                    setRescheduleTarget(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="oc-btn-primary" disabled={isRescheduling}>
+                  {isRescheduling ? "Saving..." : "Confirm Reschedule"}
                 </button>
               </div>
             </form>

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Search,
   Filter,
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import StudentProfile from "./StudentProfile";
 import AvatarPlaceholder from "./AvatarPlaceholder";
+import supabase from "../../../../lib/supabase";
 import "./MyBatches.css";
 
 const subjectFilters = ["All Subjects", "Mathematics", "Science", "Physics", "Chemistry"];
@@ -61,6 +62,61 @@ const getRollNo = (s) => {
 const MyBatches = ({ batches: propBatches = [], students: propStudents = [] }) => {
   let batches = Array.isArray(propBatches) ? propBatches : [];
   const students = Array.isArray(propStudents) ? propStudents : [];
+
+  const [attendanceData, setAttendanceData] = useState({});
+
+  // Fetch attendance data for all students
+  useEffect(() => {
+    const fetchAttendanceData = async () => {
+      try {
+        const { data: logs, error } = await supabase
+          .from('attendance_logs')
+          .select('student_id, status');
+
+        if (error) throw error;
+
+        // Calculate attendance percentage for each student
+        const attendanceMap = {};
+        
+        // Group logs by student
+        logs.forEach(log => {
+          if (!attendanceMap[log.student_id]) {
+            attendanceMap[log.student_id] = { present: 0, total: 0 };
+          }
+          attendanceMap[log.student_id].total++;
+          if (log.status === 'Present') {
+            attendanceMap[log.student_id].present++;
+          }
+        });
+
+        // Calculate percentages
+        const percentages = {};
+        Object.keys(attendanceMap).forEach(studentId => {
+          const { present, total } = attendanceMap[studentId];
+          percentages[studentId] = total > 0 ? Math.round((present / total) * 100) : 0;
+        });
+
+        setAttendanceData(percentages);
+      } catch (error) {
+        console.error('Error fetching attendance data:', error);
+      }
+    };
+
+    fetchAttendanceData();
+
+    // Subscribe to attendance changes
+    const subscription = supabase
+      .channel('attendance_updates')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'attendance_logs' },
+        () => fetchAttendanceData()
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // Fallback: If no explicit batch object exists in DB, but students are assigned to this teacher, generate dynamic batch tabs!
   if (batches.length === 0 && students.length > 0) {
@@ -240,17 +296,7 @@ const MyBatches = ({ batches: propBatches = [], students: propStudents = [] }) =
                     </>
                   )}
                 </div>
-                <div className="mb-stats-pills">
-                  <span className="mb-stat-pill mb-stat-pill--green">
-                    <Users size={12} /> {activeCount} active
-                  </span>
-                  <span className="mb-stat-pill mb-stat-pill--blue">
-                    <CalendarCheck size={12} /> Avg Attendance: {avgAttendance}%
-                  </span>
-                  <span className="mb-stat-pill mb-stat-pill--purple">
-                    <Award size={12} /> Avg Score: {avgScore}%
-                  </span>
-                </div>
+
               </div>
             )}
 
@@ -273,7 +319,8 @@ const MyBatches = ({ batches: propBatches = [], students: propStudents = [] }) =
                 </div>
               ) : (
                 filteredStudents.map((student) => {
-                  const attPct     = getAttendancePct(student);
+                  // Get attendance from database or fallback
+                  const attPct = attendanceData[student.id] ?? getAttendancePct(student);
                   const scoreVal   = getAvgScore(student);
                   const roll       = getRollNo(student);
                   const attColor   = attendanceColor(attPct);

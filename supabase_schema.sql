@@ -87,8 +87,16 @@ CREATE TABLE attendance_logs (
   date TEXT,
   subject TEXT,
   teacher TEXT,
+  teacher_id TEXT,
   student TEXT,
+  student_id TEXT,
+  batch_id TEXT,
+  class_id INTEGER,
   status TEXT,
+  joined_at TIMESTAMPTZ,
+  duration_minutes INTEGER,
+  is_online_class BOOLEAN DEFAULT false,
+  remarks TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -126,10 +134,16 @@ CREATE TABLE online_classes (
   title TEXT,
   description TEXT,
   teacher TEXT,
+  teacher_id TEXT,
   student TEXT,
+  batch_id TEXT,
   date TEXT,
   time TEXT,
-  status TEXT,
+  status TEXT DEFAULT 'upcoming',
+  attendance_recorded BOOLEAN DEFAULT false,
+  joined_students JSONB DEFAULT '[]'::jsonb,
+  started_at TIMESTAMPTZ,
+  ended_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

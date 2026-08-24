@@ -210,7 +210,12 @@ const TeacherDashboard = ({ onNavigate }) => {
           if (Array.isArray(dbStudents) && dbStudents.length > 0) setStudents(dbStudents);
           if (Array.isArray(dbBatches) && dbBatches.length > 0) setBatches(dbBatches);
           if (Array.isArray(dbNotifs) && dbNotifs.length > 0) setNotifications(dbNotifs);
-          if (Array.isArray(dbClasses) && dbClasses.length > 0) setOnlineClasses(dbClasses);
+          if (Array.isArray(dbClasses)) {
+            setOnlineClasses(dbClasses);
+            try {
+              localStorage.setItem("gw_classes_v3", JSON.stringify(dbClasses));
+            } catch (e) {}
+          }
           if (Array.isArray(dbTests)) setWeeklyTests(dbTests);
           if (dbMaterialsRes && !dbMaterialsRes.error && Array.isArray(dbMaterialsRes.data)) {
             const parsedMats = dbMaterialsRes.data.map((row) => {
@@ -714,6 +719,7 @@ const TeacherDashboard = ({ onNavigate }) => {
             setAttendanceRecords={setAttendanceRecords}
             students={assignedStudents}
             batches={assignedBatches}
+            teacherProfile={teacherProfile}
           />
         );
       case "reports":

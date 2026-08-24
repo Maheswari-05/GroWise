@@ -174,32 +174,46 @@ const ReportsTab = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {students.map(s => {
-                      const logs = attendanceLogs.filter(l => l.student === s.name);
-                      const pres = logs.filter(l => l.status === "Present").length;
-                      const abs = logs.length - pres;
-                      const rate = logs.length > 0 ? Math.round((pres / logs.length) * 100) : 100;
-                      return (
-                        <tr key={s.id}>
-                          <td className="font-semibold">{s.name}</td>
-                          <td className="font-mono" style={{ fontSize: "13px" }}>{logs.length}</td>
-                          <td style={{ color: "#16a34a", fontWeight: 700, fontFamily: '"Fira Code", monospace', fontSize: "13px" }}>{pres}</td>
-                          <td style={{ color: "#ef4444", fontWeight: 700, fontFamily: '"Fira Code", monospace', fontSize: "13px" }}>{abs}</td>
-                          <td>
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                              <div style={{ width: "40px", height: "40px", position: "relative" }}>
-                                <svg width="40" height="40" viewBox="0 0 40 40" style={{ transform: "rotate(-90deg)" }}>
-                                  <circle cx="20" cy="20" r="16" fill="none" stroke="#e2e8f0" strokeWidth="4" />
-                                  <circle cx="20" cy="20" r="16" fill="none" stroke={rate >= 80 ? "#37C871" : rate >= 60 ? "#f97316" : "#ef4444"} strokeWidth="4" strokeLinecap="round"
-                                    strokeDasharray={2 * Math.PI * 16} strokeDashoffset={2 * Math.PI * 16 * (1 - rate / 100)} />
-                                </svg>
+                    {(() => {
+                      let localLogsArr = [];
+                      try {
+                        const raw = localStorage.getItem("gw_attendance_logs_v3");
+                        if (raw) localLogsArr = JSON.parse(raw);
+                      } catch (e) {}
+
+                      const mergedMap = new Map();
+                      [...(attendanceLogs || []), ...localLogsArr].forEach((l) => {
+                        if (l && l.id) mergedMap.set(String(l.id), l);
+                      });
+                      const mergedAllLogs = Array.from(mergedMap.values());
+
+                      return students.map(s => {
+                        const logs = mergedAllLogs.filter(l => l.student === s.name || l.student_id === s.id || l.student_id === s.email);
+                        const pres = logs.filter(l => l.status === "Present" || l.status === "present").length;
+                        const abs = logs.length - pres;
+                        const rate = logs.length > 0 ? Math.round((pres / logs.length) * 100) : 100;
+                        return (
+                          <tr key={s.id}>
+                            <td className="font-semibold">{s.name}</td>
+                            <td className="font-mono" style={{ fontSize: "13px" }}>{logs.length}</td>
+                            <td style={{ color: "#16a34a", fontWeight: 700, fontFamily: '"Fira Code", monospace', fontSize: "13px" }}>{pres}</td>
+                            <td style={{ color: "#ef4444", fontWeight: 700, fontFamily: '"Fira Code", monospace', fontSize: "13px" }}>{abs}</td>
+                            <td>
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                <div style={{ width: "40px", height: "40px", position: "relative" }}>
+                                  <svg width="40" height="40" viewBox="0 0 40 40" style={{ transform: "rotate(-90deg)" }}>
+                                    <circle cx="20" cy="20" r="16" fill="none" stroke="#e2e8f0" strokeWidth="4" />
+                                    <circle cx="20" cy="20" r="16" fill="none" stroke={rate >= 80 ? "#37C871" : rate >= 60 ? "#f97316" : "#ef4444"} strokeWidth="4" strokeLinecap="round"
+                                      strokeDasharray={2 * Math.PI * 16} strokeDashoffset={2 * Math.PI * 16 * (1 - rate / 100)} />
+                                  </svg>
+                                </div>
+                                <span style={{ fontWeight: 800, color: "#2D6BFF", fontFamily: '"Fira Code", monospace', fontSize: "13px" }}>{rate}%</span>
                               </div>
-                              <span style={{ fontWeight: 800, color: "#2D6BFF", fontFamily: '"Fira Code", monospace', fontSize: "13px" }}>{rate}%</span>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
                   </tbody>
                 </table>
               </div>

@@ -35,6 +35,20 @@ const StudentsTab = ({
     return `STU${suffix}`;
   };
 
+  // Calculate student attendance percentage
+  const getStudentAttendancePercentage = (studentId) => {
+    const studentLogs = attendanceLogs.filter(log => 
+      log.student === students.find(s => s.id === studentId)?.name
+    );
+    
+    if (studentLogs.length === 0) return { percentage: 0, present: 0, total: 0 };
+    
+    const presentCount = studentLogs.filter(log => log.status === "Present").length;
+    const percentage = Math.round((presentCount / studentLogs.length) * 100);
+    
+    return { percentage, present: presentCount, total: studentLogs.length };
+  };
+
   // Form State
   const [formData, setFormData] = useState({
     id: "",
@@ -266,6 +280,7 @@ const StudentsTab = ({
                   <th>Enrolled Subjects</th>
                   <th>Batch ID</th>
                   <th>Assigned Teacher</th>
+                  <th>Attendance</th>
                   <th>Status</th>
                   <th className="text-center">Actions</th>
                 </tr>
@@ -300,6 +315,39 @@ const StudentsTab = ({
                         <span className="font-semibold text-sm" style={{ color: "#334155" }}>
                           {getAssignedTeacherName(stu)}
                         </span>
+                      </td>
+                      <td>
+                        {(() => {
+                          const attendance = getStudentAttendancePercentage(stu.id);
+                          const color = attendance.percentage >= 75 ? "#16a34a" : 
+                                       attendance.percentage >= 60 ? "#ea580c" : "#dc2626";
+                          return (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{ 
+                                flex: 1, 
+                                height: '6px', 
+                                background: '#f1f5f9', 
+                                borderRadius: '3px',
+                                overflow: 'hidden'
+                              }}>
+                                <div style={{ 
+                                  width: `${attendance.percentage}%`, 
+                                  height: '100%', 
+                                  background: color,
+                                  transition: 'width 0.3s ease'
+                                }}></div>
+                              </div>
+                              <span style={{ 
+                                fontSize: '13px', 
+                                fontWeight: 700, 
+                                color,
+                                minWidth: '40px'
+                              }}>
+                                {attendance.percentage}%
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td>
                         <span className={`status-badge-pill ${stu.status === "Active" ? "active" : "inactive"}`}>

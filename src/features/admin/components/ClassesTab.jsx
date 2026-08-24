@@ -27,11 +27,14 @@ const ClassesTab = ({
     window.open(url, "_blank");
   };
 
-  // Stats
+  // Stats (case-insensitive status check)
   const totalClasses = onlineClasses.length;
-  const completedClasses = onlineClasses.filter(c => c.status === "Completed").length;
-  const upcomingClasses = onlineClasses.filter(c => c.status === "Upcoming").length;
-  const liveClasses = onlineClasses.filter(c => c.status === "Live Now").length;
+  const completedClasses = onlineClasses.filter(c => (c.status || "").toLowerCase() === "completed").length;
+  const upcomingClasses = onlineClasses.filter(c => (c.status || "").toLowerCase() === "upcoming").length;
+  const liveClasses = onlineClasses.filter(c => {
+    const s = (c.status || "").toLowerCase();
+    return s === "live" || s === "live now";
+  }).length;
 
   // Filter
   const filteredClasses = onlineClasses.filter(c => {
@@ -43,7 +46,10 @@ const ClassesTab = ({
   });
 
   // Today's classes for highlight section
-  const todayClasses = onlineClasses.filter(c => c.date === "Today" || c.status === "Live Now" || c.status === "Upcoming");
+  const todayClasses = onlineClasses.filter(c => {
+    const s = (c.status || "").toLowerCase();
+    return c.date === "Today" || s === "live" || s === "live now" || s === "upcoming";
+  });
 
   return (
     <div className="tab-wrapper">

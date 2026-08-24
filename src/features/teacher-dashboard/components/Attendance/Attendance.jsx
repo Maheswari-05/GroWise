@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { Calendar, Search, Filter, BookOpen, Users, CheckCircle, XCircle, AlertCircle, Edit, Save, Plus, ArrowLeft, History, Globe } from "lucide-react";
+import * as adminService from "../../../../services/adminService";
+import supabase from "../../../../lib/supabase";
 import "./Attendance.css";
 
-const Attendance = ({ attendanceRecords, setAttendanceRecords, students, batches }) => {
+const Attendance = ({ attendanceRecords, setAttendanceRecords, students, batches, teacherProfile }) => {
   const [activeTab, setActiveTab] = useState("register"); // "register" | "history"
   const [selectedBatch, setSelectedBatch] = useState("b1");
   const [selectedSubject, setSelectedSubject] = useState("Mathematics");
@@ -17,6 +19,98 @@ const Attendance = ({ attendanceRecords, setAttendanceRecords, students, batches
   const [tempRemarks, setTempRemarks] = useState({}); // studentId -> remark
   const [onlineClassFlag, setOnlineClassFlag] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [dbAttendanceLogs, setDbAttendanceLogs] = useState([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+
+  // Fetch attendance logs from database (includes online class attendance)
+  useEffect(() => {
+    const fetchAttendanceLogs = async () => {
+      if (!teacherProfile) return;
+      
+      setLoadingLogs(true);
+      try {
+        const teacherId = teacherProfile.id || teacherProfile.email;
+        
+        // Fetch attendance logs for this teacher
+        const { data, error } = await supabase
+          .from('attendance_logs')
+          .select('*')
+          .eq('teacher_id', teacherId)
+          .order('created_at', { ascending: false });
+
+        if (!error && data) {
+          console.log(`📊 Fetched ${data.length} attendance logs from database`);
+          setDbAttendanceLogs(data);
+          
+          // Merge with local attendance records
+          mergeAttendanceData(data);
+        }
+      } catch (error) {
+        console.error('Error fetching attendance logs:', error);
+      } finally {
+        setLoadingLogs(false);
+      }
+    };
+
+    fetchAttendanceLogs();
+
+    // Subscribe to real-time updates
+    const subscription = supabase
+      .channel('teacher-attendance-logs')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'attendance_logs',
+        filter: `teacher_id=eq.${teacherProfile?.id || teacherProfile?.email}`
+      }, () => {
+        fetchAttendanceLogs();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, [teacherProfile]);
+
+  // Merge database attendance logs with local records
+  const mergeAttendanceData = (dbLogs) => {
+    if (!dbLogs || dbLogs.length === 0) return;
+
+    // Group logs by date, batch, and subject
+    const groupedLogs = {};
+    
+    dbLogs.forEach(log => {
+      const key = `${log.date}_${log.batch_id}_${log.subject}`;
+      if (!groupedLogs[key]) {
+        groupedLogs[key] = {
+          id: log.id || key,
+          date: log.date,
+          batchId: log.batch_id,
+          subject: log.subject,
+          teacherStatus: 'Submitted',
+          onlineClass: log.is_online_class || false,
+          records: {},
+          remarks: {}
+        };
+      }
+      
+      // Add student record
+      if (log.student_id) {
+        groupedLogs[key].records[log.student_id] = log.status === 'Present' ? 'present' : 
+                                                      log.status === 'Absent' ? 'absent' : 
+                                                      log.status === 'Late' ? 'late' : 'present';
+        groupedLogs[key].remarks[log.student_id] = log.remarks || '';
+      }
+    });
+
+    const mergedRecords = Object.values(groupedLogs);
+    
+    // Merge with existing local records (keep local if not in DB)
+    const existingIds = new Set(mergedRecords.map(r => r.id));
+    const localOnlyRecords = attendanceRecords.filter(r => !existingIds.has(r.id));
+    
+    setAttendanceRecords([...mergedRecords, ...localOnlyRecords]);
+  };
 
   // Find existing record
   const existingRecord = attendanceRecords.find(
@@ -357,6 +451,26 @@ const Attendance = ({ attendanceRecords, setAttendanceRecords, students, batches
           </div>
 
           <div className="att-sheet-table-wrapper">
+            {loadingLogs && (
+              <div style={{
+                padding: '40px',
+                textAlign: 'center',
+                color: '#64748b',
+                fontSize: '14px'
+              }}>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  border: '3px solid #e2e8f0',
+                  borderTopColor: '#2D6BFF',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                  margin: '0 auto 12px'
+                }}></div>
+                Loading attendance records...
+              </div>
+            )}
+            
             <table className="att-table">
               <thead>
                 <tr>
@@ -390,7 +504,37 @@ const Attendance = ({ attendanceRecords, setAttendanceRecords, students, batches
                         <td><strong>{new Date(record.date).toLocaleDateString("en-US", { day: 'numeric', month: 'short', year: 'numeric' })}</strong></td>
                         <td>{batch?.name || "Unknown Batch"} ({batch?.grade || ""})</td>
                         <td>{record.subject}</td>
-                        <td>{record.onlineClass ? "Yes" : "No"}</td>
+                        <td>
+                          {record.onlineClass ? (
+                            <span style={{ 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '4px',
+                              padding: '4px 10px',
+                              background: '#ddd6fe',
+                              color: '#6b21a8',
+                              borderRadius: '12px',
+                              fontSize: '12px',
+                              fontWeight: 600
+                            }}>
+                              <Globe size={12} /> Online
+                            </span>
+                          ) : (
+                            <span style={{ 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '4px',
+                              padding: '4px 10px',
+                              background: '#e0f2fe',
+                              color: '#075985',
+                              borderRadius: '12px',
+                              fontSize: '12px',
+                              fontWeight: 600
+                            }}>
+                              In-Person
+                            </span>
+                          )}
+                        </td>
                         <td><strong>{rate}</strong></td>
                         <td>
                           <span className="att-status-badge badge-submitted">

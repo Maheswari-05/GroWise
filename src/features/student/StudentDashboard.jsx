@@ -9,6 +9,7 @@ import {
   BarChart3,
   Bell,
   User,
+  Users,
   LogOut,
   Menu,
   X,
@@ -28,7 +29,14 @@ import {
   GraduationCap,
   Paperclip,
   Upload,
-  Loader2
+  Check,
+  Loader2,
+  Mic,
+  MicOff,
+  Radio,
+  ExternalLink,
+  Maximize2,
+  Minimize2
 } from "lucide-react";
 import logo from "../../assets/logo.png";
 import avatarImg from "../../assets/avatar.png";
@@ -37,6 +45,8 @@ import physicsClassImg from "../../assets/physics_class.png";
 import chemistryClassImg from "../../assets/chemistry_class.png";
 import supabase from "../../lib/supabase";
 import * as adminService from "../../services/adminService";
+import AttendanceView from "./components/AttendanceView";
+import JitsiClassroom from "../../components/JitsiClassroom/JitsiClassroom";
 import "./StudentDashboard.css";
 
 const StudentDashboard = ({ onNavigate }) => {
@@ -209,14 +219,15 @@ const StudentDashboard = ({ onNavigate }) => {
           }
         }
 
-        // Fetch attendance logs for this student name
+        // Fetch attendance logs for this student name or ID
         let attLogs = [];
         let attError = null;
         try {
+          const sIdentifier = student.name || student.id || student.email;
           const { data, error } = await supabase
             .from("attendance_logs")
             .select("*")
-            .eq("student", student.name)
+            .or(`student.eq.${student.name},student_id.eq.${student.id},student_id.eq.${student.email}`)
             .order("date", { ascending: false });
           if (error) {
             attError = error;
@@ -228,10 +239,27 @@ const StudentDashboard = ({ onNavigate }) => {
           attError = e;
         }
 
+        // Merge with LocalStorage attendance logs
+        try {
+          const raw = localStorage.getItem("gw_attendance_logs_v3");
+          const localLogs = raw ? JSON.parse(raw) : [];
+          const myLocalLogs = localLogs.filter(
+            (l) => l.student === student.name || l.student_id === student.id || l.student_id === student.email
+          );
+          const mergedMap = new Map();
+          attLogs.forEach((l) => mergedMap.set(String(l.id), l));
+          myLocalLogs.forEach((l) => {
+            if (!mergedMap.has(String(l.id))) {
+              mergedMap.set(String(l.id), l);
+            }
+          });
+          attLogs = Array.from(mergedMap.values());
+        } catch (e) {}
+
         if (active) {
           setStudentProfile(normalizeStudentProfile(student, batchName, assignedTeachers, batchSchedule));
           setAttendanceLogs(attLogs);
-          if (attError) {
+          if (attError && attLogs.length === 0) {
             setAttendanceError("Failed to load attendance logs.");
           }
           setLoadingAttendance(false);
@@ -249,7 +277,7 @@ const StudentDashboard = ({ onNavigate }) => {
 
     fetchStudentProfile();
 
-    // Real-time subscription: re-fetch when student record is updated (e.g. teacher assigned)
+    // Real-time subscription: re-fetch when student record or attendance logs are updated
     const studentChannel = supabase
       .channel("student-profile-realtime")
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "students" }, () => {
@@ -258,10 +286,19 @@ const StudentDashboard = ({ onNavigate }) => {
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "batches" }, () => {
         if (active) fetchStudentProfile();
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "attendance_logs" }, () => {
+        if (active) fetchStudentProfile();
+      })
       .subscribe();
+
+    const handleStorageUpdate = () => {
+      if (active) fetchStudentProfile();
+    };
+    window.addEventListener("storage", handleStorageUpdate);
 
     return () => {
       active = false;
+      window.removeEventListener("storage", handleStorageUpdate);
       supabase.removeChannel(studentChannel);
     };
   }, [onNavigate]);
@@ -529,7 +566,78 @@ const StudentDashboard = ({ onNavigate }) => {
   const [activeStudentLiveCall, setActiveStudentLiveCall] = useState(null);
   const [studentMic, setStudentMic] = useState(true);
   const [studentVideo, setStudentVideo] = useState(true);
+  const [teacherLiveState, setTeacherLiveState] = useState({
+    isOnline: false,
+    videoActive: true,
+    micActive: true,
+    isScreenSharing: false,
+    teacherName: "",
+  });
   const studentVideoRef = useRef(null);
+  const studentChannelRef = useRef(null);
+
+  // BroadcastChannel signaling for student during live class
+  useEffect(() => {
+    if (!activeStudentLiveCall) {
+      if (studentChannelRef.current) {
+        studentChannelRef.current.close();
+        studentChannelRef.current = null;
+      }
+      setTeacherLiveState({ isOnline: false, videoActive: true, micActive: true, isScreenSharing: false, teacherName: "" });
+      return;
+    }
+
+    const sId = studentProfile?.id || studentProfile?.email || "student_1";
+    const sName = studentProfile?.name || "Student";
+
+    try {
+      const channel = new BroadcastChannel(`growise_live_class_${activeStudentLiveCall.id}`);
+      studentChannelRef.current = channel;
+
+      const handleChannelMessage = (event) => {
+        const data = event.data;
+        if (!data || !data.type) return;
+
+        if (data.type === "TEACHER_STATE") {
+          setTeacherLiveState({
+            isOnline: true,
+            videoActive: data.videoActive ?? true,
+            micActive: data.micActive ?? true,
+            isScreenSharing: data.isScreenSharing ?? false,
+            teacherName: data.teacherName || activeStudentLiveCall.teacher || "Teacher",
+          });
+        }
+      };
+
+      channel.addEventListener("message", handleChannelMessage);
+
+      // Send student join signal & heartbeat
+      const sendStudentHeartbeat = () => {
+        if (channel) {
+          channel.postMessage({
+            type: "STUDENT_HEARTBEAT",
+            studentId: sId,
+            studentName: sName,
+            videoActive: studentVideo,
+            micActive: studentMic,
+            timestamp: Date.now(),
+          });
+        }
+      };
+
+      sendStudentHeartbeat();
+      const heartbeatInterval = setInterval(sendStudentHeartbeat, 1000);
+
+      return () => {
+        clearInterval(heartbeatInterval);
+        channel.removeEventListener("message", handleChannelMessage);
+        channel.close();
+        studentChannelRef.current = null;
+      };
+    } catch (e) {
+      console.warn("Student BroadcastChannel error:", e);
+    }
+  }, [activeStudentLiveCall, studentProfile, studentVideo, studentMic]);
 
   // Fetch online classes from Supabase & LocalStorage with real-time updates
   useEffect(() => {
@@ -545,26 +653,41 @@ const StudentDashboard = ({ onNavigate }) => {
 
         let dbClasses = [];
         if (!error && dbData) {
-          dbClasses = dbData.map((c) => ({
-            id: c.id,
-            title: c.title,
-            subject: c.subject,
-            teacher: c.teacher,
-            student: c.student || c.batch_id || c.batchId,
-            batchId: c.batch_id || c.batchId || c.student,
-            date: c.date,
-            time: c.time,
-            status: c.status || "upcoming",
-            image: c.image,
-          }));
+          dbClasses = dbData.map((c) => {
+            let batchId = c.student || c.batch_id || c.batchId || "";
+            try {
+              if (c.description && typeof c.description === "string" && c.description.startsWith("{")) {
+                const meta = JSON.parse(c.description);
+                if (meta.batchId) batchId = meta.batchId;
+              }
+            } catch (e) {}
+            return {
+              id: c.id,
+              title: c.title,
+              subject: c.subject,
+              teacher: c.teacher,
+              student: c.student,
+              batchId: batchId,
+              date: c.date,
+              time: c.time,
+              status: c.status || "upcoming",
+              image: c.image,
+            };
+          });
         }
 
-        // 2. Merge with LocalStorage
+        // 2. Sync with LocalStorage
         let localClasses = [];
-        try {
-          const raw = localStorage.getItem("gw_classes_v3");
-          if (raw) localClasses = JSON.parse(raw);
-        } catch (e) { }
+        if (!error && dbClasses.length === 0) {
+          try {
+            localStorage.setItem("gw_classes_v3", "[]");
+          } catch (e) {}
+        } else {
+          try {
+            const raw = localStorage.getItem("gw_classes_v3");
+            if (raw) localClasses = JSON.parse(raw);
+          } catch (e) {}
+        }
 
         const mergedMap = new Map();
         dbClasses.forEach((c) => mergedMap.set(String(c.id), c));
@@ -576,30 +699,70 @@ const StudentDashboard = ({ onNavigate }) => {
 
         const allClasses = Array.from(mergedMap.values());
 
+        // Remove any potential duplicates based on id
+        const uniqueClasses = Array.from(
+          new Map(allClasses.map(c => [c.id, c])).values()
+        );
+
+        // Filter classes for this student's batch
+        if (!studentProfile) {
+          if (active) {
+            setOnlineClasses(uniqueClasses);
+          }
+          return;
+        }
+
         const studentBatchName = (studentProfile?.batchName || studentProfile?.batch || "").trim().toLowerCase();
         const studentBatchId = String(studentProfile?.batch_id || studentProfile?.batchId || "").trim().toLowerCase();
         const studentSubjs = (studentProfile?.subjects || []).map((s) => String(s).toLowerCase());
         const studentTeacher = (studentProfile?.teacherName || studentProfile?.teacher || "").trim().toLowerCase();
 
-        const myClasses = allClasses.filter((c) => {
+        const myClasses = uniqueClasses.filter((c) => {
           if (!c) return false;
-          const target = String(c.student || c.batch_id || c.batchId || "").trim().toLowerCase();
-          const subj = String(c.subject || "").trim().toLowerCase();
-          const tName = String(c.teacher || "").trim().toLowerCase();
+          
+          const classBatchId = String(c.batchId || c.batch_id || "").trim().toLowerCase();
+          const classBatchName = String(c.student || c.batch || "").trim().toLowerCase();
+          const classSubject = String(c.subject || "").trim().toLowerCase();
+          const classTeacher = String(c.teacher || "").trim().toLowerCase();
 
-          if (!target || target === "all" || target === "general") return true;
-          if (!studentBatchName && !studentBatchId && studentSubjs.length === 0) return true;
+          // 1. If student profile has no batch specified, show all scheduled classes
+          if (!studentBatchId && !studentBatchName && studentSubjs.length === 0) {
+            return true;
+          }
 
-          return (
-            (studentBatchName && (target.includes(studentBatchName) || studentBatchName.includes(target))) ||
-            (studentBatchId && (target.includes(studentBatchId) || studentBatchId.includes(target))) ||
-            (studentTeacher && tName && (tName.includes(studentTeacher) || studentTeacher.includes(tName))) ||
-            (subj && studentSubjs.includes(subj))
-          );
+          // 2. Strict batch ID match
+          if (studentBatchId && classBatchId && (studentBatchId === classBatchId || classBatchId.includes(studentBatchId))) {
+            return true;
+          }
+
+          // 3. Batch name match
+          if (studentBatchName && classBatchName) {
+            if (studentBatchName === classBatchName || 
+                classBatchName.includes(studentBatchName) || 
+                studentBatchName.includes(classBatchName)) {
+              return true;
+            }
+          }
+
+          // 4. Subject or Teacher match
+          if (classSubject && studentSubjs.length > 0 && studentSubjs.includes(classSubject)) {
+            return true;
+          }
+
+          if (classTeacher && studentTeacher && (classTeacher === studentTeacher || classTeacher.includes(studentTeacher))) {
+            return true;
+          }
+
+          // 5. Allow general or unassigned classes
+          if (!classBatchId || classBatchId === "all" || classBatchId === "general") {
+            return true;
+          }
+
+          return true; // default fallback so no scheduled class is hidden from enrolled students
         });
 
         if (active) {
-          setOnlineClasses(myClasses.length > 0 ? myClasses : allClasses);
+          setOnlineClasses(myClasses.length > 0 ? myClasses : uniqueClasses);
         }
       } catch (err) {
         console.warn("Could not fetch student online classes:", err);
@@ -608,7 +771,7 @@ const StudentDashboard = ({ onNavigate }) => {
 
     fetchClasses();
 
-    // Subscribe to real-time online_classes changes
+    // Subscribe to real-time online_classes changes and local storage changes
     const classesChannel = supabase
       .channel("student-online-classes-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "online_classes" }, () => {
@@ -616,8 +779,14 @@ const StudentDashboard = ({ onNavigate }) => {
       })
       .subscribe();
 
+    const handleStorageChange = () => {
+      if (active) fetchClasses();
+    };
+    window.addEventListener("storage", handleStorageChange);
+
     return () => {
       active = false;
+      window.removeEventListener("storage", handleStorageChange);
       supabase.removeChannel(classesChannel);
     };
   }, [studentProfile]);
@@ -654,6 +823,52 @@ const StudentDashboard = ({ onNavigate }) => {
     const matchesStatus = onlineClassStatus === "All Status" || status.toLowerCase() === onlineClassStatus.toLowerCase() || (onlineClassStatus === "Live Now" && status.toLowerCase() === "live");
     return matchesSearch && matchesSubject && matchesStatus;
   });
+
+  // Handle student joining online class - record attendance
+  const handleJoinClass = async (cls) => {
+    if (!cls || !studentProfile) {
+      setActiveStudentLiveCall(cls);
+      return;
+    }
+
+    const studentId = studentProfile.id || studentProfile.email;
+    const studentName = studentProfile.name || "Student";
+    const classId = cls.id;
+
+    console.log(`🎓 Student ${studentName} (${studentId}) joining class ${classId}...`);
+
+    try {
+      // Record attendance as Present when joining
+      const result = await adminService.recordStudentJoinClass(classId, studentId, studentName);
+      
+      if (result.success) {
+        console.log(`✅ Attendance recorded for ${studentName}`);
+        setActiveStudentLiveCall(cls);
+      } else {
+        console.warn("⚠️ Could not record attendance:", result.error);
+        // Still allow joining even if attendance recording fails
+        setActiveStudentLiveCall(cls);
+        alert("You've joined the class, but there was an issue recording your attendance. Please inform your teacher.");
+      }
+    } catch (error) {
+      console.error("Error joining class:", error);
+      // Still allow joining
+      setActiveStudentLiveCall(cls);
+    }
+  };
+
+  // Handle student leaving online class
+  const handleLeaveClass = () => {
+    if (activeStudentLiveCall && studentProfile) {
+      const studentId = studentProfile.id || studentProfile.email;
+      const classId = activeStudentLiveCall.id;
+      
+      console.log(`👋 Student ${studentProfile.name} leaving class ${classId}`);
+      // Note: Duration calculation will be done when teacher ends the class
+    }
+    
+    setActiveStudentLiveCall(null);
+  };
 
   const [activePerformanceSubject, setActivePerformanceSubject] = useState("Mathematics");
 
@@ -1530,22 +1745,41 @@ const StudentDashboard = ({ onNavigate }) => {
 
               {/* Summary Cards Grid */}
               <section className="summary-cards-grid">
-                {/* Card 1: Next Live Class (Solid Color Accent) */}
-                <div className="summary-card live-class-card">
-                  <div className="card-top">
-                    <span className="card-badge">NEXT LIVE CLASS</span>
-                    <span className="badge-icon-wrap">
-                      <Video size={16} />
-                    </span>
-                  </div>
-                  <div className="card-middle">
-                    <h3>Physics: Quantum Mechanics</h3>
-                    <p>Today, 4:00 PM</p>
-                  </div>
-                  <button className="join-class-btn" onClick={() => showToast("Joining Live Class...")}>
-                    Join Class
-                  </button>
-                </div>
+                {/* Card 1: Next Live Class (Dynamic based on onlineClasses) */}
+                {(() => {
+                  const nextClass = onlineClasses.find(c => {
+                    const s = (c.status || "").toLowerCase();
+                    return s === "live" || s === "live now" || s === "upcoming";
+                  }) || onlineClasses[0];
+
+                  const isLiveNow = (nextClass?.status || "").toLowerCase().includes("live");
+
+                  return (
+                    <div className="summary-card live-class-card">
+                      <div className="card-top">
+                        <span className="card-badge" style={{ background: isLiveNow ? "#ef4444" : undefined, color: isLiveNow ? "#fff" : undefined }}>
+                          {isLiveNow ? "LIVE NOW" : "NEXT LIVE CLASS"}
+                        </span>
+                        <span className="badge-icon-wrap">
+                          <Video size={16} />
+                        </span>
+                      </div>
+                      <div className="card-middle">
+                        <h3>{nextClass ? nextClass.title : "No Scheduled Classes"}</h3>
+                        <p>{nextClass ? `${nextClass.subject || "Lecture"} · ${nextClass.date || "Today"} ${nextClass.time || ""}` : "Your teacher will schedule upcoming live classes soon."}</p>
+                      </div>
+                      {nextClass ? (
+                        <button className="join-class-btn" onClick={() => handleJoinClass(nextClass)}>
+                          Join Class
+                        </button>
+                      ) : (
+                        <button className="join-class-btn" disabled style={{ opacity: 0.6, cursor: "not-allowed" }}>
+                          No Class Scheduled
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Card 2: Attendance */}
                 <div className="summary-card clickable-card" onClick={() => selectTab("Attendance")}>
@@ -1771,288 +2005,7 @@ const StudentDashboard = ({ onNavigate }) => {
           )}
 
           {activeTab === "Attendance" && (
-            <div className="attendance-view-container">
-              {/* Header section */}
-              <section className="attendance-header-section">
-                <h2>Attendance Overview</h2>
-                <p>Track your attendance here!</p>
-              </section>
-
-              {loadingAttendance ? (
-                <div className="attendance-loading" style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "60px 20px",
-                  background: "#ffffff",
-                  borderRadius: "20px",
-                  border: "1px solid rgba(226, 232, 240, 0.8)",
-                  boxShadow: "0 6px 24px rgba(30, 42, 70, 0.05)",
-                  color: "#64748b"
-                }}>
-                  <div style={{
-                    width: "40px",
-                    height: "40px",
-                    border: "4px solid rgba(0,0,0,0.05)",
-                    borderRadius: "50%",
-                    borderTopColor: "#2D6BFF",
-                    animation: "spin 1s linear infinite",
-                    marginBottom: "16px"
-                  }}></div>
-                  <p style={{ fontSize: "15px", fontWeight: 600 }}>Loading attendance records...</p>
-                  <style>{`
-                    @keyframes spin {
-                      to { transform: rotate(360deg); }
-                    }
-                  `}</style>
-                </div>
-              ) : attendanceError ? (
-                <div className="attendance-error" style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "40px 20px",
-                  background: "#ffffff",
-                  borderRadius: "20px",
-                  border: "1px solid rgba(226, 232, 240, 0.8)",
-                  boxShadow: "0 6px 24px rgba(30, 42, 70, 0.05)",
-                  color: "#dc2626"
-                }}>
-                  <div style={{ fontSize: "2.5rem", marginBottom: "12px" }}>⚠️</div>
-                  <p style={{ fontSize: "15px", fontWeight: 600 }}>{attendanceError}</p>
-                </div>
-              ) : attendanceLogs.length === 0 ? (
-                <div className="attendance-empty" style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "60px 40px",
-                  textAlign: "center",
-                  background: "#ffffff",
-                  borderRadius: "20px",
-                  border: "1px solid rgba(226, 232, 240, 0.8)",
-                  boxShadow: "0 6px 24px rgba(30, 42, 70, 0.05)"
-                }}>
-                  <div style={{
-                    width: "64px",
-                    height: "64px",
-                    borderRadius: "50%",
-                    backgroundColor: "#f8fafc",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginBottom: "16px",
-                    color: "#94a3b8"
-                  }}>
-                    <CalendarDays size={32} />
-                  </div>
-                  <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#1e2a46", marginBottom: "8px" }}>No Attendance Records Found</h3>
-                  <p style={{ color: "#64748b", fontSize: "14.5px", maxWidth: "340px", margin: "0 auto 16px" }}>You do not have any registered attendance records in the database.</p>
-                </div>
-              ) : (
-                <>
-                  {/* Summary Cards Row (3 Cards) */}
-                  <section className="attendance-summary-cards">
-                    {/* Card 1: Overall Attendance */}
-                    <div className="attendance-summary-card">
-                      <div className="attendance-card-info">
-                        <span className="card-badge gray">OVERALL ATTENDANCE</span>
-                        <span className="attendance-large-val">{overallPercentage}%</span>
-                        {overallPercentage >= 90 ? (
-                          <span className="attendance-badge-text green">Excellent Attendance</span>
-                        ) : overallPercentage >= 75 ? (
-                          <span className="attendance-badge-text" style={{ color: "#d97706" }}>Good Attendance</span>
-                        ) : (
-                          <span className="attendance-badge-text" style={{ color: "#dc2626" }}>Low Attendance</span>
-                        )}
-                      </div>
-                      <div className="circular-progress-wrapper">
-                        <svg className="circular-svg" viewBox="0 0 36 36">
-                          <path
-                            className="circle-bg"
-                            d="M18 2.0845
-                              a 15.9155 15.9155 0 0 1 0 31.831
-                              a 15.9155 15.9155 0 0 1 0 -31.831"
-                          />
-                          <path
-                            className="circle-fill-bar"
-                            strokeDasharray={`${overallPercentage}, 100`}
-                            d="M18 2.0845
-                              a 15.9155 15.9155 0 0 1 0 31.831
-                              a 15.9155 15.9155 0 0 1 0 -31.831"
-                          />
-                        </svg>
-                        <div className="circle-text">{overallPercentage}%</div>
-                      </div>
-                    </div>
-
-                    {/* Card 2: Classes Attended */}
-                    <div className="attendance-summary-card">
-                      <div className="attendance-card-info">
-                        <span className="card-badge gray">CLASSES ATTENDED</span>
-                        <span className="attendance-large-val">{presentLogsCount}</span>
-                        <span className="attendance-badge-subtitle">Out of {totalLogs} classes</span>
-                      </div>
-                      <div className="attendance-card-icon-wrap blue-icon">
-                        <CheckCircle size={24} />
-                      </div>
-                    </div>
-
-                    {/* Card 3: Enrolled Subjects */}
-                    <div className="attendance-summary-card">
-                      <div className="attendance-card-info">
-                        <span className="card-badge gray">ENROLLED SUBJECTS</span>
-                        <span className="attendance-large-val">{subjectsList.length}</span>
-                        <span className="attendance-badge-subtitle" style={{
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          maxWidth: "160px"
-                        }}>
-                          {subjectsList.join(", ")}
-                        </span>
-                      </div>
-                      <div className="attendance-card-icon-wrap indigo-icon">
-                        <BookOpen size={24} />
-                      </div>
-                    </div>
-                  </section>
-
-                  {/* Subject-wise Attendance */}
-                  <section className="subject-attendance-section">
-                    <h3 className="section-title">Subject-wise Attendance</h3>
-                    <div className="subject-cards-grid">
-                      {subjectAttendance.map((sub, index) => {
-                        const styleTheme = (() => {
-                          const norm = sub.subject.toLowerCase();
-                          if (norm.includes("math")) {
-                            return {
-                              boxClass: "math-box",
-                              pctClass: "math-pct",
-                              fillClass: "math-fill",
-                              icon: <BookOpen size={20} />
-                            };
-                          } else if (norm.includes("phys")) {
-                            return {
-                              boxClass: "phys-box",
-                              pctClass: "phys-pct",
-                              fillClass: "phys-fill",
-                              icon: <Award size={20} />
-                            };
-                          } else if (norm.includes("chem")) {
-                            return {
-                              boxClass: "chem-box",
-                              pctClass: "chem-pct",
-                              fillClass: "chem-fill",
-                              icon: <ClipboardList size={20} />
-                            };
-                          }
-                          const fallbacks = [
-                            { boxClass: "math-box", pctClass: "math-pct", fillClass: "math-fill", icon: <BookOpen size={20} /> },
-                            { boxClass: "phys-box", pctClass: "phys-pct", fillClass: "phys-fill", icon: <Award size={20} /> },
-                            { boxClass: "chem-box", pctClass: "chem-pct", fillClass: "chem-fill", icon: <ClipboardList size={20} /> }
-                          ];
-                          return fallbacks[index % 3];
-                        })();
-
-                        return (
-                          <div className="subject-attendance-card" key={index}>
-                            <div className="subject-card-top">
-                              <div className={`subject-icon-box ${styleTheme.boxClass}`}>
-                                {styleTheme.icon}
-                              </div>
-                              <div className="subject-title-details">
-                                <h4>{sub.subject}</h4>
-                                <p>{sub.teacher}</p>
-                              </div>
-                              <span className={`subject-pct-val ${styleTheme.pctClass}`}>{sub.rate}%</span>
-                            </div>
-                            <div className="subject-progress-track">
-                              <div className={`subject-progress-fill ${styleTheme.fillClass}`} style={{ width: `${sub.rate}%` }}></div>
-                            </div>
-                            <div className="subject-card-bottom">
-                              <span>Present: {sub.present} Sessions</span>
-                              <span>Total: {sub.total}</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-
-                  {/* Attendance History Card */}
-                  <section className="attendance-history-card">
-                    <div className="history-card-header">
-                      <h3>Attendance History</h3>
-                      <div className="history-filters">
-                        <select
-                          value={historyFilter}
-                          onChange={(e) => setHistoryFilter(e.target.value)}
-                          className="history-select-dropdown"
-                        >
-                          <option value="All Subjects">All Subjects</option>
-                          {subjectsList.map((sub, index) => (
-                            <option key={index} value={sub}>{sub}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="history-table-container">
-                      <table className="history-table">
-                        <thead>
-                          <tr>
-                            <th>DATE</th>
-                            <th>SUBJECT</th>
-                            <th>TEACHER</th>
-                            <th>BATCH</th>
-                            <th>TIME</th>
-                            <th>STATUS</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredHistory.length > 0 ? (
-                            filteredHistory.map((row, idx) => {
-                              const statusLower = row.status?.toLowerCase();
-                              const lateStyle = statusLower === "late" ? { backgroundColor: "#fffbeb", color: "#d97706" } : {};
-
-                              return (
-                                <tr key={idx}>
-                                  <td>{formatDate(row.date)}</td>
-                                  <td className="subject-cell">{row.subject}</td>
-                                  <td>{row.teacher}</td>
-                                  <td>{studentProfile?.batchName || "—"}</td>
-                                  <td>{studentProfile?.batchSchedule || "—"}</td>
-                                  <td>
-                                    <span className={`status-badge ${statusLower}`} style={lateStyle}>
-                                      {row.status}
-                                    </span>
-                                  </td>
-                                </tr>
-                              );
-                            })
-                          ) : (
-                            <tr>
-                              <td colSpan="6" className="no-records-cell">
-                                No attendance records found matching criteria.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <div className="history-pagination">
-                      <button className="pag-btn" disabled>Previous</button>
-                      <button className="pag-btn" disabled>Next</button>
-                    </div>
-                  </section>
-                </>
-              )}
-            </div>
+            <AttendanceView studentProfile={studentProfile} />
           )}
 
           {activeTab === "Study Materials" && (
@@ -2553,8 +2506,28 @@ const StudentDashboard = ({ onNavigate }) => {
           {activeTab === "Online Classes" && (
             <div className="online-classes-view-container">
               <section className="classes-header-section">
-                <h2>Online Classes</h2>
-                <p>Join your scheduled classes on time</p>
+                <div>
+                  <h2>Online Classes</h2>
+                  <p>Join your scheduled classes on time</p>
+                  {studentProfile && (studentProfile.batchName || studentProfile.batch) && (
+                    <div style={{ 
+                      marginTop: "8px", 
+                      display: "inline-flex", 
+                      alignItems: "center", 
+                      gap: "6px",
+                      padding: "4px 12px",
+                      background: "#eff6ff",
+                      border: "1px solid #bfdbfe",
+                      borderRadius: "20px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "#1e40af"
+                    }}>
+                      <Users size={14} />
+                      <span>Your Batch: {studentProfile.batchName || studentProfile.batch}</span>
+                    </div>
+                  )}
+                </div>
               </section>
 
               <section className="classes-filters-row">
@@ -2591,131 +2564,14 @@ const StudentDashboard = ({ onNavigate }) => {
                 </div>
               </section>
 
-              {/* Live Meeting Room Modal for Student */}
+              {/* Live Jitsi Classroom Modal for Student */}
               {activeStudentLiveCall && (
-                <div style={{
-                  position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-                  background: "rgba(15, 23, 42, 0.95)", zIndex: 9999,
-                  display: "flex", flexDirection: "column", padding: "20px"
-                }}>
-                  {/* Meet Header */}
-                  <div style={{
-                    display: "flex", justifyContent: "space-between", alignItems: "center",
-                    padding: "16px 24px", background: "#1e293b", borderRadius: "12px", marginBottom: "16px", color: "#fff"
-                  }}>
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <span style={{ background: "#ef4444", color: "#fff", padding: "2px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: 700 }}>
-                          LIVE CLASS
-                        </span>
-                        <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 700 }}>{activeStudentLiveCall.title}</h3>
-                      </div>
-                      <span style={{ fontSize: "13px", color: "#94a3b8" }}>
-                        {activeStudentLiveCall.subject} · Teacher: {activeStudentLiveCall.teacher || "Faculty"}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => setActiveStudentLiveCall(null)}
-                      style={{
-                        background: "#dc2626", color: "#fff", border: "none",
-                        padding: "8px 18px", borderRadius: "8px", cursor: "pointer",
-                        fontWeight: 600, fontSize: "13px"
-                      }}
-                    >
-                      Leave Meet
-                    </button>
-                  </div>
-
-                  {/* Video Grid */}
-                  <div style={{
-                    flex: 1, display: "grid", gridTemplateColumns: "2fr 1fr", gap: "16px", minHeight: 0
-                  }}>
-                    {/* Teacher / Main Stage Feed */}
-                    <div style={{
-                      background: "#0f172a", borderRadius: "12px", border: "1px solid #334155",
-                      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                      position: "relative", overflow: "hidden", color: "#fff"
-                    }}>
-                      <div style={{
-                        width: "100px", height: "100px", borderRadius: "50%",
-                        background: "#3b82f6", display: "flex", alignItems: "center",
-                        justifyContent: "center", fontSize: "36px", fontWeight: 700, marginBottom: "12px"
-                      }}>
-                        {activeStudentLiveCall.teacher ? activeStudentLiveCall.teacher.charAt(0).toUpperCase() : "T"}
-                      </div>
-                      <h4 style={{ margin: "0 0 4px", fontSize: "18px" }}>{activeStudentLiveCall.teacher || "Teacher"} (Presenter)</h4>
-                      <p style={{ margin: 0, color: "#22c55e", fontSize: "13px", display: "flex", alignItems: "center", gap: "6px" }}>
-                        <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#22c55e", display: "inline-block" }}></span>
-                        Broadcasting Live Lecture
-                      </p>
-                    </div>
-
-                    {/* Student Self Feed & Info */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                      <div style={{
-                        flex: 1, background: "#1e293b", borderRadius: "12px", border: "1px solid #334155",
-                        position: "relative", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center"
-                      }}>
-                        {studentVideo ? (
-                          <video
-                            ref={studentVideoRef}
-                            autoPlay
-                            playsInline
-                            muted
-                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                          />
-                        ) : (
-                          <div style={{ textAlign: "center", color: "#94a3b8" }}>
-                            <User size={48} style={{ opacity: 0.5, marginBottom: "8px" }} />
-                            <p style={{ margin: 0, fontSize: "13px" }}>Camera Off</p>
-                          </div>
-                        )}
-                        <span style={{
-                          position: "absolute", bottom: "10px", left: "10px",
-                          background: "rgba(0,0,0,0.6)", color: "#fff", padding: "2px 8px", borderRadius: "6px", fontSize: "12px"
-                        }}>
-                          {studentProfile?.name || "You"}
-                        </span>
-                      </div>
-
-                      {/* Meet Info Card */}
-                      <div style={{
-                        background: "#1e293b", borderRadius: "12px", border: "1px solid #334155", padding: "16px", color: "#fff"
-                      }}>
-                        <h5 style={{ margin: "0 0 8px", fontSize: "13px", color: "#94a3b8", textTransform: "uppercase" }}>Class Info</h5>
-                        <p style={{ margin: "0 0 6px", fontSize: "13px" }}><strong>Batch:</strong> {studentProfile?.batchName || "Assigned Batch"}</p>
-                        <p style={{ margin: "0 0 6px", fontSize: "13px" }}><strong>Time:</strong> {activeStudentLiveCall.time}</p>
-                        <p style={{ margin: 0, fontSize: "12px", color: "#22c55e" }}>✓ Attendance automatically being recorded</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Student Controls Bar */}
-                  <div style={{
-                    display: "flex", justifyContent: "center", gap: "16px", padding: "16px 0 0"
-                  }}>
-                    <button
-                      onClick={() => setStudentMic(!studentMic)}
-                      style={{
-                        padding: "12px 24px", borderRadius: "30px", border: "none", cursor: "pointer",
-                        background: studentMic ? "#334155" : "#ef4444", color: "#fff", fontWeight: 600,
-                        display: "flex", alignItems: "center", gap: "8px", fontSize: "13px"
-                      }}
-                    >
-                      {studentMic ? "Mute Mic" : "Unmute Mic"}
-                    </button>
-                    <button
-                      onClick={() => setStudentVideo(!studentVideo)}
-                      style={{
-                        padding: "12px 24px", borderRadius: "30px", border: "none", cursor: "pointer",
-                        background: studentVideo ? "#334155" : "#ef4444", color: "#fff", fontWeight: 600,
-                        display: "flex", alignItems: "center", gap: "8px", fontSize: "13px"
-                      }}
-                    >
-                      {studentVideo ? "Turn Off Video" : "Turn On Video"}
-                    </button>
-                  </div>
-                </div>
+                <JitsiClassroom
+                  classData={activeStudentLiveCall}
+                  userProfile={studentProfile}
+                  isTeacher={false}
+                  onLeave={handleLeaveClass}
+                />
               )}
 
               <section className="classes-list-container">
@@ -2737,7 +2593,6 @@ const StudentDashboard = ({ onNavigate }) => {
                             <img src={cls.image || fallbackImg} alt={cls.title} className="class-image" />
                             {isLive && <span className="status-badge-overlay live">LIVE NOW</span>}
                             {isUpcoming && <span className="status-badge-overlay upcoming">UPCOMING</span>}
-                            {isCompleted && <span className="status-badge-overlay completed">COMPLETED</span>}
                           </div>
                           <div className="class-info-wrap">
                             <h4>{cls.title}</h4>
@@ -2757,14 +2612,9 @@ const StudentDashboard = ({ onNavigate }) => {
                           </div>
                           <div className="class-actions">
                             {(isLive || isUpcoming) && (
-                              <button className="join-class-btn active" onClick={() => setActiveStudentLiveCall(cls)}>
+                              <button className="join-class-btn active" onClick={() => handleJoinClass(cls)}>
                                 <Play size={16} className="btn-icon" /> Join Class
                               </button>
-                            )}
-                            {isCompleted && (
-                              <span style={{ fontSize: "13px", color: "#16a34a", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}>
-                                <Check size={16} /> Class Completed
-                              </span>
                             )}
                           </div>
                         </div>
@@ -2773,7 +2623,18 @@ const StudentDashboard = ({ onNavigate }) => {
                   })
                 ) : (
                   <div className="no-classes-card">
-                    <p>No online classes scheduled for your batch yet.</p>
+                    <Video size={48} style={{ color: "#94a3b8", marginBottom: "12px" }} />
+                    <p style={{ fontSize: "15px", fontWeight: 600, color: "#1e293b", margin: "0 0 6px" }}>
+                      No Classes Available
+                    </p>
+                    <p style={{ fontSize: "13px", color: "#64748b", margin: 0 }}>
+                      {studentProfile?.batchName || studentProfile?.batch 
+                        ? `No online classes scheduled for ${studentProfile.batchName || studentProfile.batch} yet.`
+                        : "No online classes scheduled for your batch yet."}
+                    </p>
+                    <p style={{ fontSize: "12px", color: "#94a3b8", marginTop: "8px" }}>
+                      Your teacher will schedule classes soon. Check back later!
+                    </p>
                   </div>
                 )}
               </section>

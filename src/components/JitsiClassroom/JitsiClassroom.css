@@ -1,0 +1,215 @@
+.jitsi-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background-color: #0f172a;
+  display: flex;
+  flex-direction: column;
+  color: #f8fafc;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  overflow: hidden;
+}
+
+.jitsi-classroom-header {
+  height: 64px;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  flex-shrink: 0;
+  gap: 16px;
+  z-index: 10;
+}
+
+.jitsi-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.jitsi-live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ef4444;
+  color: #ffffff;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+  flex-shrink: 0;
+}
+
+.jitsi-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ffffff;
+  animation: jitsiPulse 1.5s infinite;
+}
+
+@keyframes jitsiPulse {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.3); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.jitsi-class-details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.jitsi-class-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jitsi-class-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.jitsi-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1px 8px;
+  border-radius: 4px;
+}
+
+.jitsi-badge.teacher-badge {
+  color: #60a5fa;
+}
+
+.jitsi-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.jitsi-attendance-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #4ade80;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.jitsi-timer-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  color: #cbd5e1;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: monospace;
+  font-weight: 600;
+}
+
+.jitsi-action-icon-btn {
+  background: #334155;
+  color: #cbd5e1;
+  border: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.jitsi-action-icon-btn:hover {
+  background: #475569;
+  color: #ffffff;
+}
+
+.jitsi-teacher-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.jitsi-btn-leave {
+  background: #334155;
+  color: #f8fafc;
+  border: none;
+  padding: 7px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.jitsi-btn-leave:hover {
+  background: #475569;
+}
+
+.jitsi-btn-end {
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+  padding: 7px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.jitsi-btn-end:hover {
+  background: #b91c1c;
+}
+
+.jitsi-frame-container {
+  flex: 1;
+  width: 100%;
+  height: calc(100vh - 64px);
+  position: relative;
+  background: #0b0f19;
+}
+
+.jitsi-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .jitsi-attendance-badge span,
+  .jitsi-class-badges {
+    display: none;
+  }
+
+  .jitsi-classroom-header {
+    padding: 0 12px;
+  }
+}

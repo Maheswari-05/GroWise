@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { Search, Calendar, Filter, Check, X, Edit2, CheckCircle, XCircle, Users, Clock, TrendingUp, BarChart3, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search, Calendar, Filter, Check, X, Edit2, CheckCircle, XCircle, Users, Clock, TrendingUp, BarChart3, AlertCircle, Globe } from "lucide-react";
+import supabase from "../../../lib/supabase";
+
 const AttendanceTab = ({ 
   attendanceLogs, 
   students, 
@@ -11,13 +13,110 @@ const AttendanceTab = ({
   const [filterSubject, setFilterSubject] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
   const [filterDate, setFilterDate] = useState("");
+  const [filterType, setFilterType] = useState("All"); // "All", "Online", "In-Person"
   const [editingIndex, setEditingIndex] = useState(null);
   const [editStatus, setEditStatus] = useState("Present");
+  const [dbAttendanceLogs, setDbAttendanceLogs] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // Add spinner animation style
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    `;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
+  }, []);
+
+  // Fetch attendance logs from database
+  useEffect(() => {
+    const fetchAttendanceLogs = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('attendance_logs')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && data) {
+          console.log(`📊 Admin: Fetched ${data.length} attendance logs from database`);
+          setDbAttendanceLogs(data);
+        }
+      } catch (error) {
+        console.error('Error fetching attendance logs:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAttendanceLogs();
+
+    // Subscribe to real-time updates
+    const subscription = supabase
+      .channel('admin-attendance-logs')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'attendance_logs'
+      }, () => {
+        fetchAttendanceLogs();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, []);
+
+  // Merge database logs with local logs
+  // Merge database logs, local storage logs, and props logs
+  let localLogsArr = [];
+  try {
+    const raw = localStorage.getItem("gw_attendance_logs_v3");
+    if (raw) localLogsArr = JSON.parse(raw);
+  } catch (e) {}
+
+  const mergedLogsMap = new Map();
+  [
+    ...dbAttendanceLogs.map((log) => ({
+      id: log.id,
+      date: log.date,
+      subject: log.subject || "General",
+      student: log.student || "Student",
+      teacher: log.teacher || "Faculty",
+      status: log.status,
+      isOnlineClass: log.is_online_class || false,
+      classId: log.class_id,
+      durationMinutes: log.duration_minutes,
+    })),
+    ...localLogsArr.map((log) => ({
+      id: log.id,
+      date: log.date,
+      subject: log.subject || "General",
+      student: log.student || "Student",
+      teacher: log.teacher || "Faculty",
+      status: log.status,
+      isOnlineClass: log.is_online_class || log.isOnlineClass || false,
+      classId: log.class_id || log.classId,
+      durationMinutes: log.duration_minutes || log.durationMinutes,
+    })),
+    ...attendanceLogs,
+  ].forEach((item) => {
+    if (item && item.id) {
+      mergedLogsMap.set(String(item.id), item);
+    }
+  });
+
+  const allLogs = Array.from(mergedLogsMap.values());
 
   // Calculate statistics
-  const totalLogs = attendanceLogs.length;
-  const presentCount = attendanceLogs.filter(log => log.status === "Present").length;
+  const totalLogs = allLogs.length;
+  const presentCount = allLogs.filter(log => log.status === "Present").length;
   const absentCount = totalLogs - presentCount;
+  const onlineClassCount = allLogs.filter(log => log.isOnlineClass).length;
   const averageRate = totalLogs > 0 ? Math.round((presentCount / totalLogs) * 100) : 100;
   const circumference = 2 * Math.PI * 40;
   const dashOffset = circumference - (circumference * averageRate) / 100;
@@ -34,14 +133,17 @@ const AttendanceTab = ({
   };
 
   // Filter logs
-  const filteredLogs = attendanceLogs.filter(log => {
+  const filteredLogs = allLogs.filter(log => {
     const matchesSearch = 
       log.student.toLowerCase().includes(searchQuery.toLowerCase()) ||
       log.teacher.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesSubject = filterSubject === "All" || log.subject === filterSubject;
     const matchesStatus = filterStatus === "All" || log.status === filterStatus;
     const matchesDate = !filterDate || log.date === filterDate || (filterDate === "Today" && log.date === "Today");
-    return matchesSearch && matchesSubject && matchesStatus && matchesDate;
+    const matchesType = filterType === "All" || 
+                        (filterType === "Online" && log.isOnlineClass) ||
+                        (filterType === "In-Person" && !log.isOnlineClass);
+    return matchesSearch && matchesSubject && matchesStatus && matchesDate && matchesType;
   });
 
   // Per-student attendance for breakdown
@@ -113,6 +215,16 @@ const AttendanceTab = ({
             <p>Absent Count</p>
           </div>
         </div>
+
+        <div className="summary-card">
+          <div className="card-icon-wrapper purple" style={{ background: "#f3e8ff", color: "#9333ea" }}>
+            <Globe size={24} />
+          </div>
+          <div className="card-info">
+            <h3>{onlineClassCount}</h3>
+            <p>Online Classes</p>
+          </div>
+        </div>
       </div>
 
 
@@ -146,6 +258,13 @@ const AttendanceTab = ({
             </select>
           </div>
           <div className="filter-group">
+            <select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+              <option value="All">All Types</option>
+              <option value="Online">Online Classes</option>
+              <option value="In-Person">In-Person</option>
+            </select>
+          </div>
+          <div className="filter-group">
             <input 
               type="date" 
               className="date-filter-input"
@@ -164,6 +283,7 @@ const AttendanceTab = ({
               <th>Class Date</th>
               <th>Course Subject</th>
               <th>Student Name</th>
+              <th>Class Type</th>
               <th>Student Status</th>
               <th>Conducted Teacher</th>
               <th>Faculty Status</th>
@@ -171,9 +291,25 @@ const AttendanceTab = ({
             </tr>
           </thead>
           <tbody>
-            {filteredLogs.length === 0 ? (
+            {loading ? (
               <tr>
-                <td colSpan="7" style={{ textAlign: "center", padding: "48px 20px" }}>
+                <td colSpan="8" style={{ textAlign: "center", padding: "48px 20px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
+                    <div style={{
+                      width: "40px",
+                      height: "40px",
+                      border: "4px solid #e2e8f0",
+                      borderTopColor: "#2D6BFF",
+                      borderRadius: "50%",
+                      animation: "spin 1s linear infinite"
+                    }}></div>
+                    <span style={{ fontSize: "14px", fontWeight: 600, color: "#64748b" }}>Loading attendance records...</span>
+                  </div>
+                </td>
+              </tr>
+            ) : filteredLogs.length === 0 ? (
+              <tr>
+                <td colSpan="8" style={{ textAlign: "center", padding: "48px 20px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
                     <div style={{ width: "56px", height: "56px", borderRadius: "50%", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <AlertCircle size={28} color="#94a3b8" />
@@ -187,12 +323,43 @@ const AttendanceTab = ({
               filteredLogs.map((log, idx) => {
                 const isEditing = editingIndex === idx;
                 return (
-                  <tr key={idx} className="hover-row">
+                  <tr key={log.id || idx} className="hover-row">
                     <td className="font-mono text-sm" style={{ fontWeight: 600 }}>{log.date}</td>
                     <td>
                       <span className="badge-tag subject">{log.subject}</span>
                     </td>
                     <td className="font-semibold">{log.student}</td>
+                    <td>
+                      {log.isOnlineClass ? (
+                        <span style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '4px',
+                          padding: '4px 10px',
+                          background: '#ddd6fe',
+                          color: '#6b21a8',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: 600
+                        }}>
+                          <Globe size={12} /> Online
+                        </span>
+                      ) : (
+                        <span style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '4px',
+                          padding: '4px 10px',
+                          background: '#e0f2fe',
+                          color: '#075985',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: 600
+                        }}>
+                          In-Person
+                        </span>
+                      )}
+                    </td>
                     <td>
                       {isEditing ? (
                         <select 

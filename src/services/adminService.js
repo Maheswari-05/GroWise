@@ -338,9 +338,57 @@ export async function deleteWeeklyTest(id) {
 
 export async function fetchOnlineClasses() {
   try {
-    const { data, error } = await supabase.from('online_classes').select('*').order('created_at', { ascending: false });
-    if (error) { console.error('fetchOnlineClasses error:', error); return []; }
-    return (data || []).map(toCamelCase);
+    let data = [];
+    try {
+      const { data: dbData, error } = await supabase
+        .from('online_classes')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (!error && dbData) {
+        data = dbData.map(c => {
+          let batchId = c.student;
+          let teacherId = null;
+          try {
+            if (c.description && c.description.startsWith('{')) {
+              const meta = JSON.parse(c.description);
+              if (meta.batchId) batchId = meta.batchId;
+              if (meta.teacherId) teacherId = meta.teacherId;
+            }
+          } catch (e) {}
+          return {
+            id: c.id,
+            title: c.title,
+            subject: c.subject,
+            teacher: c.teacher,
+            teacherId,
+            student: c.student,
+            batchId,
+            date: c.date,
+            time: c.time,
+            status: c.status || 'upcoming',
+            description: c.description
+          };
+        });
+      }
+    } catch (e) {
+      console.warn('fetchOnlineClasses Supabase warning:', e);
+    }
+
+    // Merge with LocalStorage
+    try {
+      const raw = localStorage.getItem('gw_classes_v3');
+      const localClasses = raw ? JSON.parse(raw) : [];
+      const mergedMap = new Map();
+      data.forEach((c) => mergedMap.set(String(c.id), c));
+      localClasses.forEach((c) => {
+        if (!mergedMap.has(String(c.id))) {
+          mergedMap.set(String(c.id), c);
+        }
+      });
+      return Array.from(mergedMap.values());
+    } catch (e) {
+      return data;
+    }
   } catch (e) {
     console.error('fetchOnlineClasses exception:', e);
     return [];
@@ -349,12 +397,57 @@ export async function fetchOnlineClasses() {
 
 export async function addOnlineClass(onlineClass) {
   try {
-    const row = toSnakeCase(onlineClass);
-    delete row.id;
-    delete row.created_at;
-    const { data, error } = await supabase.from('online_classes').insert(row).select().single();
-    if (error) { console.error('addOnlineClass error:', error); return null; }
-    return toCamelCase(data);
+    const batchId = onlineClass.batchId || onlineClass.batch_id || 'b1';
+    const teacherId = onlineClass.teacherId || onlineClass.teacher_id || null;
+    const batchName = onlineClass.student || onlineClass.batchName || 'Assigned Batch';
+
+    const row = {
+      title: onlineClass.title,
+      subject: onlineClass.subject,
+      teacher: onlineClass.teacher,
+      student: batchName,
+      date: onlineClass.date,
+      time: onlineClass.time,
+      status: onlineClass.status || 'upcoming',
+      description: JSON.stringify({ batchId, teacherId, note: onlineClass.description || '' })
+    };
+
+    let created = null;
+    try {
+      const { data, error } = await supabase.from('online_classes').insert(row).select().single();
+      if (!error && data) {
+        created = {
+          ...onlineClass,
+          id: data.id,
+          batchId,
+          student: data.student,
+          createdAt: data.created_at
+        };
+      } else if (error) {
+        console.warn('addOnlineClass Supabase error:', error);
+      }
+    } catch (dbErr) {
+      console.warn('Supabase addOnlineClass warning:', dbErr);
+    }
+
+    const finalClass = created || {
+      ...onlineClass,
+      id: 'c_' + Date.now(),
+      batchId,
+      student: batchName,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Update LocalStorage
+    try {
+      const raw = localStorage.getItem('gw_classes_v3');
+      const classes = raw ? JSON.parse(raw) : [];
+      const updated = [finalClass, ...classes.filter((c) => String(c.id) !== String(finalClass.id))];
+      localStorage.setItem('gw_classes_v3', JSON.stringify(updated));
+      window.dispatchEvent(new Event('storage'));
+    } catch (e) {}
+
+    return finalClass;
   } catch (e) {
     console.error('addOnlineClass exception:', e);
     return null;
@@ -363,9 +456,31 @@ export async function addOnlineClass(onlineClass) {
 
 export async function updateOnlineClass(id, updates) {
   try {
-    const row = toSnakeCase(updates);
-    const { error } = await supabase.from('online_classes').update(row).eq('id', id);
-    if (error) { console.error('updateOnlineClass error:', error); }
+    const idStr = String(id);
+    const row = {};
+    if (updates.title !== undefined) row.title = updates.title;
+    if (updates.subject !== undefined) row.subject = updates.subject;
+    if (updates.teacher !== undefined) row.teacher = updates.teacher;
+    if (updates.student !== undefined) row.student = updates.student;
+    if (updates.date !== undefined) row.date = updates.date;
+    if (updates.time !== undefined) row.time = updates.time;
+    if (updates.status !== undefined) row.status = updates.status;
+
+    // Update Supabase
+    try {
+      await supabase.from('online_classes').update(row).eq('id', id);
+    } catch (dbErr) {
+      console.warn('Supabase updateOnlineClass warning:', dbErr);
+    }
+
+    // Update LocalStorage
+    try {
+      const raw = localStorage.getItem('gw_classes_v3');
+      const classes = raw ? JSON.parse(raw) : [];
+      const updated = classes.map((c) => (String(c.id) === idStr ? { ...c, ...updates } : c));
+      localStorage.setItem('gw_classes_v3', JSON.stringify(updated));
+      window.dispatchEvent(new Event('storage'));
+    } catch (e) {}
   } catch (e) {
     console.error('updateOnlineClass exception:', e);
   }
@@ -373,8 +488,23 @@ export async function updateOnlineClass(id, updates) {
 
 export async function deleteOnlineClass(id) {
   try {
-    const { error } = await supabase.from('online_classes').delete().eq('id', id);
-    if (error) { console.error('deleteOnlineClass error:', error); }
+    const idStr = String(id);
+
+    // Delete from Supabase
+    try {
+      await supabase.from('online_classes').delete().eq('id', id);
+    } catch (dbErr) {
+      console.warn('Supabase deleteOnlineClass warning:', dbErr);
+    }
+
+    // Delete from LocalStorage
+    try {
+      const raw = localStorage.getItem('gw_classes_v3');
+      const classes = raw ? JSON.parse(raw) : [];
+      const updated = classes.filter((c) => String(c.id) !== idStr);
+      localStorage.setItem('gw_classes_v3', JSON.stringify(updated));
+      window.dispatchEvent(new Event('storage'));
+    } catch (e) {}
   } catch (e) {
     console.error('deleteOnlineClass exception:', e);
   }
@@ -877,3 +1007,195 @@ export async function sendPasswordInviteEmail(email, role = 'student', name = ''
     throw error;
   }
 }
+
+// ============================================================
+// ATTENDANCE TRACKING - Enhanced Functions
+// ============================================================
+
+export async function recordStudentJoinClass(classId, studentId, studentName) {
+  try {
+    const joinTime = new Date().toISOString();
+    const dateToday = new Date().toISOString().split('T')[0];
+    
+    // Update or create attendance log in Supabase
+    try {
+      const { data: existing } = await supabase
+        .from('attendance_logs')
+        .select('*')
+        .eq('class_id', classId)
+        .or(`student_id.eq.${studentId},student.eq.${studentName}`)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase
+          .from('attendance_logs')
+          .update({
+            status: 'Present',
+            joined_at: joinTime
+          })
+          .eq('id', existing.id);
+      } else {
+        await supabase
+          .from('attendance_logs')
+          .insert({
+            class_id: classId,
+            student_id: studentId,
+            student: studentName,
+            status: 'Present',
+            joined_at: joinTime,
+            is_online_class: true,
+            date: dateToday
+          });
+      }
+    } catch (dbErr) {
+      console.warn("Supabase attendance log save warning:", dbErr);
+    }
+
+    // Also update LocalStorage gw_attendance_logs_v3
+    try {
+      const raw = localStorage.getItem('gw_attendance_logs_v3');
+      const logs = raw ? JSON.parse(raw) : [];
+      const foundIdx = logs.findIndex(
+        (l) => l.class_id === classId && (l.student_id === studentId || l.student === studentName)
+      );
+      if (foundIdx >= 0) {
+        logs[foundIdx].status = 'Present';
+        logs[foundIdx].joined_at = joinTime;
+      } else {
+        logs.push({
+          id: 'log_' + Date.now(),
+          class_id: classId,
+          student_id: studentId,
+          student: studentName,
+          status: 'Present',
+          joined_at: joinTime,
+          is_online_class: true,
+          date: dateToday
+        });
+      }
+      localStorage.setItem('gw_attendance_logs_v3', JSON.stringify(logs));
+      window.dispatchEvent(new Event('storage'));
+    } catch (e) {}
+
+    // Update online_classes joined_students
+    try {
+      const { data: classData } = await supabase
+        .from('online_classes')
+        .select('joined_students')
+        .eq('id', classId)
+        .single();
+
+      const joinedStudents = classData?.joined_students || [];
+      if (!joinedStudents.find(s => s.id === studentId || s.name === studentName)) {
+        joinedStudents.push({
+          id: studentId,
+          name: studentName,
+          joinedAt: joinTime
+        });
+
+        await supabase
+          .from('online_classes')
+          .update({ joined_students: joinedStudents })
+          .eq('id', classId);
+      }
+    } catch (e) {}
+
+    return { success: true };
+  } catch (e) {
+    console.error('recordStudentJoinClass exception:', e);
+    return { success: false, error: e.message };
+  }
+}
+
+export async function getStudentAttendance(studentIdOrName, options = {}) {
+  try {
+    let data = [];
+    try {
+      let query = supabase
+        .from('attendance_logs')
+        .select('*')
+        .or(`student_id.eq.${studentIdOrName},student.eq.${studentIdOrName}`)
+        .order('created_at', { ascending: false });
+
+      if (options.startDate) query = query.gte('date', options.startDate);
+      if (options.endDate) query = query.lte('date', options.endDate);
+      if (options.subject) query = query.eq('subject', options.subject);
+
+      const { data: dbData, error } = await query;
+      if (!error && dbData) data = dbData;
+    } catch (e) {}
+
+    // Merge with local storage
+    try {
+      const raw = localStorage.getItem('gw_attendance_logs_v3');
+      const localLogs = raw ? JSON.parse(raw) : [];
+      const studentLogs = localLogs.filter(
+        (l) => l.student_id === studentIdOrName || l.student === studentIdOrName
+      );
+      
+      const mergedMap = new Map();
+      data.forEach((l) => mergedMap.set(String(l.id), l));
+      studentLogs.forEach((l) => {
+        if (!mergedMap.has(String(l.id))) {
+          mergedMap.set(String(l.id), l);
+        }
+      });
+      data = Array.from(mergedMap.values());
+    } catch (e) {}
+
+    const stats = {
+      total: data.length,
+      present: data.filter(a => a.status === 'Present').length,
+      absent: data.filter(a => a.status === 'Absent').length,
+      late: data.filter(a => a.status === 'Late').length,
+      percentage: data.length > 0 
+        ? Math.round((data.filter(a => a.status === 'Present').length / data.length) * 100)
+        : 0
+    };
+
+    return { data: data.map(toCamelCase), stats };
+  } catch (e) {
+    console.error('getStudentAttendance exception:', e);
+    return { data: [], stats: { total: 0, present: 0, absent: 0, late: 0, percentage: 0 } };
+  }
+}
+
+export async function getBatchAttendanceStats(batchId) {
+  try {
+    const { data, error } = await supabase
+      .from('attendance_logs')
+      .select('*')
+      .eq('batch_id', batchId);
+
+    if (error) throw error;
+
+    // Group by student
+    const studentMap = {};
+    data.forEach(record => {
+      if (!studentMap[record.student_id]) {
+        studentMap[record.student_id] = {
+          studentId: record.student_id,
+          studentName: record.student,
+          total: 0,
+          present: 0,
+          absent: 0
+        };
+      }
+      studentMap[record.student_id].total++;
+      if (record.status === 'Present') studentMap[record.student_id].present++;
+      if (record.status === 'Absent') studentMap[record.student_id].absent++;
+    });
+
+    const students = Object.values(studentMap).map(s => ({
+      ...s,
+      percentage: s.total > 0 ? Math.round((s.present / s.total) * 100) : 0
+    }));
+
+    return students.map(toCamelCase);
+  } catch (e) {
+    console.error('getBatchAttendanceStats exception:', e);
+    return [];
+  }
+}
+
+
