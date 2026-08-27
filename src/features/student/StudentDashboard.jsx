@@ -1312,15 +1312,15 @@ const StudentDashboard = ({ onNavigate }) => {
                   });
                 }
               }
-              return true;
+              return false;
             }
 
             // Standard subject-based matching
             if (!notif.title) return false;
             const match = notif.title.match(/\(([^)]+)\)/);
-            if (!match) return true;
+            if (!match) return false;
             const notifSubject = match[1].toLowerCase().trim();
-            if (studentSubjects.length === 0) return true;
+            if (studentSubjects.length === 0) return false;
             return studentSubjects.some((sub) => {
               if (!sub) return false;
               const s = sub.toLowerCase().trim();
@@ -1375,7 +1375,7 @@ const StudentDashboard = ({ onNavigate }) => {
                 return s === notifSubject || notifSubject.includes(s) || s.includes(notifSubject);
               });
             } else {
-              isNotificationForMe = true;
+              isNotificationForMe = false;
             }
           } else {
             const match = payload.new.message?.match(/\(([^)]+)\)/);
@@ -1387,7 +1387,7 @@ const StudentDashboard = ({ onNavigate }) => {
                 return s === notifSubject || notifSubject.includes(s) || s.includes(notifSubject);
               });
             } else {
-              isNotificationForMe = true;
+              isNotificationForMe = false;
             }
           }
 

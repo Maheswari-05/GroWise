@@ -209,7 +209,28 @@ const TeacherDashboard = ({ onNavigate }) => {
         if (isMounted) {
           if (Array.isArray(dbStudents) && dbStudents.length > 0) setStudents(dbStudents);
           if (Array.isArray(dbBatches) && dbBatches.length > 0) setBatches(dbBatches);
-          if (Array.isArray(dbNotifs) && dbNotifs.length > 0) setNotifications(dbNotifs);
+          if (Array.isArray(dbNotifs) && dbNotifs.length > 0) {
+            const teacherSubjects = loadLoggedTeacherProfile().subjects || [];
+            const filteredNotifs = dbNotifs.filter(n => {
+              const rawType = n.type || "material";
+              const msg = n.message || "";
+              
+              if (rawType.startsWith("test-submitted:") || rawType.startsWith("graded:") || rawType.startsWith("test-result:")) {
+                return false;
+              }
+              
+              const match = msg.match(/\(([^)]+)\)/);
+              if (match) {
+                const subject = match[1].toLowerCase().trim();
+                return teacherSubjects.some(s => {
+                  const ts = s.toLowerCase().trim();
+                  return ts === subject || ts.includes(subject) || subject.includes(ts);
+                });
+              }
+              return false;
+            });
+            setNotifications(filteredNotifs);
+          }
           if (Array.isArray(dbClasses)) {
             setOnlineClasses(dbClasses);
             try {
@@ -292,7 +313,26 @@ const TeacherDashboard = ({ onNavigate }) => {
         try {
           const dbNotifs = await adminService.fetchNotifications();
           if (Array.isArray(dbNotifs) && isMounted) {
-            setNotifications(dbNotifs);
+            const teacherSubjects = loadLoggedTeacherProfile().subjects || [];
+            const filteredNotifs = dbNotifs.filter(n => {
+              const rawType = n.type || "material";
+              const msg = n.message || "";
+              
+              if (rawType.startsWith("test-submitted:") || rawType.startsWith("graded:") || rawType.startsWith("test-result:")) {
+                return false;
+              }
+              
+              const match = msg.match(/\(([^)]+)\)/);
+              if (match) {
+                const subject = match[1].toLowerCase().trim();
+                return teacherSubjects.some(s => {
+                  const ts = s.toLowerCase().trim();
+                  return ts === subject || ts.includes(subject) || subject.includes(ts);
+                });
+              }
+              return false;
+            });
+            setNotifications(filteredNotifs);
           }
         } catch (e) {
           console.error("Error refetching notifications:", e);
