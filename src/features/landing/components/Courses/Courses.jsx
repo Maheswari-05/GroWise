@@ -26,8 +26,8 @@ const TABS = [
 
 const Courses = () => {
   const [active, setActive] = useState("All");
-  const prevRef = useRef(null);
-  const nextRef = useRef(null);
+  const [prevEl, setPrevEl] = useState(null);
+  const [nextEl, setNextEl] = useState(null);
 
   const filtered = active === "All"
     ? courses.filter((c) => c.category === "All")
@@ -62,24 +62,17 @@ const Courses = () => {
       {/* ── Swiper ──────────────────────────────────────────── */}
       <div className="courses-slider-wrap">
         {/* Custom nav buttons */}
-        <button ref={prevRef} className="swiper-nav swiper-nav--prev" aria-label="Previous">
+        <button ref={setPrevEl} className="swiper-nav swiper-nav--prev" aria-label="Previous">
           <ChevronRight size={20} style={{ transform: "rotate(180deg)" }} />
         </button>
-        <button ref={nextRef} className="swiper-nav swiper-nav--next" aria-label="Next">
+        <button ref={setNextEl} className="swiper-nav swiper-nav--next" aria-label="Next">
           <ChevronRight size={20} />
         </button>
 
         <Swiper
           modules={[FreeMode, Navigation]}
           freeMode={{ enabled: true, momentum: true }}
-          navigation={{
-            prevEl: prevRef.current,
-            nextEl: nextRef.current,
-          }}
-          onBeforeInit={(swiper) => {
-            swiper.params.navigation.prevEl = prevRef.current;
-            swiper.params.navigation.nextEl = nextRef.current;
-          }}
+          navigation={{ prevEl, nextEl }}
           slidesPerView="auto"
           spaceBetween={24}
           grabCursor
