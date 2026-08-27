@@ -292,7 +292,7 @@ const ContactPage = ({ onNavigate }) => {
                         >
                           <option value="Student">Student (Seeking Tuition)</option>
                           <option value="Parent">Parent (For Student)</option>
-                          <option value="Teacher">Teacher (Interested in Taking Classes)</option>
+
                         </select>
                       </div>
                     </div>
