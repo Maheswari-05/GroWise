@@ -953,117 +953,109 @@ const StudentDashboard = ({ onNavigate }) => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  useEffect(() => {
-    let active = true;
-    const fetchAssignments = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("assignments")
-          .select("*")
-          .order("created_at", { ascending: false });
 
-        if (!error && data && active) {
-          const studentBatch = String(studentProfile?.batchId || studentProfile?.batch_id || studentProfile?.batch || "").trim().toLowerCase();
-          const studentBatchName = String(studentProfile?.batchName || "").trim().toLowerCase();
-          const studentSubjects = (studentProfile?.subjects || []).map(s => String(s).toLowerCase().trim());
-          const sId = String(studentProfile?.id || studentProfile?.student_id || "").trim().toLowerCase();
-          const sName = String(studentProfile?.name || "").trim().toLowerCase();
+  // Shared ref — keeps latest studentProfile for all realtime callbacks
+  const studentProfileRef = useRef(studentProfile);
+  useEffect(() => { studentProfileRef.current = studentProfile; }, [studentProfile]);
 
-          const parsed = data
-            .filter(row => {
-              if (!row) return false;
-              const rowBatch = String(row.batch_id || row.batchId || "").trim().toLowerCase();
-              const rowSubject = String(row.subject || "").trim().toLowerCase();
-              const rowStudent = String(row.student || "").trim().toLowerCase();
+  const fetchAssignments = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("assignments")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-              // If targeted to a specific student
-              if (rowStudent && rowStudent !== "all" && rowStudent !== "all batches" && rowStudent !== "") {
-                const matchesStudent = (sId && rowStudent === sId) || (sName && rowStudent === sName);
-                if (matchesStudent) return true;
+      if (!error && data) {
+        const profile = studentProfileRef.current;
+        const studentBatch     = String(profile?.batchId || profile?.batch_id || profile?.batch || "").trim().toLowerCase();
+        const studentBatchName = String(profile?.batchName || "").trim().toLowerCase();
+        const studentSubjects  = (profile?.subjects || []).map(s => String(s).toLowerCase().trim());
+        const sId   = String(profile?.id   || profile?.student_id || "").trim().toLowerCase();
+        const sName = String(profile?.name || "").trim().toLowerCase();
+
+        const parsed = data
+          .filter(row => {
+            if (!row) return false;
+            const rowBatch   = String(row.batch_id || row.batch || "").trim().toLowerCase();
+            const rowSubject = String(row.subject  || "").trim().toLowerCase();
+
+            // Global / all batches → show to everyone
+            if (!rowBatch || rowBatch === "all" || rowBatch === "all batches") return true;
+            // Batch match
+            if (studentBatch     && (rowBatch === studentBatch     || rowBatch.includes(studentBatch)     || studentBatch.includes(rowBatch)))     return true;
+            if (studentBatchName && (rowBatch === studentBatchName || rowBatch.includes(studentBatchName) || studentBatchName.includes(rowBatch))) return true;
+            // Subject match
+            if (rowSubject && (studentSubjects.length === 0 || studentSubjects.some(s => rowSubject === s || rowSubject.includes(s) || s.includes(rowSubject)))) return true;
+            // Fallback: show
+            return true;
+          })
+          .map(row => {
+            let parsedDesc = {};
+            try {
+              if (row.description && typeof row.description === "string" && row.description.startsWith("{")) {
+                parsedDesc = JSON.parse(row.description);
               }
+            } catch (e) {}
 
-              // Global / All batches
-              if (!rowBatch || rowBatch === "all" || rowBatch === "all batches" || rowBatch === "bat102") return true;
-
-              // Match by batch id or batch name
-              if (studentBatch && (rowBatch === studentBatch || rowBatch.includes(studentBatch) || studentBatch.includes(rowBatch))) return true;
-              if (studentBatchName && (rowBatch === studentBatchName || rowBatch.includes(studentBatchName) || studentBatchName.includes(rowBatch))) return true;
-
-              // Match by subject
-              if (rowSubject && (studentSubjects.length === 0 || studentSubjects.some(sub => rowSubject === sub || rowSubject.includes(sub) || sub.includes(rowSubject)))) return true;
-
-              // Fallback: show rather than hiding
-              return true;
-            })
-            .map(row => {
-              let parsedDesc = {};
-              try {
-                if (row.description && typeof row.description === "string" && row.description.startsWith("{")) {
-                  parsedDesc = JSON.parse(row.description);
-                }
-              } catch (e) { }
-
-              const submissionsList = parsedDesc.submissions || [];
-              const mySub = submissionsList.find(sub => {
-                const subId = String(sub.studentId || sub.id || "").toLowerCase().trim();
-                const subName = String(sub.name || "").toLowerCase().trim();
-                return (sId && subId === sId) || (sName && subName === sName);
-              });
-
-              let uiStatus = "Pending";
-              let uiScore = "";
-              let uiRemarks = "";
-              if (mySub) {
-                if (mySub.status === "reviewed") {
-                  uiStatus = "Evaluated";
-                  uiScore = `${mySub.score} / ${row.total_marks || 20}`;
-                  uiRemarks = mySub.remarks || "";
-                } else if (mySub.status === "submitted") {
-                  uiStatus = "Submitted";
-                } else if (mySub.status === "missing") {
-                  uiStatus = "Overdue";
-                }
-              }
-
-              return {
-                id: row.id,
-                subject: row.subject,
-                status: uiStatus,
-                title: row.title,
-                description: parsedDesc.description || row.description || "",
-                attachmentName: parsedDesc.attachmentName || "",
-                attachmentUrl: parsedDesc.attachmentUrl || "",
-                assignedDate: new Date(row.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-                dueDate: row.due_date,
-                score: uiScore,
-                teacherRemarks: uiRemarks,
-                rawSubmissions: submissionsList
-              };
+            const submissionsList = parsedDesc.submissions || [];
+            const mySub = submissionsList.find(sub => {
+              const subId   = String(sub.studentId || sub.id || "").toLowerCase().trim();
+              const subName = String(sub.name || "").toLowerCase().trim();
+              return (sId && subId === sId) || (sName && subName === sName);
             });
-          setAssignments(parsed);
-        }
-      } catch (err) {
-        console.error("Error fetching assignments:", err);
+
+            let uiStatus = "Pending";
+            let uiScore  = "";
+            let uiRemarks = "";
+            if (mySub) {
+              if (mySub.status === "reviewed") {
+                uiStatus  = "Evaluated";
+                uiScore   = `${mySub.score} / ${row.total_marks || 20}`;
+                uiRemarks = mySub.remarks || "";
+              } else if (mySub.status === "submitted") {
+                uiStatus = "Submitted";
+              } else if (mySub.status === "missing") {
+                uiStatus = "Overdue";
+              }
+            }
+
+            return {
+              id:             row.id,
+              subject:        row.subject,
+              status:         uiStatus,
+              title:          row.title,
+              description:    parsedDesc.description || (row.description && !row.description.startsWith("{") ? row.description : ""),
+              attachmentName: parsedDesc.attachmentName || "",
+              attachmentUrl:  parsedDesc.attachmentUrl  || "",
+              assignedDate:   new Date(row.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+              dueDate:        row.due_date,
+              maxMarks:       row.total_marks || 20,
+              score:          uiScore,
+              teacherRemarks: uiRemarks,
+              rawSubmissions: submissionsList,
+            };
+          });
+
+        setAssignments(parsed);
       }
-    };
-
-    if (studentProfile) {
-      fetchAssignments();
+    } catch (err) {
+      console.error("Error fetching assignments:", err);
     }
+  }, []);
 
-    // Real-time listener for assignments changes
-    const channel = supabase
-      .channel("student-assignments-channel")
-      .on("postgres_changes", { event: "*", schema: "public", table: "assignments" }, () => {
-        fetchAssignments();
-      })
-      .subscribe();
-
-    return () => {
-      active = false;
-      supabase.removeChannel(channel);
-    };
-  }, [studentProfile]);
+  useEffect(() => {
+    fetchAssignments();
+    let channel;
+    try {
+      channel = supabase
+        .channel("student-assignments-channel")
+        .on("postgres_changes", { event: "*", schema: "public", table: "assignments" }, fetchAssignments)
+        .subscribe();
+    } catch (e) {
+      console.warn("Assignments realtime not available:", e);
+    }
+    return () => { if (channel) supabase.removeChannel(channel); };
+  }, [fetchAssignments]);
 
   const handleStudentSubmissionSubmit = async () => {
     if (!submitModalAsgn) return;
@@ -1101,11 +1093,25 @@ const StudentDashboard = ({ onNavigate }) => {
         updatedSubmissions.push(newSubmissionEntry);
       }
 
+      // Fetch existing description blob to preserve teacher-stored metadata (batch, grade, teacher, etc.)
+      let existingDescMeta = {};
+      try {
+        const { data: existingRow } = await supabase
+          .from("assignments")
+          .select("description")
+          .eq("id", submitModalAsgn.id)
+          .maybeSingle();
+        if (existingRow?.description && existingRow.description.startsWith("{")) {
+          existingDescMeta = JSON.parse(existingRow.description);
+        }
+      } catch (e) {}
+
       const payload = {
         description: JSON.stringify({
+          ...existingDescMeta,
           description: submitModalAsgn.description,
-          attachmentName: submitModalAsgn.attachmentName || "",
-          attachmentUrl: submitModalAsgn.attachmentUrl || "",
+          attachmentName: submitModalAsgn.attachmentName || existingDescMeta.attachmentName || "",
+          attachmentUrl: submitModalAsgn.attachmentUrl || existingDescMeta.attachmentUrl || "",
           submissions: updatedSubmissions
         })
       };
@@ -1514,7 +1520,6 @@ const StudentDashboard = ({ onNavigate }) => {
 
     fetchMaterials();
 
-    // Subscribe to real-time changes in materials table
     const materialsChannel = supabase
       .channel("student-materials-channel")
       .on("postgres_changes", { event: "*", schema: "public", table: "materials" }, () => {
@@ -1531,7 +1536,6 @@ const StudentDashboard = ({ onNavigate }) => {
     window.addEventListener("storage", handleStorageChange);
 
     return () => {
-      active = false;
       supabase.removeChannel(materialsChannel);
       window.removeEventListener("storage", handleStorageChange);
     };

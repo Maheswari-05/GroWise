@@ -855,3 +855,7 @@
   .sm-field-row { grid-template-columns: 1fr; }
   .sm-modal { max-width: 100%; }
 }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

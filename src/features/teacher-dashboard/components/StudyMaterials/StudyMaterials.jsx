@@ -151,6 +151,7 @@ const MaterialModal = ({ mode, initial, onClose, onSave, batches = [], students 
     };
   });
   const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
   const fileRef = useRef();
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
@@ -190,12 +191,13 @@ const MaterialModal = ({ mode, initial, onClose, onSave, batches = [], students 
   const handleSubmit = () => {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
+    setSaving(true);
     onSave({
       ...form,
       uploadDate: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
       downloads: initial?.downloads ?? 0,
       id: initial?.id ?? generateId(),
-    });
+    }).finally(() => setSaving(false));
   };
 
   return (
@@ -351,9 +353,12 @@ const MaterialModal = ({ mode, initial, onClose, onSave, batches = [], students 
 
         {/* Footer */}
         <div className="sm-modal-footer">
-          <button className="sm-btn-cancel" onClick={onClose}>Cancel</button>
-          <button className="sm-btn-save" onClick={handleSubmit}>
-            {mode === "upload" ? <><Upload size={15} /> Upload Material</> : <><Pencil size={15} /> Save Changes</>}
+          <button className="sm-btn-cancel" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="sm-btn-save" onClick={handleSubmit} disabled={saving}
+            style={{ opacity: saving ? 0.75 : 1, cursor: saving ? "wait" : "pointer" }}>
+            {saving
+              ? <><span style={{ display: "inline-block", width: 14, height: 14, border: "2px solid #fff", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite", marginRight: 6 }} />Uploading…</>
+              : mode === "upload" ? <><Upload size={15} /> Upload Material</> : <><Pencil size={15} /> Save Changes</>}
           </button>
         </div>
       </div>
@@ -521,107 +526,113 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
 
   /* CRUD handlers */
   const handleSave = async (data) => {
-    // Resolve logged in teacher name
-    const loggedTeacherStr = localStorage.getItem("gw_logged_teacher");
-    let teacherName = "Alice";
-    if (loggedTeacherStr) {
-      try {
-        teacherName = JSON.parse(loggedTeacherStr).name;
-      } catch (e) {}
-    }
+    // Resolve logged-in teacher name
+    let teacherName = "Teacher";
+    try {
+      const raw = localStorage.getItem("gw_logged_teacher");
+      if (raw) teacherName = JSON.parse(raw).name || teacherName;
+    } catch (e) {}
 
-    const matId = typeof data.id === "number" ? data.id : (!isNaN(Number(data.id)) && String(data.id).trim() !== "" ? Number(data.id) : (Date.now() + Math.floor(Math.random() * 1000)));
+    // Strip base64 fileUrl — never store it in the DB row (too large).
+    // Keep it in local state only for the current session.
+    const sessionFileUrl = data.fileUrl || null;
 
-    const savedData = {
-      ...data,
-      id: matId,
-      teacher: teacherName,
-    };
+    // Generate a UUID client-side — required because the table's id column
+    // has no DEFAULT gen_random_uuid() and must not be null.
+    const newId = crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
 
-    const payload = {
-      id: matId,
+    const dbPayload = {
+      id: newId,
       title: JSON.stringify({
-        title: savedData.title,
-        description: savedData.description,
-        fileName: savedData.fileName,
-        fileSize: savedData.fileSize,
-        fileType: savedData.fileType,
-        fileUrl: savedData.fileUrl,
-        batch: savedData.batch,
-        grade: savedData.grade,
-        uploadDate: savedData.uploadDate,
-        downloads: savedData.downloads,
+        title:       data.title,
+        description: data.description,
+        fileName:    data.fileName,
+        fileSize:    data.fileSize,
+        fileType:    data.fileType,
+        fileUrl:     null,            // never store base64 in DB
+        batch:       data.batch,
+        grade:       data.grade,
+        uploadDate:  data.uploadDate,
+        downloads:   data.downloads ?? 0,
       }),
-      subject: savedData.subject,
+      subject: data.subject,
       teacher: teacherName,
       flagged: false,
     };
 
     if (modal === "upload") {
-      saveMaterials([savedData, ...materials.filter(m => String(m.id) !== String(matId))]);
+      // ── INSERT ──────────────────────────────────────────────
+      const { data: inserted, error: insertError } = await supabase
+        .from("materials")
+        .insert(dbPayload)
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error("Materials insert error:", insertError);
+        showToast(`Upload failed: ${insertError.message}`, "warning");
+        setModal(null);
+        return;
+      }
+
+      // Build local object from the saved row + keep session file URL
+      const newMaterial = {
+        id:          inserted.id,
+        subject:     inserted.subject,
+        teacher:     inserted.teacher,
+        flagged:     inserted.flagged,
+        created_at:  inserted.created_at,
+        ...data,                       // spread form data (title, desc, etc.)
+        fileUrl:     sessionFileUrl,   // restore base64 for in-session download
+      };
+
+      // Update teacher list immediately (no extra round-trip needed)
+      setMaterials([newMaterial, ...materials]);
       showToast("Material uploaded successfully!");
 
+      // Notifications (fire-and-forget — never block the upload)
+      const currentTime = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+      const notifMsg = `New Study Material: "${data.title}" uploaded for ${data.batch || "your batch"} (${data.subject}).`;
+
+      supabase.from("notifications").insert([
+        { type: `study-material:${teacherName}`, message: notifMsg, time: currentTime },
+        { type: "batch",                          message: notifMsg, time: currentTime },
+      ]).catch(() => {});
+
       try {
-        const { error: insertErr } = await supabase.from("materials").insert(payload);
-        if (insertErr) {
-          console.warn("Supabase materials insert notice:", insertErr);
-        }
+        const existing = JSON.parse(localStorage.getItem("gw_notifications_v3") || "[]");
+        localStorage.setItem("gw_notifications_v3", JSON.stringify([{
+          id: `notif_${Date.now()}`, type: "study-material",
+          title: "New Study Material Uploaded", message: notifMsg,
+          time: "Just now", date: new Date().toISOString(),
+          read: false, batch: data.batch, subject: data.subject,
+        }, ...existing]));
+      } catch (e) {}
 
-        // Insert notification for the student along with current time
-        const currentTime = new Date().toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-          hour12: true,
-        });
-
-        const notifMsg = `New Study Material: "${savedData.title}" uploaded for ${savedData.batch || "your batch"} (${savedData.subject}).`;
-
-        await supabase.from("notifications").insert([
-          {
-            type: `study-material:${teacherName}`,
-            message: notifMsg,
-            time: currentTime,
-          },
-          {
-            type: "batch",
-            message: notifMsg,
-            time: currentTime,
-          },
-        ]);
-
-        // Also add to local storage notifications store so UI updates immediately
-        try {
-          const raw = localStorage.getItem("gw_notifications_v3");
-          const existing = raw ? JSON.parse(raw) : [];
-          const newNotif = {
-            id: `notif_${Date.now()}`,
-            type: "study-material",
-            title: "New Study Material Uploaded",
-            message: notifMsg,
-            time: "Just now",
-            date: new Date().toISOString(),
-            read: false,
-            batch: savedData.batch,
-            subject: savedData.subject,
-          };
-          localStorage.setItem("gw_notifications_v3", JSON.stringify([newNotif, ...existing]));
-        } catch (e) {}
-      } catch (err) {
-        console.error("Failed to insert material/notification:", err);
-      }
     } else {
-      saveMaterials(materials.map((m) => (String(m.id) === String(savedData.id) ? savedData : m)));
-      showToast("Material updated successfully!");
+      // ── UPDATE ──────────────────────────────────────────────
+      const { error: updateError } = await supabase
+        .from("materials")
+        .update(dbPayload)
+        .eq("id", data.id);
 
-      try {
-        await supabase
-          .from("materials")
-          .update(payload)
-          .eq("id", matId);
-      } catch (err) {
-        console.error("Failed to update database material:", err);
+      if (updateError) {
+        console.error("Materials update error:", updateError);
+        showToast(`Update failed: ${updateError.message}`, "warning");
+        setModal(null);
+        return;
       }
+        showToast(`Update failed: ${updateError.message}`, "warning");
+        setModal(null);
+        return;
+      saveMaterials(materials.map((m) =>
+        m.id === data.id ? { ...data, fileUrl: sessionFileUrl } : m
+      ));
+      showToast("Material updated successfully!");
     }
+
     setModal(null);
   };
 

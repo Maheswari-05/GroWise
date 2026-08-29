@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
   Search,
   Plus,
@@ -672,31 +672,63 @@ const DeleteModal = ({ asgn, onClose, onConfirm }) => (
   </div>
 );
 
+/* ── Parse a raw DB row into the UI assignment shape ───────── */
+const parseDbRow = (row) => {
+  let desc = {};
+  try {
+    if (row.description && typeof row.description === "string" && row.description.startsWith("{")) {
+      desc = JSON.parse(row.description);
+    }
+  } catch (e) {}
+  return {
+    id:             row.id,
+    title:          row.title,
+    subject:        row.subject || "",
+    // batch name & grade are stored inside description JSON blob
+    batch:          desc.batch  || row.batch_id || "",
+    batchId:        row.batch_id || desc.batchId || "",
+    grade:          desc.grade   || "",
+    description:    desc.description || (row.description && !row.description.startsWith("{") ? row.description : ""),
+    attachmentName: desc.attachmentName || null,
+    attachmentUrl:  desc.attachmentUrl  || null,
+    dueDate:        row.due_date || "",
+    maxMarks:       row.total_marks || 20,
+    teacher:        desc.teacher || "",
+    createdDate:    new Date(row.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+    submissions:    desc.submissions || [],
+  };
+};
+
 /* ══ Main Component ════════════════════════════════════════ */
 const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssignments, batches = [], students = [] }) => {
-  const [localAssignments, setLocalAssignments] = useState(() => {
-    try {
-      const stored = localStorage.getItem("gw_assignments_v2");
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.error(e);
-    }
-    return initialAssignments;
-  });
+  const [localAssignments, setLocalAssignments] = useState([]);
 
-  const assignments = propAssignments || localAssignments;
+  const assignments = propAssignments && propAssignments.length > 0 ? propAssignments : localAssignments;
   const setAssignments = (updater) => {
     const next = typeof updater === "function" ? updater(assignments) : updater;
-    if (propSetAssignments) {
-      propSetAssignments(next);
-    }
+    if (propSetAssignments) propSetAssignments(next);
     setLocalAssignments(next);
-    try {
-      localStorage.setItem("gw_assignments_v2", JSON.stringify(next));
-    } catch (e) {
-      console.error(e);
-    }
   };
+
+  // ── Load from Supabase on mount + realtime ──────────────────
+  const loadAssignments = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("assignments")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (!error && data) {
+        setLocalAssignments(data.map(parseDbRow));
+        if (propSetAssignments) propSetAssignments(data.map(parseDbRow));
+      }
+    } catch (err) {
+      console.error("Failed to load assignments:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAssignments();
+  }, [loadAssignments]);
 
   const [searchQ,     setSearchQ]       = useState("");
   const [filterSubject, setFilterSub]  = useState("All");
@@ -743,46 +775,102 @@ const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssi
 
   /* CRUD */
   const handleSave = async (data) => {
-    // Resolve logged in teacher name
-    const loggedTeacherStr = localStorage.getItem("gw_logged_teacher");
-    let teacherName = "Alice";
-    if (loggedTeacherStr) {
-      try {
-        teacherName = JSON.parse(loggedTeacherStr).name;
-      } catch (e) {}
-    }
+    let teacherName = "Teacher";
+    try {
+      const raw = localStorage.getItem("gw_logged_teacher");
+      if (raw) teacherName = JSON.parse(raw).name || teacherName;
+    } catch (e) {}
 
     if (modal === "create") {
-      setAssignments(p => [data, ...p]);
+      // Generate UUID client-side so we know the id before DB confirms
+      const newId = crypto.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+      const descPayload = JSON.stringify({
+        description:    data.description,
+        batch:          data.batch,
+        batchId:        data.batchId,
+        grade:          data.grade,
+        teacher:        teacherName,
+        attachmentName: data.attachmentName || null,
+        attachmentUrl:  data.attachmentUrl  || null,
+        submissions:    data.submissions    || [],
+      });
+
+      const dbRow = {
+        id:          newId,
+        title:       data.title,
+        subject:     data.subject,
+        batch_id:    data.batchId || data.batch,
+        description: descPayload,
+        due_date:    data.dueDate || null,
+        total_marks: Number(data.maxMarks) || 20,
+        status:      "Active",
+      };
+
+      const { error: insertError } = await supabase.from("assignments").insert(dbRow);
+      if (insertError) {
+        console.error("Assignment insert error:", insertError);
+        showToast(`Create failed: ${insertError.message}`, "warning");
+        setModal(null);
+        return;
+      }
+
+      // Re-fetch so UI has the exact DB state
+      await loadAssignments();
       showToast("Assignment created successfully!");
 
-      try {
-        await adminService.addAssignment(data);
+      // Notify students (fire-and-forget)
+      const currentTime = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+      supabase.from("notifications").insert({
+        type: `assignment:${teacherName}`,
+        message: `New Assignment: "${data.title}" (${data.subject}) — Due: ${data.dueDate || "TBD"}`,
+        time: currentTime,
+      }).catch(() => {});
 
-        // Insert notification for the student along with the current time
-        const currentTime = new Date().toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-          hour12: true,
-        });
-
-        await supabase.from("notifications").insert({
-          type: `assignment:${teacherName}`,
-          message: `New Assignment: ${data.title} (${data.subject})`,
-          time: currentTime,
-        });
-      } catch (err) {
-        console.error("Failed to insert assignment/notification:", err);
-      }
     } else {
-      setAssignments(p => p.map(a => a.id === data.id ? data : a));
-      showToast("Assignment updated successfully!");
-
+      // Edit — read existing description to preserve teacher/submissions if not provided
+      let existingDesc = {};
       try {
-        await adminService.updateAssignment(data.id, data);
-      } catch (err) {
-        console.error("Failed to update database assignment:", err);
+        const { data: existing } = await supabase.from("assignments").select("description").eq("id", data.id).maybeSingle();
+        if (existing?.description && existing.description.startsWith("{")) {
+          existingDesc = JSON.parse(existing.description);
+        }
+      } catch (e) {}
+
+      const descPayload = JSON.stringify({
+        ...existingDesc,
+        description:    data.description,
+        batch:          data.batch,
+        batchId:        data.batchId,
+        grade:          data.grade,
+        attachmentName: data.attachmentName || null,
+        attachmentUrl:  data.attachmentUrl  || null,
+        submissions:    data.submissions    || existingDesc.submissions || [],
+      });
+
+      const { error: updateError } = await supabase
+        .from("assignments")
+        .update({
+          title:       data.title,
+          subject:     data.subject,
+          batch_id:    data.batchId || data.batch,
+          description: descPayload,
+          due_date:    data.dueDate || null,
+          total_marks: Number(data.maxMarks) || 20,
+        })
+        .eq("id", data.id);
+
+      if (updateError) {
+        console.error("Assignment update error:", updateError);
+        showToast(`Update failed: ${updateError.message}`, "warning");
+        setModal(null);
+        return;
       }
+
+      await loadAssignments();
+      showToast("Assignment updated successfully!");
     }
     setModal(null);
   };
@@ -791,58 +879,69 @@ const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssi
     const prevAsgn = assignments.find(a => a.id === updated.id);
     const prevSubs = prevAsgn ? prevAsgn.submissions || [] : [];
 
+    // Fetch current description to preserve all stored metadata
+    let existingDesc = {};
+    try {
+      const { data: existing } = await supabase.from("assignments").select("description").eq("id", updated.id).maybeSingle();
+      if (existing?.description && existing.description.startsWith("{")) {
+        existingDesc = JSON.parse(existing.description);
+      }
+    } catch (e) {}
+
+    // Write marks + submissions back to DB while preserving other metadata
+    const descPayload = JSON.stringify({
+      ...existingDesc,
+      description:    updated.description,
+      attachmentName: updated.attachmentName || existingDesc.attachmentName || null,
+      attachmentUrl:  updated.attachmentUrl  || existingDesc.attachmentUrl  || null,
+      submissions:    updated.submissions    || [],
+    });
+
+    const { error: saveError } = await supabase
+      .from("assignments")
+      .update({ description: descPayload })
+      .eq("id", updated.id);
+
+    if (saveError) {
+      console.error("Failed to save marks:", saveError);
+      showToast(`Save failed: ${saveError.message}`, "warning");
+      return;
+    }
+
+    // Update local UI
     setAssignments(p => p.map(a => a.id === updated.id ? updated : a));
     setViewAsgn(updated);
     showToast("Marks saved successfully!");
 
-    try {
-      await adminService.updateAssignment(updated.id, {
-        description: {
-          description: updated.description,
-          attachmentName: updated.attachmentName || "",
-          attachmentUrl: updated.attachmentUrl || "",
-          submissions: updated.submissions || []
-        }
-      });
-
-      // Notify students who got newly graded
-      for (const sub of (updated.submissions || [])) {
-        if (sub.status === "reviewed") {
-          const prevSub = prevSubs.find(p => p.studentId === sub.studentId);
-          if (!prevSub || prevSub.status !== "reviewed" || prevSub.score !== sub.score) {
-            const currentTime = new Date().toLocaleTimeString("en-US", {
-              hour: "numeric",
-              minute: "2-digit",
-              hour12: true,
-            });
-
-            try {
-              await supabase.from("notifications").insert({
-                type: `graded:${sub.studentId}`,
-                message: `Your assignment '${updated.title}' has been graded. Mark: ${sub.score} / ${updated.maxMarks || 20}`,
-                time: currentTime
-              });
-            } catch (nErr) {
-              console.error("Failed to insert grade notification:", nErr);
-            }
-          }
+    // Grade notifications (fire-and-forget)
+    const currentTime = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+    for (const sub of (updated.submissions || [])) {
+      if (sub.status === "reviewed") {
+        const prevSub = prevSubs.find(p => p.studentId === sub.studentId);
+        if (!prevSub || prevSub.status !== "reviewed" || prevSub.score !== sub.score) {
+          supabase.from("notifications").insert({
+            type: `graded:${sub.studentId}`,
+            message: `Your assignment "${updated.title}" has been graded. Score: ${sub.score} / ${updated.maxMarks || 20}`,
+            time: currentTime,
+          }).catch(() => {});
         }
       }
-    } catch (err) {
-      console.error("Failed to save grading to database:", err);
     }
   };
 
   const handleDelete = async () => {
-    setAssignments(p => p.filter(a => a.id !== deleteTarget.id));
-    showToast(`"${deleteTarget.title}" deleted.`, "warning");
+    const { error } = await supabase
+      .from("assignments")
+      .delete()
+      .eq("id", deleteTarget.id);
 
-    try {
-      await adminService.deleteAssignment(deleteTarget.id);
-    } catch (err) {
-      console.error("Failed to delete database assignment:", err);
+    if (error) {
+      console.error("Delete error:", error);
+      showToast(`Delete failed: ${error.message}`, "warning");
+    } else {
+      setAssignments(p => p.filter(a => a.id !== deleteTarget.id));
+      showToast(`"${deleteTarget.title}" deleted.`, "warning");
     }
-
     setDeleteTarget(null);
   };
 

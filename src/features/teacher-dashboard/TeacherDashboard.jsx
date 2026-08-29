@@ -280,21 +280,25 @@ const TeacherDashboard = ({ onNavigate }) => {
                 }
               } catch (e) {}
 
-              const matchedBatch = (dbBatches || []).find(b => b.id === row.batchId || b.name === row.batchId);
+              // batch name & grade are stored in the description JSON blob
+              const batchName = parsedDesc.batch || row.batchId || "All Batches";
+              const grade = parsedDesc.grade || "All Grades";
 
               return {
                 id: row.id,
                 title: row.title,
                 subject: row.subject,
-                batch: matchedBatch ? matchedBatch.name : (row.batchId || "All Batches"),
+                batch: batchName,
                 batchId: row.batchId,
-                grade: matchedBatch ? matchedBatch.grade : "All Grades",
+                grade: grade,
                 dueDate: row.dueDate,
                 maxMarks: row.totalMarks || 20,
+                teacher: parsedDesc.teacher || "",
                 attachmentName: parsedDesc.attachmentName || "",
                 attachmentUrl: parsedDesc.attachmentUrl || "",
-                description: parsedDesc.description || row.description || "",
-                submissions: parsedDesc.submissions || []
+                description: parsedDesc.description || (row.description && !row.description.startsWith("{") ? row.description : ""),
+                submissions: parsedDesc.submissions || [],
+                createdDate: row.createdAt ? new Date(row.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "",
               };
             });
             setAssignments(parsedAssignments);
@@ -405,21 +409,25 @@ const TeacherDashboard = ({ onNavigate }) => {
                 }
               } catch (e) {}
 
-              const matchedBatch = (currentBatches || []).find(b => b.id === row.batchId || b.name === row.batchId);
+              // batch name & grade are stored in the description JSON blob
+              const batchName = parsedDesc.batch || row.batchId || "All Batches";
+              const grade = parsedDesc.grade || "All Grades";
 
               return {
                 id: row.id,
                 title: row.title,
                 subject: row.subject,
-                batch: matchedBatch ? matchedBatch.name : (row.batchId || "All Batches"),
+                batch: batchName,
                 batchId: row.batchId,
-                grade: matchedBatch ? matchedBatch.grade : "All Grades",
+                grade: grade,
                 dueDate: row.dueDate,
                 maxMarks: row.totalMarks || 20,
+                teacher: parsedDesc.teacher || "",
                 attachmentName: parsedDesc.attachmentName || "",
                 attachmentUrl: parsedDesc.attachmentUrl || "",
-                description: parsedDesc.description || row.description || "",
-                submissions: parsedDesc.submissions || []
+                description: parsedDesc.description || (row.description && !row.description.startsWith("{") ? row.description : ""),
+                submissions: parsedDesc.submissions || [],
+                createdDate: row.createdAt ? new Date(row.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "",
               };
             });
             setAssignments(parsedAssignments);
