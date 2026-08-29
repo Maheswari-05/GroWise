@@ -546,9 +546,18 @@ const StudentDashboard = ({ onNavigate }) => {
         console.warn("Storage upload warning, using DataURL fallback:", storageErr);
       }
 
-      // 3. Use DataURL fallback if storage upload wasn't available
+      // 3. Use DataURL fallback if storage upload wasn't available.
+      //    Only embed small files (< 512 KB) as base64 in the DB row; larger
+      //    files would balloon weekly_tests JSON (DB size + egress on every
+      //    fetch), so refuse and ask to retry instead.
       if (!submissionUrl) {
-        submissionUrl = fileDataUrl;
+        const MAX_FALLBACK = 512 * 1024; // 512 KB
+        if (file.size <= MAX_FALLBACK) {
+          submissionUrl = fileDataUrl;
+        } else {
+          showToast("File too large to store offline. Please retry submitting (Storage upload failed).", "info");
+          return;
+        }
       }
 
       // 4. Build updated studentMarks object
@@ -1272,6 +1281,13 @@ const StudentDashboard = ({ onNavigate }) => {
           }
         } catch (storageErr) {
           console.warn("Assignment submission storage upload failed; using data URL:", storageErr);
+        }
+
+        // If the upload failed and the inline data URL is oversized, don't embed
+        // it in the submission JSON (would balloon DB size + egress per fetch).
+        if (attachmentUrl.startsWith("data:") && attachmentUrl.length > 512 * 1024) {
+          attachmentUrl = null;
+          showToast("File too large to store offline. Please retry (Storage upload failed).", "info");
         }
       }
 
