@@ -1050,77 +1050,276 @@
 .minilist-items {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .minilist-item {
   border: 1px solid #e2e8f0;
   background: #ffffff;
-  border-radius: 12px;
-  padding: 14px 16px;
+  border-radius: 14px;
+  padding: 14px 18px;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  transition: all 0.2s ease;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
 }
 
 .minilist-item:hover {
   border-color: #cbd5e1;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+  transform: translateY(-2px);
 }
 
-.class-time-info {
+.minilist-item.is-live {
+  border-left: 4px solid #ef4444;
+  background: linear-gradient(90deg, #fffbfb 0%, #ffffff 100%);
+  border-color: #fca5a5;
+  border-left-color: #ef4444;
+}
+
+.minilist-item.is-live:hover {
+  box-shadow: 0 8px 22px rgba(239, 68, 68, 0.1);
+  border-color: #f87171;
+  border-left-color: #ef4444;
+}
+
+.minilist-item.is-upcoming {
+  border-left: 4px solid #3b82f6;
+}
+
+.minilist-item.is-completed {
+  border-left: 4px solid #10b981;
+}
+
+/* Left Section */
+.minilist-item-left {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 14px;
+  min-width: 0;
+  flex: 1;
 }
 
-.class-time-info .time {
-  font-family: "Fira Code", monospace;
-  font-size: 12px;
-  font-weight: 700;
-  color: #2563eb;
-  display: inline-flex;
+.class-icon-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
   align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
 }
 
-.status-badge {
-  font-size: 10.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  padding: 3px 9px;
-  border-radius: 20px;
+.minilist-item:hover .class-icon-avatar {
+  transform: scale(1.05);
 }
 
-.status-badge.live-now, .status-badge.live { 
-  background-color: #fef2f2; 
-  color: #dc2626; 
+.class-icon-avatar.live {
+  background: #fef2f2;
+  color: #dc2626;
   border: 1px solid #fecaca;
 }
-.status-badge.upcoming { 
-  background-color: #eff6ff; 
-  color: #2563eb; 
-  border: 1px solid #bfdbfe;
+
+.class-icon-avatar.upcoming {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #dbeafe;
 }
-.status-badge.completed { 
-  background-color: #f0fdf4; 
-  color: #16a34a; 
+
+.class-icon-avatar.completed {
+  background: #f0fdf4;
+  color: #16a34a;
   border: 1px solid #bbf7d0;
 }
 
-.class-subject-info h5 {
-  font-size: 13.5px;
-  color: #0f172a;
-  font-weight: 700;
-  margin: 0 0 3px 0;
+.live-icon-anim {
+  animation: liveIconPulse 1.8s infinite ease-in-out;
 }
 
-.class-subject-info p {
+@keyframes liveIconPulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.class-main-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.class-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.class-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.subject-pill-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.class-participants-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
   color: #64748b;
-  margin: 0;
+  flex-wrap: wrap;
+}
+
+.participant-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.participant-item .meta-icon {
+  color: #94a3b8;
+}
+
+.participant-item strong {
+  color: #334155;
+  font-weight: 600;
+}
+
+.meta-bullet {
+  color: #cbd5e1;
+  font-size: 10px;
+}
+
+/* Right Section */
+.minilist-item-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.time-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: "Fira Code", monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 5px 10px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.time-badge .time-icon {
+  color: #2563eb;
+}
+
+.status-and-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-pill {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.status-pill.live {
+  background-color: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  font-weight: 800;
+}
+
+.status-pill.upcoming {
+  background-color: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+.status-pill.completed {
+  background-color: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.pulse-beacon {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #dc2626;
+  animation: adminLivePulse 1.6s infinite ease-in-out;
+}
+
+@keyframes adminLivePulse {
+  0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); transform: scale(0.95); }
+  70% { box-shadow: 0 0 0 5px rgba(220, 38, 38, 0); transform: scale(1.05); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); transform: scale(0.95); }
+}
+
+.item-arrow-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.minilist-item:hover .item-arrow-btn {
+  color: #2563eb;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  transform: translateX(2px);
+}
+
+@media (max-width: 640px) {
+  .minilist-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .minilist-item-right {
+    width: 100%;
+    justify-content: space-between;
+  }
 }
 
 /* Activity Feed (Right Column) */

@@ -1,4 +1,4 @@
-import { Users, GraduationCap, BookOpen, Layers, ArrowRight, Bell, PlusCircle, Calendar, Clock, CheckCircle2, Video, AlertCircle, Monitor } from "lucide-react";
+import { Users, GraduationCap, BookOpen, Layers, ArrowRight, Bell, PlusCircle, Calendar, Clock, CheckCircle2, Video, AlertCircle, Monitor, Radio, User, ChevronRight } from "lucide-react";
 
 const DashboardOverview = ({ 
   students, 
@@ -11,11 +11,42 @@ const DashboardOverview = ({
   onNavigateTab,
   onQuickAction
 }) => {
+  // Normalize status to lowercase for reliable comparison with DB values (e.g. "live", "upcoming", "completed")
+  const normStatus = (s) => String(s || "").trim().toLowerCase();
+
+  // Friendly display label for a class status
+  const statusLabel = (c) => {
+    const s = normStatus(c?.status);
+    if (s === "live" || s === "live now") return "Live Now";
+    if (s === "upcoming") return "Upcoming";
+    if (s === "completed") return "Completed";
+    if (s === "cancelled" || s === "cancel") return "Cancelled";
+    if (s === "missed") return "Missed";
+    return c?.status || "Upcoming";
+  };
+
+  // Match a class date against today (supports ISO yyyy-mm-dd, locale, or the literal "Today")
+  const isToday = (d) => {
+    const val = String(d || "").trim();
+    if (!val || normStatus(val) === "today") return true;
+    const today = new Date();
+    const iso = today.getFullYear() + "-" +
+      String(today.getMonth() + 1).padStart(2, "0") + "-" +
+      String(today.getDate()).padStart(2, "0");
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val === iso;
+    const parsed = new Date(val);
+    return !isNaN(parsed) &&
+      parsed.getFullYear() === today.getFullYear() &&
+      parsed.getMonth() === today.getMonth() &&
+      parsed.getDate() === today.getDate();
+  };
+
   // Calculate today's classes statistics
-  const todayClasses = onlineClasses.filter(c => c.date === "Today" || c.date === new Date().toLocaleDateString());
+  const todayClasses = onlineClasses.filter(c => isToday(c.date));
   const scheduledCount = todayClasses.length;
-  const completedCount = todayClasses.filter(c => c.status === "Completed").length;
-  const liveCount = todayClasses.filter(c => c.status === "Live Now").length;
+  const isLive = (s) => { const n = normStatus(s); return n === "live" || n === "live now"; };
+  const completedCount = todayClasses.filter(c => normStatus(c.status) === "completed").length;
+  const liveCount = todayClasses.filter(c => isLive(c.status)).length;
   const pendingCount = scheduledCount - (completedCount + liveCount);
 
   const attendancePercent = scheduledCount > 0 
@@ -235,23 +266,69 @@ const DashboardOverview = ({
                 </div>
               ) : (
                 <div className="minilist-items">
-                  {todayClasses.map(c => (
-                    <div className="minilist-item" key={c.id}>
-                      <div className="class-time-info">
-                        <span className="time">
-                          <Clock size={12} style={{ display: "inline", marginRight: 4 }} />
-                          {c.time ? c.time.split(" - ")[0] : "TBD"}
-                        </span>
-                        <span className={`status-badge ${c.status ? c.status.toLowerCase().replace(/\s+/g, "-") : "upcoming"}`}>
-                          {c.status || "Upcoming"}
-                        </span>
+                  {todayClasses.map(c => {
+                    const statusKey = normStatus(c.status);
+                    const isClassLive = statusKey === "live" || statusKey === "live now";
+                    const isClassCompleted = statusKey === "completed";
+
+                    return (
+                      <div 
+                        className={`minilist-item ${isClassLive ? "is-live" : isClassCompleted ? "is-completed" : "is-upcoming"}`} 
+                        key={c.id}
+                        onClick={() => onNavigateTab("Classes")}
+                      >
+                        <div className="minilist-item-left">
+                          <div className={`class-icon-avatar ${isClassLive ? "live" : isClassCompleted ? "completed" : "upcoming"}`}>
+                            {isClassLive ? (
+                              <Radio size={18} className="live-icon-anim" />
+                            ) : isClassCompleted ? (
+                              <CheckCircle2 size={18} />
+                            ) : (
+                              <Video size={18} />
+                            )}
+                          </div>
+                          
+                          <div className="class-main-details">
+                            <div className="class-title-row">
+                              <h5 className="class-title">{c.title || "Scheduled Class"}</h5>
+                              {c.subject && <span className="subject-pill-tag">{c.subject}</span>}
+                            </div>
+                            
+                            <div className="class-participants-row">
+                              <span className="participant-item">
+                                <User size={12} className="meta-icon" />
+                                <span>Teacher:</span>
+                                <strong>{c.teacher || "Unassigned"}</strong>
+                              </span>
+                              <span className="meta-bullet">&bull;</span>
+                              <span className="participant-item">
+                                <GraduationCap size={12} className="meta-icon" />
+                                <span>Student:</span>
+                                <strong>{c.student || c.batch || "All Students"}</strong>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="minilist-item-right">
+                          <div className="time-badge">
+                            <Clock size={12} className="time-icon" />
+                            <span>{c.time || "Scheduled"}</span>
+                          </div>
+
+                          <div className="status-and-action">
+                            <span className={`status-pill ${isClassLive ? "live" : isClassCompleted ? "completed" : "upcoming"}`}>
+                              {isClassLive && <span className="pulse-beacon" />}
+                              {statusLabel(c)}
+                            </span>
+                            <div className="item-arrow-btn">
+                              <ChevronRight size={15} />
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div className="class-subject-info">
-                        <h5>{c.subject} &bull; {c.title}</h5>
-                        <p>Teacher: <strong>{c.teacher}</strong> | Student: <strong>{c.student}</strong></p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
