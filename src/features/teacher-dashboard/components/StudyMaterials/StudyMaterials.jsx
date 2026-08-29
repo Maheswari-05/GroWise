@@ -603,7 +603,6 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
       }),
       subject: data.subject,
       teacher: teacherName,
-      teacher_id: teacherId || null,
       flagged: false,
     };
 

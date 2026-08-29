@@ -78,6 +78,7 @@ CREATE TABLE materials (
   title TEXT NOT NULL,
   subject TEXT,
   teacher TEXT,
+  teacher_id TEXT,
   flagged BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now()
 );
