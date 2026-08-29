@@ -7,7 +7,9 @@ import "./Attendance.css";
 const Attendance = ({ attendanceRecords, setAttendanceRecords, students, batches, teacherProfile }) => {
   const [activeTab, setActiveTab] = useState("register"); // "register" | "history"
   const [selectedBatch, setSelectedBatch] = useState("b1");
-  const [selectedSubject, setSelectedSubject] = useState("Mathematics");
+  const [selectedSubject, setSelectedSubject] = useState(() =>
+    (teacherProfile?.subjects && teacherProfile.subjects[0]) || "Mathematics"
+  );
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
 
   // Search queries
@@ -292,8 +294,12 @@ const Attendance = ({ attendanceRecords, setAttendanceRecords, students, batches
               <div className="att-filter-item">
                 <BookOpen size={15} />
                 <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)}>
-                  <option value="Mathematics">Mathematics</option>
-                  <option value="Science">Science</option>
+                  {(teacherProfile?.subjects && teacherProfile.subjects.length > 0
+                    ? teacherProfile.subjects
+                    : ["Mathematics", "Science"]
+                  ).map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
                 </select>
               </div>
 

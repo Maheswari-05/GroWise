@@ -2963,7 +2963,11 @@ const StudentDashboard = ({ onNavigate }) => {
                           {submissionUrl ? (
                             <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
                               <CheckCircle size={16} style={{ color: "#22c55e" }} />
-                              <span style={{ fontSize: "13px", fontWeight: 500, color: "#166534" }}>Answer Submitted — awaiting evaluation</span>
+                              <span style={{ fontSize: "13px", fontWeight: 500, color: "#166534" }}>
+                                {isPublished
+                                  ? (score !== null ? "Answer Submitted — Result Published" : "Answer Submitted")
+                                  : "Answer Submitted — awaiting evaluation"}
+                              </span>
                             </div>
                           ) : (
                             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>

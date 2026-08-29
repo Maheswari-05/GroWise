@@ -127,10 +127,11 @@ export async function fetchWeeklyTests() {
           let maxScore = row.total_marks || row.max_score || row.maxScore || 20;
           let testPdfUrl = row.test_pdf_url || row.testPdfUrl || "";
           let studentMarks = row.student_marks || row.studentMarks || {};
+          let parsed = null;
 
           try {
             if (row.teacher && typeof row.teacher === "string" && row.teacher.startsWith("{")) {
-              const parsed = JSON.parse(row.teacher);
+              parsed = JSON.parse(row.teacher);
               if (parsed.teacher) teacherName = parsed.teacher;
               if (parsed.batchId) batchId = parsed.batchId;
               if (parsed.maxScore) maxScore = parsed.maxScore;
@@ -142,6 +143,8 @@ export async function fetchWeeklyTests() {
           return {
             ...camel,
             teacher: teacherName,
+            teacherId: parsed?.teacherId || camel.teacherId || camel.teacher_id || "",
+            teacherEmail: parsed?.teacherEmail || camel.teacherEmail || "",
             batchId,
             maxScore,
             testPdfUrl,
@@ -300,7 +303,9 @@ export async function updateWeeklyTest(id, updates) {
 export async function addWeeklyTest(test) {
   try {
     const serializedTeacher = JSON.stringify({
-      teacher: test.teacher || "Mr. Rajesh",
+      teacher: test.teacher || test.teacherName || "Mr. Rajesh",
+      teacherId: test.teacherId || "",
+      teacherEmail: test.teacherEmail || "",
       batchId: test.batchId || "",
       maxScore: test.maxScore || 20,
       testPdfUrl: test.testPdfUrl || "",
@@ -335,7 +340,9 @@ export async function addWeeklyTest(test) {
       date: test.date,
       status: test.status || "Result Pending",
       totalMarks: test.maxScore || 20,
-      teacher: test.teacher || "Mr. Rajesh",
+      teacher: test.teacher || test.teacherName || "Mr. Rajesh",
+      teacherId: test.teacherId || "",
+      teacherEmail: test.teacherEmail || "",
       batchId: test.batchId || "",
       maxScore: test.maxScore || 20,
       testPdfUrl: test.testPdfUrl || "",

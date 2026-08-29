@@ -525,10 +525,28 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
         studentMarks[s.id] = { score: null, remarks: "", submissionUrl: null };
       });
 
+      // Resolve the logged-in teacher's identity so the created test is not
+      // filtered out as "someone else's" test on the next refetch.
+      let teacherId = localStorage.getItem("gw_logged_teacher_id") || "";
+      let teacherName = "";
+      let teacherEmail = "";
+      try {
+        const raw = localStorage.getItem("gw_logged_teacher");
+        if (raw) {
+          const obj = JSON.parse(raw);
+          teacherName = obj.name || "";
+          teacherEmail = obj.email || "";
+        }
+      } catch (e) {}
+      if (!teacherName) teacherName = teacherId;
+
       const newTestData = {
         ...testData,
         status: "Result Pending",
         studentMarks,
+        teacher: teacherName,
+        teacherId,
+        teacherEmail,
       };
 
       const saved = await adminService.addWeeklyTest(newTestData);
