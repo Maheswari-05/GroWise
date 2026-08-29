@@ -863,7 +863,8 @@ const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssi
           </p>
         </div>
         <button className="as-create-btn" onClick={() => setModal("create")}>
-          <Plus size={17} /> Create Assignment
+          Create Assignment
+           <Plus size={17} />
         </button>
       </div>
 

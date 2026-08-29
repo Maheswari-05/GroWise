@@ -22,6 +22,10 @@ const Login = ({ onNavigate }) => {
 
     setIsLoading(true);
 
+    // Clear any previously cached student so the dashboard always loads
+    // the freshly authenticated user instead of a stale localStorage entry.
+    localStorage.removeItem("gw_logged_student");
+
     try {
       const normalizedEmail = email.trim().toLowerCase();
       console.log("🔐 Student login attempt with email:", normalizedEmail);
@@ -147,11 +151,7 @@ const Login = ({ onNavigate }) => {
           </button>
         </form>
 
-        {/* Helper text */}
-        <div className="credentials-hint">
-          <p className="hint-title">First Time Login?</p>
-          <p>An admin should have sent you a password setup email. Click the link in that email to create your password.</p>
-        </div>
+        
       </div>
     </div>
   );

@@ -112,39 +112,47 @@ const StudentDashboard = ({ onNavigate }) => {
         setAttendanceError("");
 
         let studentEmail = "";
-        const loggedStudentStr = localStorage.getItem("gw_logged_student");
-        if (loggedStudentStr) {
-          try {
-            studentEmail = JSON.parse(loggedStudentStr).email;
-          } catch (e) { }
+
+        // 1. Prefer the currently authenticated Supabase user
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (!authError && user) {
+          studentEmail = user.email;
+        }
+
+        // 2. Fallback: use the localStorage bypass entry (demo / hardcoded login)
+        if (!studentEmail) {
+          const loggedStudentStr = localStorage.getItem("gw_logged_student");
+          if (loggedStudentStr) {
+            try {
+              studentEmail = JSON.parse(loggedStudentStr).email;
+            } catch (e) { }
+          }
         }
 
         if (!studentEmail) {
-          const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-          if (authError || !user) {
-            console.error("No authenticated user found:", authError);
-            if (active) {
-              onNavigate("login");
-            }
-            return;
+          console.error("No authenticated user found");
+          if (active) {
+            onNavigate("login");
           }
-          studentEmail = user.email;
+          return;
         }
 
         const normalizedEmail = studentEmail.trim().toLowerCase();
 
         console.log("Authenticated user found in dashboard:", normalizedEmail);
 
-        const { data: student, error: studentError } = await supabase
+        const { data: studentRows, error: studentError } = await supabase
           .from("students")
           .select("*")
           .ilike("email", normalizedEmail)
-          .maybeSingle();
+          .order("created_at", { ascending: false })
+          .limit(1);
 
         if (studentError) {
           throw studentError;
         }
+
+        const student = studentRows?.[0] || null;
 
         if (!student) {
           console.error("Student profile not found for email:", normalizedEmail);
@@ -2604,8 +2612,8 @@ const StudentDashboard = ({ onNavigate }) => {
                             style={{
                               display: "inline-flex", alignItems: "center", gap: "6px",
                               padding: "6px 14px", borderRadius: "8px",
-                              background: "#eff6ff", border: "1px solid #bfdbfe",
-                              color: "#2563eb", fontSize: "13px", fontWeight: 500,
+                              background: "linear-gradient(135deg, #2D6BFF, #37C871)", border: "none",
+                              color: "#ffffff", fontSize: "13px", fontWeight: 500,
                               cursor: "pointer", width: "fit-content"
                             }}
                           >
@@ -2662,12 +2670,12 @@ const StudentDashboard = ({ onNavigate }) => {
                                 disabled={isUploading}
                                 style={{
                                   padding: "11px 0", borderRadius: "10px",
-                                  background: isUploading ? "#94a3b8" : "linear-gradient(135deg, #2563eb, #4f46e5)",
+                                  background: isUploading ? "#94a3b8" : "linear-gradient(135deg, #2D6BFF, #37C871)",
                                   color: "#fff", border: "none",
                                   cursor: isUploading ? "not-allowed" : "pointer",
                                   fontSize: "14px", fontWeight: 700, width: "100%",
                                   display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-                                  boxShadow: isUploading ? "none" : "0 2px 10px rgba(37,99,235,0.35)",
+                                  boxShadow: isUploading ? "none" : "0 2px 10px rgba(45,107,255,0.35)",
                                   transition: "all 0.2s"
                                 }}
                               >

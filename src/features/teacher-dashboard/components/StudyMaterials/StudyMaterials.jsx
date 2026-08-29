@@ -764,7 +764,8 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
           <p className="sm-empty-title">No materials found</p>
           <p className="sm-empty-sub">Try adjusting your filters or upload a new material.</p>
           <button className="sm-upload-btn" onClick={() => setModal("upload")}>
-            <Plus size={16} /> Upload Material
+           Upload Material
+           <Plus size={16} />
           </button>
         </div>
       ) : (

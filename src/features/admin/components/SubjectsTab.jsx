@@ -63,7 +63,7 @@ const SubjectsTab = ({
     });
   };
 
-  const handleSaveForm = (e) => {
+  const handleSaveForm = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.code) {
       alert("Please fill in Subject Name and Code.");
@@ -71,9 +71,9 @@ const SubjectsTab = ({
     }
 
     if (editMode) {
-      onUpdateSubject(formData);
+      await onUpdateSubject(formData);
     } else {
-      onAddSubject(formData);
+      await onAddSubject(formData);
     }
     setView("list");
   };

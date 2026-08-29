@@ -54,17 +54,17 @@ const BatchesTab = ({
     setView("form");
   };
 
-  const handleSaveForm = (e) => {
+  const handleSaveForm = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.subject || !formData.teacher || !formData.student || !formData.schedule) {
-      alert("Please fill in all required fields (Batch Name, Subject, Teacher, Student, Schedule).");
+    if (!formData.name || !formData.subject || !formData.teacher || !formData.schedule) {
+      alert("Please fill in all required fields (Batch Name, Subject, Teacher, Schedule).");
       return;
     }
 
     if (editMode) {
-      onUpdateBatch(formData);
+      await onUpdateBatch(formData);
     } else {
-      onAddBatch(formData);
+      await onAddBatch(formData);
     }
     setView("list");
   };
@@ -273,10 +273,9 @@ const BatchesTab = ({
                 </div>
 
                 <div className="form-control">
-                  <label htmlFor="bat-student">Assign Student *</label>
+                  <label htmlFor="bat-student">Assign Student</label>
                   <select 
                     id="bat-student" 
-                    required 
                     disabled={!formData.subject}
                     value={formData.student}
                     onChange={(e) => setFormData({...formData, student: e.target.value})}

@@ -187,9 +187,17 @@ const ResetPassword = ({ onNavigate }) => {
       setPassword("");
       setConfirmPassword("");
 
+      // Reset URL so the lingering ?role=teacher param (used to detect the
+      // reset redirect) doesn't force the reset view again on redirect.
+      history.replaceState(
+        null,
+        "",
+        window.location.pathname + window.location.hash
+      );
+
       // Redirect to teacher login after 2 seconds
       setTimeout(() => {
-        window.location.hash = "/teacher";
+        onNavigate("teacher-login");
       }, 2000);
     } catch (err) {
       console.error("❌ Password reset error:", err);

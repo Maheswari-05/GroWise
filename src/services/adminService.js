@@ -814,6 +814,7 @@ export async function addTeacher(teacher) {
   delete row.created_at;
   delete row.password; // Passwords stored in auth, not table
   delete row.username; // Username not in schema
+  delete row.experience; // UI-only field; not in DB schema
   const { error } = await supabase.from('teachers').insert(row);
   handleError(error, 'addTeacher');
 
@@ -920,6 +921,7 @@ export async function updateTeacher(teacher) {
   delete row.created_at;
   delete row.password; // Passwords stored in auth, not table
   delete row.username; // Username not in schema
+  delete row.experience; // UI-only field; not in DB schema
   const { error } = await supabase.from('teachers').update(row).eq('id', id);
   handleError(error, 'updateTeacher');
 }

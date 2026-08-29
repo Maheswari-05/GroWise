@@ -40,14 +40,20 @@ function App() {
         roleParam === "student";
 
       if (isAuthRedirect) {
-        if (roleParam === "teacher" || fullUrl.includes("teacher-reset-password")) {
-          console.log("👨‍🏫 Teacher reset password route activated");
-          setCurrentView("teacher-reset-password");
-        } else {
-          console.log("👤 Student reset password route activated");
-          setCurrentView("reset-password");
+        // If the user has explicitly navigated to a normal login/dashboard
+        // route, honor that over the lingering ?role= reset param so the
+        // reset view doesn't get stuck after a successful password change.
+        const explicitDestination = ["#/login", "#/teacher", "#/role-selector", "#/dashboard", "#/teacher-dashboard", "#/admin-dashboard"].some(p => hashPath.startsWith(p));
+        if (!explicitDestination) {
+          if (roleParam === "teacher" || fullUrl.includes("teacher-reset-password")) {
+            console.log("👨‍🏫 Teacher reset password route activated");
+            setCurrentView("teacher-reset-password");
+          } else {
+            console.log("👤 Student reset password route activated");
+            setCurrentView("reset-password");
+          }
+          return;
         }
-        return;
       }
 
       
@@ -128,8 +134,6 @@ function App() {
     fullUrl.includes("type=recovery") ||
     fullUrl.includes("error=") ||
     route.includes("reset-password") ||
-    currentView === "reset-password" ||
-    currentView === "teacher-reset-password" ||
     // ?code= must only match actual auth codes, not other query params named 'code'
     /[?&]code=/.test(fullUrl) ||
     // ?role=teacher or ?role=student only appears in our password setup redirect URLs

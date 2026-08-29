@@ -1,4 +1,4 @@
-import { Bell, ChevronDown, Menu } from "lucide-react";
+import { Bell, Menu } from "lucide-react";
 import "./Header.css";
 
 const Header = ({ activeNav = "dashboard", setActiveNav, unreadCount = 0, profile = {}, onToggleMobile }) => {
@@ -55,6 +55,10 @@ const Header = ({ activeNav = "dashboard", setActiveNav, unreadCount = 0, profil
           className="td-header-profile"
           onClick={() => setActiveNav && setActiveNav("profile")}
         >
+          <div className="td-header-profile-info">
+            <span className="td-header-name">{name}</span>
+            <span className="td-header-role">{roleText}</span>
+          </div>
           <div className="td-header-avatar">
             {avatarUrl ? (
               <img src={avatarUrl} alt={name} />
@@ -64,11 +68,6 @@ const Header = ({ activeNav = "dashboard", setActiveNav, unreadCount = 0, profil
               </div>
             )}
           </div>
-          <div className="td-header-profile-info">
-            <span className="td-header-name">{name}</span>
-            <span className="td-header-role">{roleText}</span>
-          </div>
-          <ChevronDown size={16} className="td-header-chevron" />
         </div>
       </div>
     </header>
