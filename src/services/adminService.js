@@ -90,7 +90,38 @@ export async function fetchMaterials() {
   try {
     const { data, error } = await supabase.from('materials').select('*');
     if (error) { console.error('fetchMaterials error:', error); return []; }
-    return (data || []).map(toCamelCase);
+
+    const normalize = (row) => {
+      const camel = toCamelCase(row);
+      let parsed = null;
+      if (row && typeof row.title === "string" && row.title.startsWith("{")) {
+        try { parsed = JSON.parse(row.title); } catch (e) {}
+      }
+      return {
+        ...camel,
+        ...(parsed || {}),                       // real title/description/fileName/etc.
+        title: parsed?.title || camel.title || camel.fileName || "",
+        teacherId: camel.teacherId || camel.teacher_id || "",
+        teacherName: camel.teacher || camel.teacherName || "",
+      };
+    };
+
+    const dbMaterials = (data || []).map(normalize);
+
+    // Merge with teacher-local entries so admin sees uploads that only exist locally.
+    let localMaterials = [];
+    try {
+      const raw = localStorage.getItem("gw_materials_v2");
+      if (raw) localMaterials = JSON.parse(raw);
+    } catch (e) {}
+
+    const map = new Map();
+    dbMaterials.forEach((m) => map.set(String(m.id), m));
+    localMaterials.forEach((m) => {
+      if (m && m.id && !map.has(String(m.id))) map.set(String(m.id), normalize(m));
+    });
+
+    return Array.from(map.values());
   } catch (e) {
     console.error('fetchMaterials exception:', e);
     return [];
@@ -547,11 +578,15 @@ export async function fetchOnlineClasses() {
         data = dbData.map(c => {
           let batchId = c.student;
           let teacherId = null;
+          let startedAt = null;
+          let endedAt = null;
           try {
             if (c.description && c.description.startsWith('{')) {
               const meta = JSON.parse(c.description);
               if (meta.batchId) batchId = meta.batchId;
               if (meta.teacherId) teacherId = meta.teacherId;
+              if (meta.startedAt) startedAt = meta.startedAt;
+              if (meta.endedAt) endedAt = meta.endedAt;
             }
           } catch (e) {}
           return {
@@ -565,6 +600,9 @@ export async function fetchOnlineClasses() {
             date: c.date,
             time: c.time,
             status: c.status || 'upcoming',
+            startedAt,
+            endedAt,
+            joinedStudents: c.joined_students || null,
             description: c.description
           };
         });
@@ -664,6 +702,23 @@ export async function updateOnlineClass(id, updates) {
     if (updates.date !== undefined) row.date = updates.date;
     if (updates.time !== undefined) row.time = updates.time;
     if (updates.status !== undefined) row.status = updates.status;
+
+    // Persist startedAt/endedAt by merging them into the description JSON meta
+    // (the online_classes table has no dedicated timestamp columns).
+    if (updates.startedAt !== undefined || updates.endedAt !== undefined) {
+      try {
+        const { data: existing } = await supabase.from('online_classes').select('description').eq('id', id).maybeSingle();
+        let meta = {};
+        if (existing && existing.description) {
+          try { meta = JSON.parse(existing.description); } catch (e) {}
+        }
+        if (updates.startedAt !== undefined) meta.startedAt = updates.startedAt;
+        if (updates.endedAt !== undefined) meta.endedAt = updates.endedAt;
+        row.description = JSON.stringify(meta);
+      } catch (e) {
+        console.warn('updateOnlineClass meta merge warning:', e);
+      }
+    }
 
     // Update Supabase
     try {

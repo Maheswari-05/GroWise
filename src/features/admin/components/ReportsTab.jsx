@@ -30,6 +30,120 @@ const ReportsTab = ({
     }, 1500);
   };
 
+  // ------------------------------------------------------------------
+  // Data normalization helpers (keeps reports in sync with live data)
+  // ------------------------------------------------------------------
+
+  // Extract the per-student submissions array from an assignment.
+  const getSubmissions = (a) => {
+    if (Array.isArray(a?.submissions)) return a.submissions;
+    if (a && typeof a.description === "string") {
+      try {
+        const parsed = JSON.parse(a.description);
+        if (Array.isArray(parsed?.submissions)) return parsed.submissions;
+      } catch (e) {}
+    }
+    return [];
+  };
+
+  // Lowercased status for consistent matching.
+  const normStatus = (s) => String(s || "").toLowerCase().trim();
+
+  // Compute a subject's average test score (%) from weekly test student_marks.
+  const subjectTestAvg = (subjectName) => {
+    let sumPct = 0;
+    let count = 0;
+    (weeklyTests || [])
+      .filter((t) => normStatus(t.subject) === normStatus(subjectName))
+      .forEach((t) => {
+        const maxScore = Number(t.maxScore || t.totalMarks || t.total_marks || 100) || 100;
+        const marks = t.studentMarks || t.student_marks || {};
+        Object.values(marks).forEach((entry) => {
+          const score = typeof entry === "object" ? entry?.score : entry;
+          if (score !== null && score !== undefined && score !== "" && !isNaN(Number(score))) {
+            sumPct += (Number(score) / maxScore) * 100;
+            count++;
+          }
+        });
+      });
+    return count > 0 ? Math.round(sumPct / count) : 0;
+  };
+
+  // Compute a single test's average (%) from its student_marks.
+  const testAvgPct = (t) => {
+    if (!t) return 0;
+    const maxScore = Number(t.maxScore || t.totalMarks || t.total_marks || 100) || 100;
+    const marks = t.studentMarks || t.student_marks || {};
+    let sumPct = 0;
+    let count = 0;
+    Object.values(marks).forEach((entry) => {
+      const score = typeof entry === "object" ? entry?.score : entry;
+      if (score !== null && score !== undefined && score !== "" && !isNaN(Number(score))) {
+        sumPct += (Number(score) / maxScore) * 100;
+        count++;
+      }
+    });
+    return count > 0 ? Math.round(sumPct / count) : 0;
+  };
+
+  // Match a student across the possible studentMarks keys (id / name / email).
+  const matchesStudentKey = (key, student) =>
+    String(key) === String(student?.id) ||
+    String(key) === String(student?.name) ||
+    String(key) === String(student?.email) ||
+    String(key) === String(student?.rollNo);
+
+  // Compute a student's average score (%) within a given subject from weekly tests.
+  const studentSubjectScore = (student, subjectName) => {
+    if (!student) return 0;
+    let sumPct = 0;
+    let count = 0;
+    (weeklyTests || [])
+      .filter((t) => normStatus(t.subject) === normStatus(subjectName))
+      .forEach((t) => {
+        const maxScore = Number(t.maxScore || t.totalMarks || t.total_marks || 100) || 100;
+        const marks = t.studentMarks || t.student_marks || {};
+        Object.entries(marks).forEach(([key, entry]) => {
+          if (!matchesStudentKey(key, student)) return;
+          const score = typeof entry === "object" ? entry?.score : entry;
+          if (score !== null && score !== undefined && score !== "" && !isNaN(Number(score))) {
+            sumPct += (Number(score) / maxScore) * 100;
+            count++;
+          }
+        });
+      });
+    return count > 0 ? Math.round(sumPct / count) : 0;
+  };
+
+  // Student's assignment submission rate (%) — reviewed+submitted over all submissions.
+  const studentAssignmentRate = (student) => {
+    if (!student) return 0;
+    let done = 0;
+    let total = 0;
+    (assignments || []).forEach((a) => {
+      getSubmissions(a).forEach((sub) => {
+        if (matchesStudentKey(sub?.studentId, student) || String(sub?.student) === String(student?.name)) {
+          total++;
+          const st = normStatus(sub?.status);
+          if (st === "reviewed" || st === "submitted") done++;
+        }
+      });
+    });
+    return total > 0 ? Math.round((done / total) * 100) : 0;
+  };
+
+  // Student's attendance rate (%) from attendance logs.
+  const studentAttendanceRate = (student) => {
+    if (!student) return 0;
+    const logs = (attendanceLogs || []).filter((l) =>
+      String(l.student_id) === String(student.id) ||
+      String(l.student) === String(student.name) ||
+      String(l.student_id) === String(student.email)
+    );
+    const pres = logs.filter((l) => normStatus(l.status) === "present").length;
+    return logs.length > 0 ? Math.round((pres / logs.length) * 100) : 0;
+  };
+
   const reportTypes = [
     { key: "Attendance", label: "Attendance Report", desc: "Track presence rates", icon: <CalendarCheck size={20} />, color: "#2D6BFF" },
     { key: "Assignments", label: "Assignments", desc: "Submission analysis", icon: <ClipboardCheck size={20} />, color: "#37C871" },
@@ -237,13 +351,19 @@ const ReportsTab = ({
                   </thead>
                   <tbody>
                     {teachers.map(t => {
-                      const logs = attendanceLogs.filter(l => l.teacher === t.name);
+                      const logs = attendanceLogs.filter(l =>
+                        String(l.teacher_id) === String(t.id) ||
+                        String(l.teacher) === t.name ||
+                        String(l.teacher_id) === String(t.email)
+                      );
+                      const pres = logs.filter(l => normStatus(l.status) === "present").length;
+                      const rate = logs.length > 0 ? Math.round((pres / logs.length) * 100) : 0;
                       return (
                         <tr key={t.id}>
                           <td className="font-semibold">{t.name}</td>
                           <td className="font-mono" style={{ fontSize: "13px" }}>{logs.length}</td>
-                          <td><span className="status-badge-pill active">Present</span></td>
-                          <td style={{ fontWeight: 800, color: "#37C871", fontFamily: '"Fira Code", monospace' }}>100%</td>
+                          <td><span className={`status-badge-pill ${logs.length > 0 ? "active" : "pending"}`}>{logs.length > 0 ? "Present" : "No logs"}</span></td>
+                          <td style={{ fontWeight: 800, color: rate >= 75 ? "#37C871" : "#f97316", fontFamily: '"Fira Code", monospace' }}>{logs.length > 0 ? `${rate}%` : "—"}</td>
                         </tr>
                       );
                     })}
@@ -261,32 +381,59 @@ const ReportsTab = ({
           {/* Stacked Bar */}
           <div style={{ background: "#fff", padding: "24px", borderRadius: "16px", border: "1.5px solid #f1f5f9", marginBottom: "24px" }}>
             <h3 style={{ fontFamily: '"Sora", sans-serif', fontSize: "15px", color: "#0f172a", marginBottom: "16px" }}>Submission Breakdown Status</h3>
-            <div className="stacked-progress-track" style={{ height: "28px", borderRadius: "14px" }}>
-              <div className="stacked-fill evaluated" style={{ width: "60%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ fontSize: "10px", color: "#fff", fontWeight: 800 }}>Evaluated 60%</span>
-              </div>
-              <div className="stacked-fill submitted" style={{ width: "25%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ fontSize: "10px", color: "#fff", fontWeight: 800 }}>Submitted 25%</span>
-              </div>
-              <div className="stacked-fill pending" style={{ width: "15%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ fontSize: "10px", color: "#fff", fontWeight: 800 }}>15%</span>
-              </div>
-            </div>
-            <div style={{ display: "flex", justifyContent: "center", gap: "24px", marginTop: "14px" }}>
-              <span className="legend-item"><span className="legend-dot green"></span> Evaluated: 60%</span>
-              <span className="legend-item"><span className="legend-dot blue"></span> Submitted: 25%</span>
-              <span className="legend-item"><span className="legend-dot orange"></span> Pending: 15%</span>
-            </div>
+            {(() => {
+              let evalCount = 0, subCount = 0, pendCount = 0, totalSubs = 0;
+              (assignments || []).forEach(a => {
+                getSubmissions(a).forEach(sub => {
+                  totalSubs++;
+                  const st = normStatus(sub?.status);
+                  if (st === "reviewed" || st === "evaluated") evalCount++;
+                  else if (st === "submitted") subCount++;
+                  else pendCount++; // pending / missing
+                });
+              });
+              if (totalSubs === 0 && assignments.length > 0) totalSubs = evalCount = assignments.length;
+              const eW = totalSubs > 0 ? Math.round((evalCount / totalSubs) * 100) : 0;
+              const sW = totalSubs > 0 ? Math.round((subCount / totalSubs) * 100) : 0;
+              const pW = totalSubs > 0 ? Math.max(0, 100 - eW - sW) : 0;
+              return (
+                <>
+                  <div className="stacked-progress-track" style={{ height: "28px", borderRadius: "14px" }}>
+                    <div className="stacked-fill evaluated" style={{ width: `${eW}%`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span style={{ fontSize: "10px", color: "#fff", fontWeight: 800 }}>Evaluated {eW}%</span>
+                    </div>
+                    <div className="stacked-fill submitted" style={{ width: `${sW}%`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span style={{ fontSize: "10px", color: "#fff", fontWeight: 800 }}>Submitted {sW}%</span>
+                    </div>
+                    <div className="stacked-fill pending" style={{ width: `${pW}%`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span style={{ fontSize: "10px", color: "#fff", fontWeight: 800 }}>{pW}%</span>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "center", gap: "24px", marginTop: "14px" }}>
+                    <span className="legend-item"><span className="legend-dot green"></span> Evaluated: {evalCount}</span>
+                    <span className="legend-item"><span className="legend-dot blue"></span> Submitted: {subCount}</span>
+                    <span className="legend-item"><span className="legend-dot orange"></span> Pending: {pendCount}</span>
+                  </div>
+                </>
+              );
+            })()}
           </div>
 
           {/* Subject progress bars */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginBottom: "24px" }}>
             {subjects.map(sub => {
-              const subAss = assignments.filter(a => a.subject === sub.name);
-              const evalCount = subAss.filter(a => a.status === "Evaluated").length;
-              const subCount = subAss.filter(a => a.status === "Submitted").length;
-              const total = subAss.length;
-              const rate = total > 0 ? Math.round(((evalCount + subCount) / total) * 100) : 100;
+              const subAss = assignments.filter(a => normStatus(a.subject) === normStatus(sub.name));
+              let evalCount = 0, subCount = 0, totalSubs = 0;
+              subAss.forEach(a => {
+                getSubmissions(a).forEach(s => {
+                  totalSubs++;
+                  const st = normStatus(s?.status);
+                  if (st === "reviewed" || st === "evaluated") evalCount++;
+                  else if (st === "submitted") subCount++;
+                });
+              });
+              if (totalSubs === 0 && subAss.length > 0) totalSubs = evalCount = subAss.length;
+              const rate = totalSubs > 0 ? Math.round(((evalCount + subCount) / totalSubs) * 100) : 0;
               return (
                 <div key={sub.id} style={{ background: "#f8fafc", padding: "16px", borderRadius: "12px", border: "1.5px solid #f1f5f9" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
@@ -299,7 +446,7 @@ const ReportsTab = ({
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#64748b", marginTop: "6px" }}>
                     <span>{evalCount} evaluated</span>
                     <span>{subCount} submitted</span>
-                    <span>{total - evalCount - subCount} pending</span>
+                    <span>{Math.max(0, totalSubs - evalCount - subCount)} pending</span>
                   </div>
                 </div>
               );
@@ -326,16 +473,23 @@ const ReportsTab = ({
                 </thead>
                 <tbody>
                   {subjects.map(sub => {
-                    const subAss = assignments.filter(a => a.subject === sub.name);
-                    const evalCount = subAss.filter(a => a.status === "Evaluated").length;
-                    const subCount = subAss.filter(a => a.status === "Submitted").length;
-                    const pendCount = subAss.filter(a => a.status === "Pending").length;
-                    const total = subAss.length;
-                    const rate = total > 0 ? Math.round(((evalCount + subCount) / total) * 100) : 100;
+                    const subAss = assignments.filter(a => normStatus(a.subject) === normStatus(sub.name));
+                    let evalCount = 0, subCount = 0, pendCount = 0, totalSubs = 0;
+                    subAss.forEach(a => {
+                      getSubmissions(a).forEach(s => {
+                        totalSubs++;
+                        const st = normStatus(s?.status);
+                        if (st === "reviewed" || st === "evaluated") evalCount++;
+                        else if (st === "submitted") subCount++;
+                        else pendCount++;
+                      });
+                    });
+                    if (totalSubs === 0 && subAss.length > 0) totalSubs = evalCount = subAss.length;
+                    const rate = totalSubs > 0 ? Math.round(((evalCount + subCount) / totalSubs) * 100) : 0;
                     return (
                       <tr key={sub.id}>
                         <td className="font-semibold">{sub.name}</td>
-                        <td className="font-mono" style={{ fontSize: "13px" }}>{total}</td>
+                        <td className="font-mono" style={{ fontSize: "13px" }}>{totalSubs}</td>
                         <td style={{ color: "#16a34a", fontWeight: 700 }}>{evalCount}</td>
                         <td style={{ color: "#2D6BFF", fontWeight: 700 }}>{subCount}</td>
                         <td style={{ color: "#f97316", fontWeight: 700 }}>{pendCount}</td>
@@ -356,29 +510,46 @@ const ReportsTab = ({
           {/* Bar Chart */}
           <div style={{ background: "#fff", padding: "24px", borderRadius: "16px", border: "1.5px solid #f1f5f9", marginBottom: "24px" }}>
             <h3 style={{ fontFamily: '"Sora", sans-serif', fontSize: "15px", color: "#0f172a", marginBottom: "20px" }}>Subject-wise Weekly Test Averages</h3>
-            <svg width="100%" height="180" viewBox="0 0 500 180">
-              <defs>
-                <linearGradient id="barGrad1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#2D6BFF" /><stop offset="100%" stopColor="#2D6BFF" stopOpacity="0.6" /></linearGradient>
-                <linearGradient id="barGrad2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#37C871" /><stop offset="100%" stopColor="#37C871" stopOpacity="0.6" /></linearGradient>
-                <linearGradient id="barGrad3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#FF9F43" /><stop offset="100%" stopColor="#FF9F43" stopOpacity="0.6" /></linearGradient>
-              </defs>
-              {[30, 70, 110].map(y => <line key={y} x1="50" y1={y} x2="450" y2={y} stroke="#f1f5f9" strokeWidth="1" />)}
-              <line x1="50" y1="140" x2="450" y2="140" stroke="#cbd5e1" strokeWidth="1.5" />
-              {/* Bars */}
-              <rect x="90" y="40" width="50" height="100" fill="url(#barGrad1)" rx="8" />
-              <text x="115" y="34" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#2D6BFF">90%</text>
-              <rect x="225" y="50" width="50" height="90" fill="url(#barGrad2)" rx="8" />
-              <text x="250" y="44" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#37C871">80%</text>
-              <rect x="360" y="70" width="50" height="70" fill="url(#barGrad3)" rx="8" />
-              <text x="385" y="64" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#FF9F43">65%</text>
-              {/* Average line */}
-              <line x1="50" y1="55" x2="450" y2="55" stroke="#ef4444" strokeWidth="1.5" strokeDasharray="6 4" />
-              <text x="460" y="59" fontSize="9" fill="#ef4444" fontWeight="700">Avg: 78%</text>
-              {/* X Labels */}
-              <text x="115" y="158" textAnchor="middle" fontSize="11" fontWeight="600" fill="#0f172a">Mathematics</text>
-              <text x="250" y="158" textAnchor="middle" fontSize="11" fontWeight="600" fill="#0f172a">Physics</text>
-              <text x="385" y="158" textAnchor="middle" fontSize="11" fontWeight="600" fill="#0f172a">Chemistry</text>
-            </svg>
+            {(() => {
+              const testSubjects = [...new Set((weeklyTests || []).map(t => t.subject).filter(Boolean))];
+              const chartSubjects = (testSubjects.length > 0 ? testSubjects : subjects.map(s => s.name)).slice(0, 6);
+              const avgs = chartSubjects.map(sub => subjectTestAvg(sub)).filter(v => v > 0);
+              const overallAvg = avgs.length > 0 ? Math.round(avgs.reduce((a, b) => a + b, 0) / avgs.length) : 0;
+              const barColors = ["#2D6BFF", "#37C871", "#FF9F43", "#8b5cf6", "#ef4444", "#14b8a6"];
+              const slotW = 400 / Math.max(chartSubjects.length, 1);
+              const baseY = 140;
+              const heightScale = 100;
+              return (
+                <svg width="100%" height="180" viewBox="0 0 500 180">
+                  {[30, 70, 110].map(y => <line key={y} x1="50" y1={y} x2="450" y2={y} stroke="#f1f5f9" strokeWidth="1" />)}
+                  <line x1="50" y1="140" x2="450" y2="140" stroke="#cbd5e1" strokeWidth="1.5" />
+                  {chartSubjects.map((sub, i) => {
+                    const avg = subjectTestAvg(sub);
+                    const h = Math.max(0, Math.min(heightScale, avg));
+                    const y = baseY - h;
+                    const x = 55 + i * slotW + (slotW - 50) / 2;
+                    const color = barColors[i % barColors.length];
+                    return (
+                      <g key={sub}>
+                        <rect x={x} y={y} width="50" height={h} fill={color} rx="8" opacity="0.9" />
+                        <text x={x + 25} y={y - 6} textAnchor="middle" fontSize="11" fontWeight="bold" fill={color}>
+                          {avg > 0 ? `${avg}%` : "—"}
+                        </text>
+                        <text x={x + 25} y="158" textAnchor="middle" fontSize="10" fontWeight="600" fill="#0f172a">
+                          {sub.length > 10 ? sub.slice(0, 9) + "…" : sub}
+                        </text>
+                      </g>
+                    );
+                  })}
+                  {overallAvg > 0 && (
+                    <g>
+                      <line x1="50" y1={baseY - overallAvg} x2="450" y2={baseY - overallAvg} stroke="#ef4444" strokeWidth="1.5" strokeDasharray="6 4" />
+                      <text x="460" y={baseY - overallAvg - 2} fontSize="9" fill="#ef4444" fontWeight="700">Avg: {overallAvg}%</text>
+                    </g>
+                  )}
+                </svg>
+              );
+            })()}
           </div>
 
           {/* Test Summary Table */}
@@ -401,17 +572,19 @@ const ReportsTab = ({
                 </thead>
                 <tbody>
                   {weeklyTests.map(t => {
-                    const avgStr = t.status === "Published" ? `${t.percent}%` : "Pending";
-                    const scoreColor = t.status === "Published" ? (t.percent >= 80 ? "#37C871" : t.percent >= 60 ? "#f97316" : "#ef4444") : "#94a3b8";
+                    const avg = testAvgPct(t);
+                    const published = normStatus(t.status) === "published";
+                    const avgStr = avg > 0 ? `${avg}%` : (published ? "No scores" : "Pending");
+                    const scoreColor = avg > 0 ? (avg >= 80 ? "#37C871" : avg >= 60 ? "#f97316" : "#ef4444") : "#94a3b8";
                     return (
                       <tr key={t.id}>
                         <td className="font-semibold">{t.title}</td>
                         <td><span className="badge-tag subject">{t.subject}</span></td>
                         <td className="font-mono" style={{ fontSize: "13px" }}>{t.date}</td>
-                        <td>{t.teacher}</td>
+                        <td>{typeof t.teacher === "string" ? t.teacher : JSON.stringify(t.teacher)}</td>
                         <td style={{ fontWeight: 800, color: scoreColor, fontFamily: '"Fira Code", monospace' }}>{avgStr}</td>
                         <td>
-                          <span className={`status-badge-pill ${t.status === "Published" ? "active" : "pending"}`}>{t.status}</span>
+                          <span className={`status-badge-pill ${published ? "active" : "pending"}`}>{t.status}</span>
                         </td>
                       </tr>
                     );
@@ -459,14 +632,17 @@ const ReportsTab = ({
                 {subjects.map((sub, idx) => {
                   const studentObj = students.find(s => s.name === selectedStudentName);
                   const isEnrolled = studentObj?.subjects?.includes(sub.name);
-                  const score = isEnrolled ? (sub.name === "Mathematics" ? 90 : sub.name === "Physics" ? 80 : 70) : 0;
+                  const score = studentObj ? studentSubjectScore(studentObj, sub.name) : 0;
+                  const hasData = score > 0;
                   const colors = ["#2D6BFF", "#37C871", "#8b5cf6"];
                   return (
                     <div key={sub.id}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
                         <span style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>{sub.name}</span>
                         {isEnrolled ? (
-                          <span style={{ fontWeight: 800, fontSize: "13px", color: colors[idx % 3] }}>{score}%</span>
+                          <span style={{ fontWeight: 800, fontSize: "13px", color: colors[idx % 3] }}>
+                            {hasData ? `${score}%` : "No scores yet"}
+                          </span>
                         ) : (
                           <span style={{ fontSize: "12px", color: "#94a3b8", fontStyle: "italic" }}>Not Enrolled</span>
                         )}
@@ -474,7 +650,7 @@ const ReportsTab = ({
                       {isEnrolled && (
                         <div className="stats-bar-track" style={{ height: "8px" }}>
                           <div className="stats-bar-fill" style={{ 
-                            width: `${score}%`, height: "100%", borderRadius: "4px",
+                            width: `${hasData ? score : 0}%`, height: "100%", borderRadius: "4px",
                             background: `linear-gradient(90deg, ${colors[idx % 3]}, ${colors[idx % 3]}88)`,
                             transition: "width 0.6s ease"
                           }}></div>
@@ -493,11 +669,19 @@ const ReportsTab = ({
                 <h3>Academic Standing Overview</h3>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "20px", padding: "16px 0" }}>
-                {[
-                  { label: "GPA Standing", value: "A- Equivalent", color: "#2D6BFF", pct: 85 },
-                  { label: "Assignment Rate", value: "92% submitted", color: "#37C871", pct: 92 },
-                  { label: "Test Attendance", value: "100% Attended", color: "#8b5cf6", pct: 100 }
-                ].map((item, i) => (
+                {(() => {
+                  const studentObj = students.find(s => s.name === selectedStudentName);
+                  const asgnRate = studentObj ? studentAssignmentRate(studentObj) : 0;
+                  const testAtt = studentObj ? studentAttendanceRate(studentObj) : 0;
+                  const subScores = studentObj
+                    ? subjects.map(sub => studentSubjectScore(studentObj, sub.name)).filter(v => v > 0)
+                    : [];
+                  const gpa = subScores.length > 0 ? Math.round(subScores.reduce((a, b) => a + b, 0) / subScores.length) : 0;
+                  return [
+                    { label: "Test Average", value: gpa > 0 ? `${gpa}% avg` : "No scores", color: "#2D6BFF", pct: gpa },
+                    { label: "Assignment Rate", value: asgnRate > 0 ? `${asgnRate}% submitted` : "No submissions", color: "#37C871", pct: asgnRate },
+                    { label: "Attendance Rate", value: testAtt > 0 ? `${testAtt}% present` : "No logs", color: "#8b5cf6", pct: testAtt }
+                  ].map((item, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: "16px" }}>
                     <div style={{ position: "relative", width: "52px", height: "52px", flexShrink: 0 }}>
                       <svg width="52" height="52" viewBox="0 0 52 52" style={{ transform: "rotate(-90deg)" }}>
@@ -514,7 +698,8 @@ const ReportsTab = ({
                       <span style={{ display: "block", fontSize: "16px", fontWeight: 800, color: "#0f172a" }}>{item.value}</span>
                     </div>
                   </div>
-                ))}
+                ));
+                })()}
               </div>
             </div>
           </div>

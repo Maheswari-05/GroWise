@@ -182,14 +182,32 @@ const Attendance = ({ attendanceRecords, setAttendanceRecords, students, batches
           ? crypto.randomUUID()
           : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         teacher_id: teacherId,
+        teacher: teacherProfile?.name || teacherProfile?.email || "",
         date: selectedDate,
         batch_id: selectedBatch,
         subject: selectedSubject,
         student_id: student.id,
+        student: student.name || student.student_name || student.email || "",
         status: (tempRecords[student.id] === "late" ? "Late" : tempRecords[student.id] === "absent" ? "Absent" : "Present"),
         remarks: tempRemarks[student.id] || "",
         is_online_class: onlineClassFlag,
       }));
+
+      // Mirror to the localStorage key that student/admin panels read
+      // (gw_attendance_logs_v3), so attendance stays consistent across tabs
+      // even before/without the DB round-trip completing.
+      try {
+        const localKey = "gw_attendance_logs_v3";
+        const raw = localStorage.getItem(localKey);
+        const localLogs = raw ? JSON.parse(raw) : [];
+        const localMap = new Map();
+        localLogs.forEach((l) => l && l.id && localMap.set(String(l.id), l));
+        rows.forEach((r) => localMap.set(String(r.id), r));
+        localStorage.setItem(localKey, JSON.stringify(Array.from(localMap.values())));
+        window.dispatchEvent(new Event("storage"));
+      } catch (e) {
+        console.warn("Attendance localStorage mirror warning:", e);
+      }
 
       try {
         // Remove any previous rows for this date/batch/subject/teacher, then insert fresh ones

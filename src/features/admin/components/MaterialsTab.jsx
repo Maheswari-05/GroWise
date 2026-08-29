@@ -28,12 +28,16 @@ const MaterialsTab = ({
   // Stats
   const flaggedCount = materials.filter(m => m.flagged).length;
   const verifiedCount = materials.length - flaggedCount;
+  const normT = (v) => String(v || "").trim().toLowerCase();
 
   // Filter materials
   const filteredMaterials = materials.filter(m => {
     const matchesSearch = m.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesSubject = filterSubject === "All" || m.subject === filterSubject;
-    const matchesTeacher = filterTeacher === "All" || m.teacher === filterTeacher;
+    const matchesTeacher = filterTeacher === "All" ||
+      String(m.teacherId) === String(filterTeacher) ||
+      normT(m.teacherName) === normT(filterTeacher) ||
+      normT(m.teacher) === normT(filterTeacher);
     return matchesSearch && matchesSubject && matchesTeacher;
   });
 
@@ -45,7 +49,11 @@ const MaterialsTab = ({
 
   // Upload stats
   const uploadStats = teachers.map(t => {
-    const count = materials.filter(m => m.teacher === t.name).length;
+    const count = materials.filter(m =>
+      String(m.teacherId) === String(t.id) ||
+      normT(m.teacherName) === normT(t.name) ||
+      normT(m.teacher) === normT(t.name)
+    ).length;
     return { name: t.name, count };
   });
 

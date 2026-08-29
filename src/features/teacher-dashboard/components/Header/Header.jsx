@@ -47,7 +47,7 @@ const Header = ({ activeNav = "dashboard", setActiveNav, unreadCount = 0, profil
           onClick={() => setActiveNav && setActiveNav("notifications")}
         >
           <Bell size={20} />
-          {unreadCount > 0 && <span className="td-header-bell-badge">{unreadCount}</span>}
+          {unreadCount > 0 && <span className="td-header-bell-badge"></span>}
         </button>
 
         {/* Profile */}

@@ -40,7 +40,8 @@ import {
   Eye,
   Sparkles,
   FolderOpen,
-  Filter
+  Filter,
+  Clock
 } from "lucide-react";
 import logo from "../../assets/logo.png";
 import avatarImg from "../../assets/avatar.png";
@@ -1472,6 +1473,28 @@ const StudentDashboard = ({ onNavigate }) => {
     };
   });
 
+  // Colour palette used by the dashboard Performance Overview chart bars & legend.
+  const subjectChartPalette = ["green", "blue", "orange", "purple", "teal", "red"];
+  const subjectBarFill = (index) => {
+    const colors = ["#22c55e", "#3b82f6", "#f97316", "#a855f7", "#14b8a6", "#ef4444"];
+    return colors[index % colors.length];
+  };
+  const hasSubjectAttendance = Array.isArray(subjectAttendance) && subjectAttendance.length > 0;
+
+  // Subject options for the Online Classes filter — driven by the student's own
+  // subjects plus any subjects present in the live-class data.
+  const onlineClassSubjectOptions = Array.from(new Set([
+    ...(Array.isArray(studentProfile?.subjects) ? studentProfile.subjects : []),
+    ...(Array.isArray(onlineClasses) ? onlineClasses.map((c) => c.subject).filter(Boolean) : []),
+  ]));
+
+  // Subject options for the Weekly Tests filter — driven by the student's own
+  // subjects plus any subjects present in the weekly-test data.
+  const weeklyTestSubjectOptions = Array.from(new Set([
+    ...(Array.isArray(studentProfile?.subjects) ? studentProfile.subjects : []),
+    ...(Array.isArray(weeklyTests) ? weeklyTests.map((t) => t.subject).filter(Boolean) : []),
+  ]));
+
   const [notificationSearch, setNotificationSearch] = useState("");
   const [notificationFilter, setNotificationFilter] = useState("All");
 
@@ -2179,34 +2202,73 @@ const StudentDashboard = ({ onNavigate }) => {
                   }) || onlineClasses[0];
 
                   const isLiveNow = (nextClass?.status || "").toLowerCase().includes("live");
+                  const joinable = nextClass ? canJoinClass(nextClass, now) : false;
+
+                  const formatSchedule = (cls) => {
+                    if (!cls) return "Your teacher will schedule upcoming live classes soon.";
+                    const todayStr = new Date().toISOString().split("T")[0];
+                    const isToday = cls.date === todayStr;
+                    const dateLabel = isToday ? "Today" : (cls.date ? formatDate(cls.date) : "");
+                    const timeLabel = cls.time || "";
+                    const subjectLabel = cls.subject || "Lecture";
+                    
+                    if (dateLabel && timeLabel) {
+                      return `${subjectLabel} · ${dateLabel}, ${timeLabel}`;
+                    }
+                    return `${subjectLabel} · ${dateLabel || timeLabel || "Scheduled"}`;
+                  };
 
                   return (
-                    <div className="summary-card live-class-card">
+                    <div className={`summary-card live-class-card ${isLiveNow ? "is-live" : "is-upcoming"}`}>
                       <div className="card-top">
-                        <span className="card-badge" style={{ background: isLiveNow ? "#ef4444" : undefined, color: isLiveNow ? "#fff" : undefined }}>
-                          {isLiveNow ? "LIVE NOW" : "NEXT LIVE CLASS"}
-                        </span>
-                        <span className="badge-icon-wrap">
-                          <Video size={16} />
+                        {isLiveNow ? (
+                          <span className="card-badge live-pill">
+                            <span className="live-pulse-dot"></span>
+                            LIVE NOW
+                          </span>
+                        ) : nextClass ? (
+                          <span className="card-badge upcoming-pill">
+                            <span className="upcoming-dot"></span>
+                            NEXT CLASS
+                          </span>
+                        ) : (
+                          <span className="card-badge gray-pill">
+                            LIVE CLASS
+                          </span>
+                        )}
+
+                        <span className={`badge-icon-wrap ${isLiveNow ? "red" : nextClass ? "blue" : "gray"}`}>
+                          {isLiveNow ? <Radio size={16} /> : <Video size={16} />}
                         </span>
                       </div>
+
                       <div className="card-middle">
-                        <h3>{nextClass ? nextClass.title : "No Scheduled Classes"}</h3>
-                        <p>{nextClass ? `${nextClass.subject || "Lecture"} · ${nextClass.date || "Today"} ${nextClass.time || ""}` : "Your teacher will schedule upcoming live classes soon."}</p>
+                        <h3 className="live-class-title" title={nextClass?.title || "No Scheduled Classes"}>
+                          {nextClass ? nextClass.title : "No Scheduled Classes"}
+                        </h3>
+                        <p className="live-class-schedule">
+                          {formatSchedule(nextClass)}
+                        </p>
                       </div>
+
                       {nextClass ? (
-                        canJoinClass(nextClass, now) ? (
-                          <button className="join-class-btn" onClick={() => handleJoinClass(nextClass)}>
-                            {isLiveNow ? "Join Now" : "Join Class"}
+                        joinable ? (
+                          <button 
+                            className={`join-class-btn ${isLiveNow ? "live-active-btn" : "upcoming-active-btn"}`}
+                            onClick={() => handleJoinClass(nextClass)}
+                          >
+                            <Play size={13} fill="currentColor" />
+                            <span>{isLiveNow ? "Join Now" : "Join Class"}</span>
                           </button>
                         ) : (
-                          <button className="join-class-btn" disabled style={{ opacity: 0.6, cursor: "not-allowed" }}>
-                            Join button opens 10 min before start
+                          <button className="join-class-btn disabled" disabled>
+                            <Clock size={13} />
+                            <span>Opens 10m before start</span>
                           </button>
                         )
                       ) : (
-                        <button className="join-class-btn" disabled style={{ opacity: 0.6, cursor: "not-allowed" }}>
-                          No Class Scheduled
+                        <button className="join-class-btn disabled" disabled>
+                          <span>No Class Scheduled</span>
                         </button>
                       )}
                     </div>
@@ -2216,7 +2278,7 @@ const StudentDashboard = ({ onNavigate }) => {
                 {/* Card 2: Attendance */}
                 <div className="summary-card clickable-card" onClick={() => selectTab("Attendance")}>
                   <div className="card-top">
-                    <span className="card-badge gray">ATTENDANCE</span>
+                    <span className="card-badge gray-pill">ATTENDANCE</span>
                     <span className="badge-icon-wrap green">
                       <CheckCircle size={16} />
                     </span>
@@ -2224,6 +2286,9 @@ const StudentDashboard = ({ onNavigate }) => {
                   <div className="card-middle">
                     <div className="card-value-row">
                       <span className="card-value-large">{overallPercentage}%</span>
+                      <span className={`trend-indicator ${overallPercentage >= 75 ? "up" : "down"}`}>
+                        {overallPercentage >= 75 ? "Good" : "Low"}
+                      </span>
                     </div>
                     <p className="card-subtitle">{presentLogsCount} Days Present</p>
                   </div>
@@ -2232,7 +2297,7 @@ const StudentDashboard = ({ onNavigate }) => {
                 {/* Card 3: Assignments */}
                 <div className="summary-card clickable-card" onClick={() => selectTab("Assignments")} style={{ cursor: "pointer" }}>
                   <div className="card-top">
-                    <span className="card-badge gray">ASSIGNMENTS</span>
+                    <span className="card-badge gray-pill">ASSIGNMENTS</span>
                     <span className="badge-icon-wrap orange">
                       <AlertTriangle size={16} />
                     </span>
@@ -2253,7 +2318,7 @@ const StudentDashboard = ({ onNavigate }) => {
                 {/* Card 4: Weekly Test */}
                 <div className="summary-card clickable-card" onClick={() => selectTab("Weekly Tests")} style={{ cursor: "pointer" }}>
                   <div className="card-top">
-                    <span className="card-badge gray">WEEKLY TEST</span>
+                    <span className="card-badge gray-pill">WEEKLY TEST</span>
                     <span className="badge-icon-wrap blue">
                       <Award size={16} />
                     </span>
@@ -2261,7 +2326,7 @@ const StudentDashboard = ({ onNavigate }) => {
                   <div className="card-middle">
                     <div className="card-value-row">
                       <span className="card-value-large">
-                        {weeklyTests.length > 0 ? weeklyTests.length : "—"}{" "}
+                        {weeklyTests.length > 0 ? weeklyTests.length : "0"}{" "}
                         <span className="value-unit">Active</span>
                       </span>
                     </div>
@@ -2279,18 +2344,19 @@ const StudentDashboard = ({ onNavigate }) => {
                   <div className="card-header">
                     <h3>Performance Overview</h3>
                     <div className="chart-legend">
-                      <div className="legend-item">
-                        <span className="legend-dot green"></span>
-                        <span>Math</span>
-                      </div>
-                      <div className="legend-item">
-                        <span className="legend-dot blue"></span>
-                        <span>Physics</span>
-                      </div>
-                      <div className="legend-item">
-                        <span className="legend-dot orange"></span>
-                        <span>Chemistry</span>
-                      </div>
+                      {hasSubjectAttendance ? (
+                        subjectAttendance.map((s, i) => (
+                          <div className="legend-item" key={s.subject || i}>
+                            <span className={`legend-dot ${subjectChartPalette[i % subjectChartPalette.length]}`}></span>
+                            <span>{s.subject}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="legend-item">
+                          <span className="legend-dot green"></span>
+                          <span>No data</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -2318,47 +2384,27 @@ const StudentDashboard = ({ onNavigate }) => {
 
                       {/* Actual bars */}
                       <div className="student-bars-wrapper">
-                        {/* Physics — 89% */}
-                        <div className="student-bar-column">
-                          <div className="student-bar-track">
-                            <div
-                              className="student-bar-fill blue-bar"
-                              style={{ height: "89%" }}
-                              title="Physics: 89%"
-                            >
-                              <span className="student-bar-tooltip">89%</span>
+                        {hasSubjectAttendance ? subjectAttendance.map((s, i) => {
+                          const rate = Math.min(100, Math.max(0, s.rate || 0));
+                          return (
+                            <div className="student-bar-column" key={s.subject || i}>
+                              <div className="student-bar-track">
+                                <div
+                                  className="student-bar-fill"
+                                  style={{ height: `${rate}%`, background: subjectBarFill(i) }}
+                                  title={`${s.subject}: ${rate}%`}
+                                >
+                                  <span className="student-bar-tooltip">{rate}%</span>
+                                </div>
+                              </div>
+                              <span className="student-bar-label">{s.subject}</span>
                             </div>
+                          );
+                        }) : (
+                          <div className="empty-chart-message" style={{ padding: "16px", color: "#94a3b8", textAlign: "center" }}>
+                            No performance data yet.
                           </div>
-                          <span className="student-bar-label">Physics</span>
-                        </div>
-
-                        {/* Chemistry — 80% */}
-                        <div className="student-bar-column">
-                          <div className="student-bar-track">
-                            <div
-                              className="student-bar-fill orange-bar"
-                              style={{ height: "80%" }}
-                              title="Chemistry: 80%"
-                            >
-                              <span className="student-bar-tooltip">80%</span>
-                            </div>
-                          </div>
-                          <span className="student-bar-label">Chemistry</span>
-                        </div>
-
-                        {/* Mathematics — 90% */}
-                        <div className="student-bar-column">
-                          <div className="student-bar-track">
-                            <div
-                              className="student-bar-fill green-bar"
-                              style={{ height: "90%" }}
-                              title="Mathematics: 90%"
-                            >
-                              <span className="student-bar-tooltip">90%</span>
-                            </div>
-                          </div>
-                          <span className="student-bar-label">Mathematics</span>
-                        </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2828,13 +2874,9 @@ const StudentDashboard = ({ onNavigate }) => {
                     className="tests-select-dropdown"
                   >
                     <option value="All Subjects">All Subjects</option>
-                    <option value="Mathematics">Mathematics</option>
-                    <option value="Physics">Physics</option>
-                    <option value="Chemistry">Chemistry</option>
-                    <option value="Biology">Biology</option>
-                    <option value="Science">Science</option>
-                    <option value="English">English</option>
-                    <option value="Social Studies">Social Studies</option>
+                    {weeklyTestSubjectOptions.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
                   </select>
                 </div>
               </section>
@@ -3129,9 +3171,9 @@ const StudentDashboard = ({ onNavigate }) => {
                     className="classes-select-dropdown"
                   >
                     <option value="All Subjects">All Subjects</option>
-                    <option value="Mathematics">Mathematics</option>
-                    <option value="Physics">Physics</option>
-                    <option value="Chemistry">Chemistry</option>
+                    {onlineClassSubjectOptions.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
                   </select>
                   <select
                     value={onlineClassStatus}

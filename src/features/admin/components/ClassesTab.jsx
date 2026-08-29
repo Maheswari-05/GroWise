@@ -16,6 +16,18 @@ const ClassesTab = ({
   const [filterBatch, setFilterBatch] = useState("All");
   const [filterDate, setFilterDate] = useState("");
 
+  const normStatus = (s) => String(s || "").trim().toLowerCase();
+  // Map lowercase DB statuses to the display labels used across this UI.
+  const statusLabel = (c) => {
+    const s = normStatus(c?.status);
+    if (s === "live" || s === "live now") return "Live Now";
+    if (s === "upcoming") return "Upcoming";
+    if (s === "completed") return "Completed";
+    if (s === "cancelled" || s === "cancel") return "Cancelled";
+    if (s === "missed") return "Missed";
+    return c?.status || "Upcoming";
+  };
+
   const handleViewAttendance = (item) => {
     setSelectedClass(item);
     setView("attendance");
@@ -126,21 +138,21 @@ const ClassesTab = ({
                   <div key={c.id} style={{ 
                     minWidth: "220px", background: "#fff", border: "1.5px solid #f1f5f9", borderRadius: "14px", 
                     padding: "16px", flexShrink: 0, cursor: "pointer", transition: "all 0.2s",
-                    borderTop: c.status === "Live Now" ? "3px solid #ef4444" : c.status === "Upcoming" ? "3px solid #2D6BFF" : "3px solid #37C871"
+                    borderTop: statusLabel(c) === "Live Now" ? "3px solid #ef4444" : statusLabel(c) === "Upcoming" ? "3px solid #2D6BFF" : "3px solid #37C871"
                   }}
                     onClick={() => handleViewAttendance(c)}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                       <span style={{ fontFamily: '"Fira Code", monospace', fontSize: "12px", fontWeight: 700, color: "#2D6BFF" }}>{c.time}</span>
-                      <span className={`status-badge ${c.status === "Live Now" ? "live-now" : c.status === "Upcoming" ? "upcoming" : "completed"}`}
+                      <span className={`status-badge ${statusLabel(c) === "Live Now" ? "live-now" : statusLabel(c) === "Upcoming" ? "upcoming" : "completed"}`}
                         style={{ fontSize: "9px", fontWeight: 800, textTransform: "uppercase", padding: "2px 8px", borderRadius: "12px",
-                          background: c.status === "Live Now" ? "#fef2f2" : c.status === "Upcoming" ? "#eff6ff" : "#f0fdf4",
-                          color: c.status === "Live Now" ? "#ef4444" : c.status === "Upcoming" ? "#3b82f6" : "#16a34a",
+                          background: statusLabel(c) === "Live Now" ? "#fef2f2" : statusLabel(c) === "Upcoming" ? "#eff6ff" : "#f0fdf4",
+                          color: statusLabel(c) === "Live Now" ? "#ef4444" : statusLabel(c) === "Upcoming" ? "#3b82f6" : "#16a34a",
                           display: "inline-flex", alignItems: "center", gap: "4px"
                         }}
                       >
-                        {c.status === "Live Now" && <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#ef4444", display: "inline-block" }}></span>}
-                        {c.status}
+                        {statusLabel(c) === "Live Now" && <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#ef4444", display: "inline-block" }}></span>}
+                        {statusLabel(c)}
                       </span>
                     </div>
                     <span className="badge-tag subject" style={{ marginBottom: "6px", display: "inline-block" }}>{c.subject}</span>
@@ -226,13 +238,13 @@ const ClassesTab = ({
                       <td className="font-mono" style={{ fontSize: "13px", fontWeight: 600 }}>{c.date}</td>
                       <td className="font-mono text-xs">{c.time}</td>
                       <td><span className="badge-tag subject">{c.subject}</span></td>
-                      <td><span className="badge-tag batch">{c.batchId || "BAT101"}</span></td>
+                      <td><span className="badge-tag batch">{c.batchId || "—"}</span></td>
                       <td>{c.teacher}</td>
-                      <td>{c.student || "Sneha"}</td>
+                      <td>{c.student || "—"}</td>
                       <td>
-                        {c.status === "Missed" ? (
+                        {statusLabel(c) === "Missed" ? (
                           <span style={{ fontSize: "12px", color: "#94a3b8", fontStyle: "italic" }}>Expired</span>
-                        ) : c.status === "Completed" ? (
+                        ) : statusLabel(c) === "Completed" ? (
                           <span style={{ fontSize: "12px", color: "#94a3b8" }}>Session ended</span>
                         ) : (
                           <button 
@@ -250,11 +262,11 @@ const ClassesTab = ({
                         )}
                       </td>
                       <td>
-                        <span className={`status-badge-pill ${c.status === "Completed" ? "active" : c.status === "Live Now" ? "live" : c.status === "Upcoming" ? "pending" : "inactive"}`}
+                        <span className={`status-badge-pill ${statusLabel(c) === "Completed" ? "active" : statusLabel(c) === "Live Now" ? "live" : statusLabel(c) === "Upcoming" ? "pending" : "inactive"}`}
                           style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
                         >
-                          {c.status === "Live Now" && <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "currentColor", display: "inline-block" }}></span>}
-                          {c.status}
+                          {statusLabel(c) === "Live Now" && <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "currentColor", display: "inline-block" }}></span>}
+                          {statusLabel(c)}
                         </span>
                       </td>
                       <td>
@@ -295,9 +307,9 @@ const ClassesTab = ({
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
               <span className="badge-tag subject">{selectedClass.subject}</span>
-              <span className="badge-tag batch">Batch: {selectedClass.batchId || "BAT101"}</span>
-              <span className={`status-badge-pill ${selectedClass.status === "Completed" ? "active" : selectedClass.status === "Live Now" ? "live" : "pending"}`}>
-                {selectedClass.status}
+              <span className="badge-tag batch">Batch: {selectedClass.batchId || "—"}</span>
+              <span className={`status-badge-pill ${statusLabel(selectedClass) === "Completed" ? "active" : statusLabel(selectedClass) === "Live Now" ? "live" : "pending"}`}>
+                {statusLabel(selectedClass)}
               </span>
             </div>
             <h2 style={{ fontFamily: '"Sora", sans-serif', fontSize: "22px", fontWeight: 800, color: "#0f172a", marginBottom: "8px" }}>
@@ -314,7 +326,7 @@ const ClassesTab = ({
               { label: "Date", value: selectedClass.date, icon: <Calendar size={16} /> },
               { label: "Start Time", value: selectedClass.time.split(" - ")[0], icon: <Clock size={16} /> },
               { label: "End Time", value: selectedClass.time.split(" - ")[1], icon: <Clock size={16} /> },
-              { label: "Status", value: selectedClass.status, icon: <Activity size={16} /> }
+              { label: "Status", value: statusLabel(selectedClass), icon: <Activity size={16} /> }
             ].map((item, i) => (
               <div key={i} style={{ background: "#f8fafc", border: "1.5px solid #f1f5f9", borderRadius: "12px", padding: "16px", textAlign: "center" }}>
                 <div style={{ color: "#94a3b8", marginBottom: "8px", display: "flex", justifyContent: "center" }}>{item.icon}</div>
@@ -345,7 +357,7 @@ const ClassesTab = ({
                   <span style={{ display: "block", fontWeight: 700, fontSize: "16px", color: "#0f172a" }}>{selectedClass.teacher}</span>
                   <span style={{ fontSize: "12px", color: "#64748b" }}>Instructor Faculty</span>
                 </div>
-                {selectedClass.status === "Missed" ? (
+                {statusLabel(selectedClass) === "Missed" ? (
                   <span className="status-badge-pill inactive" style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px", fontSize: "13px" }}>
                     <AlertTriangle size={14} />
                     Absent / Cancelled
@@ -375,15 +387,15 @@ const ClassesTab = ({
                   {(selectedClass.student || "S").charAt(0)}
                 </div>
                 <div style={{ textAlign: "center" }}>
-                  <span style={{ display: "block", fontWeight: 700, fontSize: "16px", color: "#0f172a" }}>{selectedClass.student || "Sneha"}</span>
+                  <span style={{ display: "block", fontWeight: 700, fontSize: "16px", color: "#0f172a" }}>{selectedClass.student || "—"}</span>
                   <span style={{ fontSize: "12px", color: "#64748b" }}>Enrolled Student (1:1)</span>
                 </div>
-                {selectedClass.status === "Missed" ? (
+                {statusLabel(selectedClass) === "Missed" ? (
                   <span className="status-badge-pill inactive" style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px", fontSize: "13px" }}>
                     <AlertTriangle size={14} />
                     Absent / Missed
                   </span>
-                ) : selectedClass.status === "Upcoming" ? (
+                ) : statusLabel(selectedClass) === "Upcoming" ? (
                   <span className="status-badge-pill pending" style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px", fontSize: "13px" }}>
                     <Clock size={14} />
                     Pending Class
@@ -407,13 +419,13 @@ const ClassesTab = ({
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 40px", position: "relative" }}>
               <div style={{ position: "absolute", top: "50%", left: "80px", right: "80px", height: "3px", background: "#e2e8f0", borderRadius: "2px" }}></div>
               <div style={{ position: "absolute", top: "50%", left: "80px", height: "3px", borderRadius: "2px",
-                width: selectedClass.status === "Completed" ? "calc(100% - 160px)" : selectedClass.status === "Live Now" ? "calc(50% - 80px)" : "0",
+                width: statusLabel(selectedClass) === "Completed" ? "calc(100% - 160px)" : statusLabel(selectedClass) === "Live Now" ? "calc(50% - 80px)" : "0",
                 background: "linear-gradient(90deg, #2D6BFF, #37C871)", transition: "width 0.6s ease"
               }}></div>
               {[
-                { label: "Session Start", time: selectedClass.time.split(" - ")[0], done: selectedClass.status !== "Upcoming" },
-                { label: "In Progress", time: "Active", done: selectedClass.status === "Completed" || selectedClass.status === "Live Now" },
-                { label: "Session End", time: selectedClass.time.split(" - ")[1], done: selectedClass.status === "Completed" }
+                { label: "Session Start", time: selectedClass.time.split(" - ")[0], done: statusLabel(selectedClass) !== "Upcoming" },
+                { label: "In Progress", time: "Active", done: statusLabel(selectedClass) === "Completed" || statusLabel(selectedClass) === "Live Now" },
+                { label: "Session End", time: selectedClass.time.split(" - ")[1], done: statusLabel(selectedClass) === "Completed" }
               ].map((step, i) => (
                 <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", zIndex: 2, position: "relative" }}>
                   <div style={{ 

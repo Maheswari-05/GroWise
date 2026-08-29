@@ -74,7 +74,7 @@ const DeleteTestModal = ({ test, onClose, onConfirm }) => (
 /* ── Create / Edit Test Modal ─────────────────────────────────────── */
 const TestModal = ({ mode, initial, batches = [], onClose, onSave, subjects = [] }) => {
   const [title, setTitle] = useState(initial?.title || "");
-  const [subject, setSubject] = useState(initial?.subject || "Mathematics");
+  const [subject, setSubject] = useState(initial?.subject || subjects[0] || "Mathematics");
   const [batchId, setBatchId] = useState(initial?.batchId || batches[0]?.id || "");
   const [date, setDate] = useState(initial?.date || new Date().toISOString().split("T")[0]);
   const [maxScore, setMaxScore] = useState(initial?.maxScore || 20);

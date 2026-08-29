@@ -105,7 +105,17 @@ const loadLoggedTeacherProfile = () => {
     }
 
     if (matched) {
-      const name = matched.name || matched.username || "Teacher";
+      let loggedTeacherObj = null;
+      try {
+        const raw = localStorage.getItem("gw_logged_teacher");
+        loggedTeacherObj = raw ? JSON.parse(raw) : null;
+      } catch (err) {
+        loggedTeacherObj = null;
+      }
+      const loginSubjects = Array.isArray(loggedTeacherObj?.subjects) && loggedTeacherObj.subjects.length
+        ? loggedTeacherObj.subjects
+        : [];
+      const name = matched.name || matched.username || loggedTeacherObj?.name || "Teacher";
       return {
         id: matched.id || "T1001",
         name: name,
@@ -114,7 +124,13 @@ const loadLoggedTeacherProfile = () => {
         phone: matched.contact || matched.phone || "+91 98765 43210",
         qualification: matched.qualification || "Faculty",
         experience: matched.experience || "Teaching Faculty",
-        subjects: Array.isArray(matched.subjects) ? matched.subjects : matched.subject ? [matched.subject] : ["Mathematics"],
+        subjects: loginSubjects.length
+          ? loginSubjects
+          : Array.isArray(matched.subjects)
+            ? matched.subjects
+            : matched.subject
+              ? [matched.subject]
+              : ["Mathematics"],
         batches: Array.isArray(matched.batches) ? matched.batches : [],
         joiningDate: matched.joiningDate || "—",
       };
