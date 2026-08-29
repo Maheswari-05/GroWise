@@ -699,6 +699,33 @@ const parseDbRow = (row) => {
   };
 };
 
+/* ── Filter assignments to only this teacher's ─────────────── */
+const buildTeacherMatcher = () => {
+  const loggedId = localStorage.getItem("gw_logged_teacher_id") || "";
+  let name = "";
+  let email = "";
+  try {
+    const raw = localStorage.getItem("gw_logged_teacher");
+    if (raw) {
+      const obj = JSON.parse(raw);
+      name = obj.name || "";
+      email = obj.email || "";
+    }
+  } catch (e) {}
+  const norm = (v) => String(v || "").trim().toLowerCase();
+  const ids = new Set([norm(loggedId)]);
+  const names = new Set([norm(name), norm(email)].filter(Boolean));
+
+  return (asgn) => {
+    if (!asgn) return false;
+    const rowId = norm(asgn.teacherId || asgn.teacher_id);
+    if (rowId && Array.from(ids).some((i) => i && i === rowId)) return true;
+    const rowTeacher = norm(asgn.teacher);
+    if (!rowTeacher) return false;
+    return Array.from(names).some((n) => n && (rowTeacher === n || rowTeacher.includes(n) || n.includes(rowTeacher)));
+  };
+};
+
 /* ══ Main Component ════════════════════════════════════════ */
 const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssignments, batches = [], students = [] }) => {
   const [localAssignments, setLocalAssignments] = useState([]);
@@ -718,8 +745,10 @@ const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssi
         .select("*")
         .order("created_at", { ascending: false });
       if (!error && data) {
-        setLocalAssignments(data.map(parseDbRow));
-        if (propSetAssignments) propSetAssignments(data.map(parseDbRow));
+        const isMine = buildTeacherMatcher();
+        const myAssignments = data.map(parseDbRow).filter(isMine);
+        setLocalAssignments(myAssignments);
+        if (propSetAssignments) propSetAssignments(myAssignments);
       }
     } catch (err) {
       console.error("Failed to load assignments:", err);
@@ -827,6 +856,8 @@ const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssi
         type: `assignment:${teacherName}`,
         message: `New Assignment: "${data.title}" (${data.subject}) — Due: ${data.dueDate || "TBD"}`,
         time: currentTime,
+        recipient_type: "student",
+        recipient: "all",
       }).catch(() => {});
 
     } else {
@@ -923,6 +954,8 @@ const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssi
             type: `graded:${sub.studentId}`,
             message: `Your assignment "${updated.title}" has been graded. Score: ${sub.score} / ${updated.maxMarks || 20}`,
             time: currentTime,
+            recipient_type: "student",
+            recipient: `student:${sub.studentId}`,
           }).catch(() => {});
         }
       }

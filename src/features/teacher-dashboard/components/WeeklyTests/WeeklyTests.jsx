@@ -8,6 +8,36 @@ import * as adminService from "../../../../services/adminService";
 import supabase from "../../../../lib/supabase";
 import "./WeeklyTests.css";
 
+// Filter weekly tests to only this teacher's own tests.
+const filterTestsByTeacher = (tests) => {
+  const loggedId = localStorage.getItem("gw_logged_teacher_id") || "";
+  let name = "";
+  let email = "";
+  try {
+    const raw = localStorage.getItem("gw_logged_teacher");
+    if (raw) {
+      const obj = JSON.parse(raw);
+      name = obj.name || "";
+      email = obj.email || "";
+    }
+  } catch (e) {}
+  const norm = (v) => String(v || "").trim().toLowerCase();
+  const ids = new Set([norm(loggedId)]);
+  const names = new Set([norm(name), norm(email)].filter(Boolean));
+
+  const list = Array.isArray(tests) ? tests : [];
+  if (names.size === 0 && ids.size === 0) return list;
+
+  return list.filter((t) => {
+    if (!t) return false;
+    const tId = norm(t.teacherId || t.teacher_id);
+    if (tId && Array.from(ids).some((i) => i && i === tId)) return true;
+    const tTeacher = norm(t.teacher);
+    if (!tTeacher) return false;
+    return Array.from(names).some((n) => n && (tTeacher === n || tTeacher.includes(n) || n.includes(tTeacher)));
+  });
+};
+
 /* ── Delete Confirmation Modal ─────────────────────────────────────── */
 const DeleteTestModal = ({ test, onClose, onConfirm }) => (
   <div className="wt-modal-overlay" onClick={onClose}>
@@ -275,23 +305,20 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
     const fetchLatest = async () => {
       try {
         const dbTests = await adminService.fetchWeeklyTests();
-        if (isMounted && Array.isArray(dbTests) && dbTests.length > 0) {
-          setWeeklyTests(dbTests);
+        const myTests = filterTestsByTeacher(dbTests);
+        if (isMounted && Array.isArray(myTests) && myTests.length > 0) {
+          setWeeklyTests(myTests);
         }
       } catch (e) {}
     };
     fetchLatest();
 
-    const channel = supabase
-      .channel("weekly-tests-component-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "weekly_tests" }, () => {
-        fetchLatest();
-      })
-      .subscribe();
-
+    // NOTE: realtime updates for 'weekly_tests' are handled by the parent
+    // TeacherDashboard subscription (pushed via setWeeklyTests). Removing this
+    // duplicate subscription avoids re-downloading the whole table (which holds
+    // large studentMarks JSON) on every change, inflating egress.
     return () => {
       isMounted = false;
-      supabase.removeChannel(channel);
     };
   }, [setWeeklyTests]);
 
@@ -333,9 +360,10 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
 
     try {
       const freshTests = await adminService.fetchWeeklyTests();
-      if (Array.isArray(freshTests)) {
-        setWeeklyTests(freshTests);
-        const freshTest = freshTests.find((t) => String(t.id) === String(test.id)) || test;
+      const myTests = filterTestsByTeacher(freshTests);
+      if (Array.isArray(myTests)) {
+        setWeeklyTests(myTests);
+        const freshTest = myTests.find((t) => String(t.id) === String(test.id)) || test;
         const initialMarks = {};
         const initialRemarks = {};
         const batchStudents = getBatchStudents(test.batchId);
@@ -455,6 +483,8 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
                   type: `test-result:${student.id}`,
                   message: notifMsg,
                   time: currentTime,
+                  recipient_type: "student",
+                  recipient: `student:${student.id}`,
                 }
               ];
               if (student.student_id && student.student_id !== student.id) {
@@ -462,6 +492,8 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
                   type: `test-result:${student.student_id}`,
                   message: notifMsg,
                   time: currentTime,
+                  recipient_type: "student",
+                  recipient: `student:${student.student_id}`,
                 });
               }
               await supabase.from("notifications").insert(notifsToInsert);
@@ -525,11 +557,15 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
             type: "weekly-test",
             message: `New Test Scheduled: ${testData.title} (${testData.subject})`,
             time: currentTime,
+            recipient_type: "student",
+            recipient: "all",
           },
           {
             type: "batch",
             message: `New Weekly Test "${testData.title}" (${testData.subject}) uploaded for ${testData.subject}.`,
             time: currentTime,
+            recipient_type: "student",
+            recipient: "all",
           }
         ]);
       } catch (err) {

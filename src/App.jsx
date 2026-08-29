@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import LandingPage from "./features/landing/LandingPage";
 import RoleSelector from "./features/auth/RoleSelector";
+import ForgotPassword from "./features/auth/ForgotPassword";
 import Login from "./features/student/Login";
 import ResetPassword from "./features/student/ResetPassword";
 import TeacherLogin from "./features/teacher/TeacherLogin";
@@ -70,8 +71,12 @@ function App() {
         setCurrentView("teacher-login");
       } else if (hashPath === "#/teacher-reset-password") {
         setCurrentView("teacher-reset-password");
+      } else if (hashPath === "#/teacher-forgot-password") {
+        setCurrentView("teacher-forgot-password");
       } else if (hashPath === "#/login") {
         setCurrentView("login");
+      } else if (hashPath === "#/forgot-password") {
+        setCurrentView("forgot-password");
       } else if (hashPath === "#/reset-password") {
         setCurrentView("reset-password");
       } else if (hashPath === "#/dashboard") {
@@ -105,8 +110,12 @@ function App() {
       window.location.hash = "/teacher";
     } else if (view === "teacher-reset-password") {
       window.location.hash = "/teacher-reset-password";
+    } else if (view === "teacher-forgot-password") {
+      window.location.hash = "/teacher-forgot-password";
     } else if (view === "login") {
       window.location.hash = "/login";
+    } else if (view === "forgot-password") {
+      window.location.hash = "/forgot-password";
     } else if (view === "reset-password") {
       window.location.hash = "/reset-password";
     } else if (view === "admin-dashboard") {
@@ -165,6 +174,10 @@ function App() {
     return <Login onNavigate={navigateTo} />;
   }
 
+  if (currentView === "forgot-password" || hashPath === "#/forgot-password") {
+    return <ForgotPassword role="student" onNavigate={navigateTo} />;
+  }
+
   if (currentView === "reset-password" || hashPath === "#/reset-password") {
     return <ResetPassword onNavigate={navigateTo} />;
   }
@@ -173,15 +186,29 @@ function App() {
     return <TeacherLogin onNavigate={navigateTo} />;
   }
 
+  if (currentView === "teacher-forgot-password" || hashPath === "#/teacher-forgot-password") {
+    return <ForgotPassword role="teacher" onNavigate={navigateTo} />;
+  }
+
   if (currentView === "teacher-reset-password" || hashPath === "#/teacher-reset-password") {
     return <TeacherResetPassword onNavigate={navigateTo} />;
   }
 
+  // Soft route guards: if a dashboard is opened directly without a session
+  // marker, send the user to the matching login instead of rendering an
+  // empty dashboard. Teacher/admin use localStorage markers; the student
+  // dashboard already guards itself against a missing Supabase session.
   if (hashPath === "#/admin-dashboard" || currentView === "admin-dashboard") {
+    if (!localStorage.getItem("gw_admin_logged")) {
+      return <AdminLogin onNavigate={navigateTo} />;
+    }
     return <AdminDashboard onNavigate={navigateTo} />;
   }
 
   if (hashPath === "#/teacher-dashboard" || currentView === "teacher-dashboard") {
+    if (!localStorage.getItem("gw_logged_teacher_id")) {
+      return <TeacherLogin onNavigate={navigateTo} />;
+    }
     return <TeacherDashboard onNavigate={navigateTo} />;
   }
 

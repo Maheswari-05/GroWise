@@ -11,23 +11,42 @@ const Notifications = ({ notifications, setNotifications, assignments, setAssign
     return true;
   });
 
+  // Persist read/deleted state per teacher (notifications are shared DB rows).
+  const notifKey = () => `gw_teacher_notifs_${localStorage.getItem("gw_logged_teacher_id") || "teacher"}`;
+
+  const persistNotifState = (readDelta = [], deletedDelta = []) => {
+    try {
+      let existing = {};
+      try { existing = JSON.parse(localStorage.getItem(notifKey()) || "{}"); } catch {}
+      const read = new Set(existing.read || []);
+      const deleted = new Set(existing.deleted || []);
+      readDelta.forEach((id) => read.add(String(id)));
+      deletedDelta.forEach((id) => deleted.add(String(id)));
+      localStorage.setItem(notifKey(), JSON.stringify({ read: Array.from(read), deleted: Array.from(deleted) }));
+    } catch (e) {}
+  };
+
   const handleMarkAsRead = (id) => {
+    persistNotifState([id], []);
     const updated = notifications.map((n) => (n.id === id ? { ...n, read: true } : n));
     setNotifications(updated);
   };
 
   const handleMarkAllRead = () => {
+    persistNotifState(notifications.map((n) => n.id), []);
     const updated = notifications.map((n) => ({ ...n, read: true }));
     setNotifications(updated);
   };
 
   const handleDelete = (id) => {
+    persistNotifState([], [id]);
     const updated = notifications.filter((n) => n.id !== id);
     setNotifications(updated);
   };
 
   const handleClearAll = () => {
     if (window.confirm("Are you sure you want to delete all notifications?")) {
+      persistNotifState([], notifications.map((n) => n.id));
       setNotifications([]);
     }
   };

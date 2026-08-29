@@ -1,11 +1,6 @@
 // Centralized database state fallbacks for the Teacher Dashboard
 
-export const initialBatches = [];
-export const initialStudents = [];
-export const initialWeeklyTests = [];
-export const initialOnlineClasses = [];
 export const initialAttendanceRecords = [];
-export const initialNotifications = [];
 
 export const initialTeacherProfile = {
   name: "Teacher",

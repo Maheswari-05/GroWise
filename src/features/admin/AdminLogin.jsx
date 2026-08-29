@@ -25,14 +25,8 @@ const AdminLogin = ({ onNavigate }) => {
     try {
       // Normalize email to lowercase for consistency
       const normalizedEmail = email.trim().toLowerCase();
-      
-      // Temporary: Allow demo admin for testing
-      if (normalizedEmail === "admin@growise.edu" && password.trim() === "Admin@123") {
-        onNavigate('admin-dashboard');
-        return;
-      }
 
-      // Or try Supabase auth
+      // Authenticate via Supabase auth
       console.log("🔐 Admin login attempt with email:", normalizedEmail);
       const { data, error } = await supabase.auth.signInWithPassword({ 
         email: normalizedEmail, 
@@ -56,7 +50,10 @@ const AdminLogin = ({ onNavigate }) => {
       } catch (profileErr) {
         console.warn("Could not create/fetch admin profile:", profileErr);
       }
-      
+
+      // Remember the admin session so the dashboard route can be soft-guarded.
+      localStorage.setItem("gw_admin_logged", "1");
+
       onNavigate('admin-dashboard');
     } catch (err) {
       setError(err.message || 'Login failed. Please try again.');

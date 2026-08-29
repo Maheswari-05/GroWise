@@ -366,11 +366,15 @@ const OnlineClasses = ({
             type: `online-class:${teacherName}`,
             message: notifMsg,
             time: currentTime,
+            recipient_type: "student",
+            recipient: "all",
           },
           {
             type: "class-reminder",
             message: notifMsg,
             time: currentTime,
+            recipient_type: "student",
+            recipient: "all",
           }
         ]);
 

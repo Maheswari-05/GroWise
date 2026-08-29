@@ -152,7 +152,9 @@ CREATE TABLE notifications (
   type TEXT,
   message TEXT,
   time TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
+  created_at TIMESTAMPTZ DEFAULT now(),
+  recipient_type TEXT DEFAULT 'all',  -- 'all' | 'student' | 'teacher' | 'admin'
+  recipient TEXT DEFAULT 'all'         -- 'all' | 'student:<id>' | 'teacher:<id>'
 );
 
 CREATE TABLE audit_logs (

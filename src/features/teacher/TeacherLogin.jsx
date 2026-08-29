@@ -26,39 +26,6 @@ const TeacherLogin = ({ onNavigate }) => {
       const normalizedEmail = email.trim().toLowerCase();
       console.log("🔐 Teacher login attempt with email:", normalizedEmail);
 
-      // Bypass login for teacher Rajesh if password is forgotten
-      if (normalizedEmail === "snehar20067@gmail.com") {
-        if (password.trim() === "Teacher@123") {
-          const { data: dbTeacher } = await supabase
-            .from("teachers")
-            .select("*")
-            .eq("email", "snehar20067@gmail.com")
-            .maybeSingle();
-
-          const demoTeacher = dbTeacher ? {
-            id: dbTeacher.id,
-            name: dbTeacher.name,
-            email: dbTeacher.email,
-            subjects: dbTeacher.subjects,
-            status: dbTeacher.status
-          } : {
-            id: "TCH607457",
-            name: "Rajesh",
-            email: "snehar20067@gmail.com",
-            subjects: ["Physics"],
-            status: "Active"
-          };
-          localStorage.setItem("gw_logged_teacher_id", demoTeacher.id);
-          localStorage.setItem("gw_logged_teacher", JSON.stringify(demoTeacher));
-          onNavigate("teacher-dashboard");
-          return;
-        } else {
-          setError("Invalid email or password. Please check and try again.");
-          setIsLoading(false);
-          return;
-        }
-      }
-
       // 1. Authenticate against Supabase Auth (this is where reset passwords live)
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
@@ -67,33 +34,6 @@ const TeacherLogin = ({ onNavigate }) => {
 
       if (authError) {
         console.error("❌ Teacher Supabase auth error:", authError.message);
-        // Fallback: also check demo hardcoded credentials
-        if (normalizedEmail === "rajesh@growise.edu" && password.trim() === "Teacher@123") {
-          const { data: dbTeacher } = await supabase
-            .from("teachers")
-            .select("*")
-            .or("email.ilike.%rajesh%,name.ilike.%rajesh%")
-            .limit(1)
-            .maybeSingle();
-
-          const demoTeacher = dbTeacher ? {
-            id: dbTeacher.id,
-            name: dbTeacher.name,
-            email: dbTeacher.email,
-            subjects: dbTeacher.subjects,
-            status: dbTeacher.status
-          } : {
-            id: "TCH101",
-            name: "Mr. Rajesh",
-            email: "rajesh@growise.edu",
-            subjects: ["Mathematics"],
-            status: "Active"
-          };
-          localStorage.setItem("gw_logged_teacher_id", demoTeacher.id);
-          localStorage.setItem("gw_logged_teacher", JSON.stringify(demoTeacher));
-          onNavigate("teacher-dashboard");
-          return;
-        }
         setError("Invalid email or password.");
         setIsLoading(false);
         return;
@@ -217,6 +157,16 @@ const TeacherLogin = ({ onNavigate }) => {
           <button type="submit" className="login-submit-btn" disabled={isLoading}>
             {isLoading ? "Signing in..." : "Login"}
           </button>
+
+          <div className="forgot-password-section">
+            <button
+              type="button"
+              className="forgot-password-link"
+              onClick={() => onNavigate("teacher-forgot-password")}
+            >
+              Forgot password?
+            </button>
+          </div>
         </form>
       </div>
     </div>

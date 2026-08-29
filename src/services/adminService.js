@@ -197,6 +197,41 @@ export async function uploadTestFile(file, path) {
 }
 
 /**
+ * Uploads a study material file (given as a base64 data-URL string) to the
+ * 'materials' Supabase Storage bucket. Returns the public URL or null on failure.
+ * @param {string} dataUrl - base64 data URL (e.g. 'data:application/pdf;base64,....')
+ * @param {string} path - Storage object path, e.g. 'materials/<uuid>.pdf'
+ * @returns {string|null}
+ */
+export async function uploadMaterialFile(dataUrl, path) {
+  try {
+    if (!dataUrl || typeof dataUrl !== "string" || !dataUrl.startsWith("data:")) {
+      return null;
+    }
+    const [meta, b64] = dataUrl.split(",");
+    const mimeMatch = meta ? meta.match(/:(.*?);/) : null;
+    const mime = mimeMatch ? mimeMatch[1] : "application/octet-stream";
+    const byteStr = atob(b64);
+    const bytes = new Uint8Array(byteStr.length);
+    for (let i = 0; i < byteStr.length; i++) bytes[i] = byteStr.charCodeAt(i);
+    const file = new Blob([bytes], { type: mime });
+
+    const { error: uploadError } = await supabase.storage
+      .from("materials")
+      .upload(path, file, { upsert: true, contentType: mime });
+    if (uploadError) {
+      console.error("uploadMaterialFile error:", uploadError);
+      return null;
+    }
+    const { data } = supabase.storage.from("materials").getPublicUrl(path);
+    return data?.publicUrl || null;
+  } catch (e) {
+    console.error("uploadMaterialFile exception:", e);
+    return null;
+  }
+}
+
+/**
  * Updates a weekly test record by ID (e.g. student_marks, status, test_pdf_url).
  * @param {string} id - Test ID
  * @param {object} updates - Partial camelCase object to merge
@@ -245,9 +280,15 @@ export async function updateWeeklyTest(id, updates) {
     if (updates.status !== undefined) row.status = updates.status;
     if (updates.maxScore !== undefined) row.total_marks = updates.maxScore;
 
-    await supabase.from('weekly_tests').update(row).eq('id', id);
+    const { error: updateError } = await supabase.from('weekly_tests').update(row).eq('id', id);
+    if (updateError) {
+      console.error('updateWeeklyTest DB error:', updateError);
+      return { ok: false, error: updateError };
+    }
+    return { ok: true };
   } catch (e) {
     console.error('updateWeeklyTest exception:', e);
+    return { ok: false, error: e };
   }
 }
 
@@ -694,7 +735,8 @@ export async function fetchNotifications() {
     const { data, error } = await supabase
       .from('notifications')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(200);
     if (error) { console.error('fetchNotifications error:', error); return []; }
     return (data || []).map(toCamelCase);
   } catch (e) {
@@ -708,7 +750,8 @@ export async function fetchAuditLogs() {
     const { data, error } = await supabase
       .from('audit_logs')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(200);
     if (error) { console.error('fetchAuditLogs error:', error); return []; }
     return (data || []).map(toCamelCase);
   } catch (e) {

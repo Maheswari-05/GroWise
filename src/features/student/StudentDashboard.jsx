@@ -53,10 +53,81 @@ import AttendanceView from "./components/AttendanceView";
 import JitsiClassroom from "../../components/JitsiClassroom/JitsiClassroom";
 import "./StudentDashboard.css";
 
+// Parse a class "date" (YYYY-MM-DD) + "time" string ("09:00 AM - 10:00 AM")
+// into a `Date` for the start and end of the class. Returns null if unparseable.
+const parseClassStartEnd = (cls, now) => {
+  if (!cls) return null;
+  const dateStr = cls.date;
+  const timeStr = cls.time || "";
+  if (!dateStr) return null;
+
+  // First segment = start time, second = end time (if present).
+  const segments = timeStr.split("-").map((s) => s.trim());
+  const startTxt = segments[0] || "";
+  const endTxt = segments[1] || "";
+
+  const toMinutes = (txt) => {
+    const m = String(txt).match(/(\d{1,2}):(\d{1,2})\s*(AM|PM|am|pm)?/i);
+    if (!m) return null;
+    let h = parseInt(m[1], 10);
+    const min = parseInt(m[2], 10);
+    const ap = (m[3] || "").toUpperCase();
+    if (ap === "PM" && h < 12) h += 12;
+    if (ap === "AM" && h === 12) h = 0;
+    return h * 60 + min;
+  };
+
+  const startMin = toMinutes(startTxt);
+  if (startMin == null) return null;
+  const endMin = toMinutes(endTxt);
+
+  const ymd = String(dateStr).split("T")[0] || dateStr;
+  const [y, mo, d] = ymd.split("-").map(Number);
+  if (!y || !mo || !d) return null;
+
+  const start = new Date(y, mo - 1, d, 0, 0, 0);
+  start.setMinutes(startMin);
+
+  let end = null;
+  if (endMin != null) {
+    end = new Date(y, mo - 1, d, 0, 0, 0);
+    end.setMinutes(endMin);
+    if (end <= start) end.setDate(end.getDate() + 1); // overnight class
+  }
+
+  return { start, end };
+};
+
+// A student can join a class only once it's within 10 minutes of the scheduled
+// start time (and while it is still live/running). Returns false otherwise.
+const canJoinClass = (cls, now = new Date()) => {
+  if (!cls) return false;
+  const status = (cls.status || "").toLowerCase();
+
+  // Explicitly completed classes can never be joined.
+  if (status === "completed" || status === "ended") return false;
+
+  // Live classes are always joinable.
+  if (status === "live" || status === "live now") return true;
+
+  const parsed = parseClassStartEnd(cls, now);
+  if (!parsed) {
+    // Fallback: allow joining upcoming classes only if we could not parse a time.
+    return status === "upcoming";
+  }
+
+  const nowMs = now.getTime();
+  const windowOpenMs = parsed.start.getTime() - 10 * 60 * 1000; // 10 min before
+  const endMs = parsed.end ? parsed.end.getTime() : parsed.start.getTime() + (60 * 60 * 1000);
+
+  // Join enabled from 10 minutes before start until the class ends.
+  return nowMs >= windowOpenMs && nowMs < endMs;
+};
+
 const StudentDashboard = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [unreadNotifications, setUnreadNotifications] = useState(true);
+  const [unreadNotifications, setUnreadNotifications] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(null);
 
   const [studentProfile, setStudentProfile] = useState(null);
@@ -380,26 +451,36 @@ const StudentDashboard = ({ onNavigate }) => {
         const studentSubjects = (studentProfile?.subjects || []).map((s) => String(s).toLowerCase().trim());
         const sId = String(studentProfile?.id || "");
         const sId2 = String(studentProfile?.student_id || "");
+        const assignedTeachers = (studentProfile?.assignedTeachers || []).map(t =>
+          String(t).toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim()
+        );
 
         const myTests = allCombinedTests.filter((t) => {
           if (!t) return false;
           const tBatchId = String(t.batchId || t.batch_id || t.batch || "").trim().toLowerCase();
           const tSub = String(t.subject || "").trim().toLowerCase();
+          const tTeacher = String(t.teacher || "").toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim();
           const allMarks = t.studentMarks || t.student_marks || {};
 
           // If student has explicit marks/submission
           if ((sId && allMarks[sId]) || (sId2 && allMarks[sId2]) || allMarks[studentProfile?.name]) return true;
 
-          // If test is for all batches or matches student's batch
-          if (tBatchId === "all" || !tBatchId) return true;
+          // If test is for all batches
+          if (tBatchId === "all") return true;
+
+          // Batch match
           if (studentBatchId && (tBatchId === studentBatchId || tBatchId === studentBatchName || studentBatchId.includes(tBatchId) || tBatchId.includes(studentBatchId))) return true;
           if (studentBatchName && (tBatchId === studentBatchName || tBatchId === studentBatchId || studentBatchName.includes(tBatchId) || tBatchId.includes(studentBatchName))) return true;
 
-          // If test subject matches
-          if (tSub && (studentSubjects.length === 0 || studentSubjects.some((sub) => sub === tSub || tSub.includes(sub) || sub.includes(tSub)))) return true;
+          // Subject match
+          if (tSub && studentSubjects.length > 0 && studentSubjects.some((sub) => sub && (tSub === sub || tSub.includes(sub) || sub.includes(tSub)))) return true;
 
-          // Always show test rather than hiding it
-          return true;
+          // Teacher match
+          if (tTeacher && assignedTeachers.some((at) => at && (tTeacher === at || tTeacher.includes(at) || at.includes(tTeacher)))) return true;
+
+          // Safe fallback: show only when the student has no identifying info.
+          if (!studentBatchId && !studentBatchName && studentSubjects.length === 0 && assignedTeachers.length === 0) return true;
+          return false;
         });
 
         if (active) {
@@ -528,6 +609,8 @@ const StudentDashboard = ({ onNavigate }) => {
           type: `test-submission:${rawTeacher}:${test.id}:${studentProfile.id}`,
           message: `${studentProfile.name} submitted test paper '${test.title}' (${test.subject})`,
           time: currentTime,
+          recipient_type: "teacher",
+          recipient: "all",
         });
       } catch (nErr) {
         console.error("Failed to insert test submission notification:", nErr);
@@ -538,6 +621,8 @@ const StudentDashboard = ({ onNavigate }) => {
           type: `test-submitted:${studentProfile.id}`,
           message: `You successfully submitted your answer sheet for "${test.title}" (${test.subject}). Your teacher will grade it soon.`,
           time: currentTime,
+          recipient_type: "student",
+          recipient: `student:${studentProfile.id}`,
         });
       } catch (nErr) {
         console.error("Failed to insert student self-notification:", nErr);
@@ -575,6 +660,12 @@ const StudentDashboard = ({ onNavigate }) => {
   const [onlineClassSubject, setOnlineClassSubject] = useState("All Subjects");
   const [onlineClassStatus, setOnlineClassStatus] = useState("All Status");
   const [onlineClasses, setOnlineClasses] = useState([]);
+  // Ticking clock so the Join button enables/disables at the right time.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(t);
+  }, []);
   const [activeStudentLiveCall, setActiveStudentLiveCall] = useState(null);
   const [studentMic, setStudentMic] = useState(true);
   const [studentVideo, setStudentVideo] = useState(true);
@@ -756,25 +847,28 @@ const StudentDashboard = ({ onNavigate }) => {
             }
           }
 
-          // 4. Subject or Teacher match
-          if (classSubject && studentSubjs.length > 0 && studentSubjs.includes(classSubject)) {
+          // 4. Subject match (substring aware so "Web Development" matches "Web Dev")
+          if (classSubject && studentSubjs.length > 0) {
+            if (studentSubjs.some((sub) => sub && (classSubject === sub || classSubject.includes(sub) || sub.includes(classSubject)))) {
+              return true;
+            }
+          }
+
+          // 5. Teacher match
+          if (classTeacher && studentTeacher && (classTeacher === studentTeacher || classTeacher.includes(studentTeacher) || studentTeacher.includes(classTeacher))) {
             return true;
           }
 
-          if (classTeacher && studentTeacher && (classTeacher === studentTeacher || classTeacher.includes(studentTeacher))) {
-            return true;
-          }
-
-          // 5. Allow general or unassigned classes
+          // 6. Allow general / unassigned classes
           if (!classBatchId || classBatchId === "all" || classBatchId === "general") {
             return true;
           }
 
-          return true; // default fallback so no scheduled class is hidden from enrolled students
+          return false; // student only sees classes relevant to their batch/subject/teacher
         });
 
         if (active) {
-          setOnlineClasses(myClasses.length > 0 ? myClasses : uniqueClasses);
+          setOnlineClasses(myClasses);
         }
       } catch (err) {
         console.warn("Could not fetch student online classes:", err);
@@ -941,6 +1035,84 @@ const StudentDashboard = ({ onNavigate }) => {
 
   const [assignments, setAssignments] = useState([]);
 
+  // Rebuild the Performance tab from real assignment & weekly-test data instead
+  // of hardcoded demo values. Keeps the hardcoded defaults as a fallback until
+  // the student actually has graded items.
+  useEffect(() => {
+    if (!Array.isArray(assignments) && !Array.isArray(weeklyTests)) return;
+
+    const profile = studentProfile;
+    const idKeys = [profile?.id, profile?.student_id, profile?.name, profile?.email]
+      .filter(Boolean).map((x) => String(x).toLowerCase().trim());
+    const findMyMark = (t) => {
+      const marks = t?.studentMarks || t?.student_marks || {};
+      for (const k of Object.keys(marks)) {
+        if (idKeys.includes(String(k).toLowerCase().trim())) return marks[k];
+      }
+      return null;
+    };
+    const gradeOf = (pct) => (pct >= 85 ? "A" : pct >= 70 ? "B" : pct >= 55 ? "C" : pct >= 1 ? "D" : "—");
+    const DEFAULT_TOPICS = {
+      "Mathematics": ["Algebraic Equations", "Calculus & Functions", "Matrices & Determinants", "Complex Numbers"],
+      "Physics": ["Newtonian Mechanics", "Electrostatics", "Thermal Dynamics", "Wave Optics"],
+      "Chemistry": ["Chemical Bonding", "Thermodynamics", "Organic Chemistry"],
+    };
+
+    const agg = {};
+    const ensure = (subject) => (agg[subject] || (agg[subject] = { subject, tests: [], assignments: [], pctSum: 0, count: 0 }));
+
+    (weeklyTests || []).forEach((t) => {
+      const subject = t.subject || "General";
+      const mark = findMyMark(t);
+      const entry = ensure(subject);
+      if (mark && mark.score !== undefined && mark.score !== null) {
+        const max = Number(t.maxScore || t.max_score || 20) || 20;
+        const pct = Math.round((Number(mark.score) / max) * 100);
+        entry.tests.push({ name: t.title || "Untitled Test", score: `${mark.score} / ${max} (${pct}%)`, status: pct >= 50 ? "Passed" : "Failed", badgeClass: pct >= 50 ? "passed" : "failed" });
+        entry.pctSum += pct; entry.count += 1;
+      } else {
+        entry.tests.push({ name: t.title || "Untitled Test", score: "Result Pending", status: "Result Pending", badgeClass: "pending" });
+      }
+    });
+
+    (assignments || []).forEach((a) => {
+      const subject = a.subject || "General";
+      const entry = ensure(subject);
+      const status = a.status || "Pending";
+      let scoreText = "—";
+      let badge = "pending";
+      if (status === "Evaluated") {
+        const m = parseFloat(String(a.score || "").split("/")[0]);
+        if (!Number.isNaN(m)) {
+          scoreText = a.score; badge = "evaluated";
+          entry.pctSum += (m / 20) * 100; entry.count += 1;
+        }
+      } else if (status === "Submitted") {
+        scoreText = "Submitted"; badge = "submitted";
+      } else if (status === "Overdue") {
+        badge = "overdue";
+      }
+      entry.assignments.push({ name: a.title || "Untitled Assignment", score: scoreText, status, badgeClass: badge });
+    });
+
+    const built = Object.values(agg).map((entry) => {
+      const avgPct = entry.count > 0 ? Math.round(entry.pctSum / entry.count) : 0;
+      const hasItems = entry.tests.length + entry.assignments.length > 0;
+      const topics = DEFAULT_TOPICS[entry.subject]
+        || Array.from(new Set([...entry.assignments.map((x) => x.name), ...entry.tests.map((x) => x.name)])).slice(0, 4);
+      return {
+        subject: entry.subject,
+        progress: hasItems ? Math.min(100, Math.max(0, avgPct)) : 0,
+        grade: gradeOf(avgPct),
+        topicsCovered: topics.length ? topics : ["Get started with your first test or assignment"],
+        tests: entry.tests.length ? entry.tests : [{ name: "No tests yet", score: "—", status: "Not Started", badgeClass: "pending" }],
+        assignments: entry.assignments.length ? entry.assignments : [{ name: "No assignments yet", score: "—", status: "Not Started", badgeClass: "pending" }],
+      };
+    });
+
+    if (built.length) setPerformanceData(built);
+  }, [assignments, weeklyTests, studentProfile]);
+
   const [submitModalAsgn, setSubmitModalAsgn] = useState(null);
   const [submitNotes, setSubmitNotes] = useState("");
   const [studentFileName, setStudentFileName] = useState("");
@@ -976,8 +1148,18 @@ const StudentDashboard = ({ onNavigate }) => {
         const parsed = data
           .filter(row => {
             if (!row) return false;
-            const rowBatch   = String(row.batch_id || row.batch || "").trim().toLowerCase();
-            const rowSubject = String(row.subject  || "").trim().toLowerCase();
+            let parsedDesc = {};
+            try {
+              if (row.description && typeof row.description === "string" && row.description.startsWith("{")) {
+                parsedDesc = JSON.parse(row.description);
+              }
+            } catch (e) {}
+            const rowBatch   = String(row.batch_id || row.batch || parsedDesc.batch || "").trim().toLowerCase();
+            const rowSubject = String(row.subject || "").trim().toLowerCase();
+            const rowTeacher = String(parsedDesc.teacher || row.teacher || "").trim().toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "");
+            const assignedTeachers = (profile?.assignedTeachers || []).map(t =>
+              String(t).toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim()
+            );
 
             // Global / all batches → show to everyone
             if (!rowBatch || rowBatch === "all" || rowBatch === "all batches") return true;
@@ -985,9 +1167,12 @@ const StudentDashboard = ({ onNavigate }) => {
             if (studentBatch     && (rowBatch === studentBatch     || rowBatch.includes(studentBatch)     || studentBatch.includes(rowBatch)))     return true;
             if (studentBatchName && (rowBatch === studentBatchName || rowBatch.includes(studentBatchName) || studentBatchName.includes(rowBatch))) return true;
             // Subject match
-            if (rowSubject && (studentSubjects.length === 0 || studentSubjects.some(s => rowSubject === s || rowSubject.includes(s) || s.includes(rowSubject)))) return true;
-            // Fallback: show
-            return true;
+            if (rowSubject && studentSubjects.length > 0 && studentSubjects.some(s => rowSubject === s || rowSubject.includes(s) || s.includes(rowSubject))) return true;
+            // Teacher match
+            if (rowTeacher && assignedTeachers.some(t => t && (rowTeacher === t || rowTeacher.includes(t) || t.includes(rowTeacher)))) return true;
+            // Fallback: hide unless student has no identifying info
+            if (!studentBatch && !studentBatchName && studentSubjects.length === 0 && assignedTeachers.length === 0) return true;
+            return false;
           })
           .map(row => {
             let parsedDesc = {};
@@ -1064,6 +1249,32 @@ const StudentDashboard = ({ onNavigate }) => {
       const sId = studentProfile?.id || studentProfile?.student_id || "s1";
       const sName = studentProfile?.name || "Student";
 
+      // Upload the submission file to storage so raw base64 is never stored in
+      // the row's JSON (base64 in JSON balloons the row and can hit size limits).
+      let attachmentUrl = studentFileUrl;
+      if (attachmentUrl && typeof attachmentUrl === "string" && attachmentUrl.startsWith("data:")) {
+        try {
+          const [meta, b64] = attachmentUrl.split(",");
+          const mimeMatch = meta ? meta.match(/:(.*?);/) : null;
+          const mime = mimeMatch ? mimeMatch[1] : "application/octet-stream";
+          const byteStr = atob(b64);
+          const bytes = new Uint8Array(byteStr.length);
+          for (let i = 0; i < byteStr.length; i++) bytes[i] = byteStr.charCodeAt(i);
+          const blob = new Blob([bytes], { type: mime });
+          const safeName = (studentFileName || "submission").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 60);
+          const path = `submissions/${submitModalAsgn.id}_${sId}_${Date.now()}_${safeName}`;
+          const { error: uploadError } = await supabase.storage
+            .from("weekly-tests")
+            .upload(path, blob, { upsert: true, contentType: mime });
+          if (!uploadError) {
+            const { data: urlData } = supabase.storage.from("weekly-tests").getPublicUrl(path);
+            if (urlData?.publicUrl) attachmentUrl = urlData.publicUrl;
+          }
+        } catch (storageErr) {
+          console.warn("Assignment submission storage upload failed; using data URL:", storageErr);
+        }
+      }
+
       const newSubmissionEntry = {
         studentId: sId,
         name: sName,
@@ -1074,7 +1285,7 @@ const StudentDashboard = ({ onNavigate }) => {
         status: "submitted",
         description: submitNotes,
         attachmentName: studentFileName,
-        attachmentUrl: studentFileUrl
+        attachmentUrl
       };
 
       const prevSubs = submitModalAsgn.rawSubmissions || [];
@@ -1116,10 +1327,17 @@ const StudentDashboard = ({ onNavigate }) => {
         })
       };
 
-      await supabase
+      const { error: updateError } = await supabase
         .from("assignments")
         .update(payload)
         .eq("id", submitModalAsgn.id);
+
+      // Never report success when the DB write actually failed.
+      if (updateError) {
+        console.error("Assignment submission update error:", updateError);
+        showToast("Failed to submit assignment. Please try again.", "error");
+        return;
+      }
 
       // Create notification for the teacher
       const rawTeacher = (studentProfile?.assignedTeachers?.[0] || "Mr. Rajesh")
@@ -1138,6 +1356,8 @@ const StudentDashboard = ({ onNavigate }) => {
           type: `submission:${rawTeacher}:${submitModalAsgn.id}:${sId}`,
           message: `${sName} submitted assignment '${submitModalAsgn.title}' (${submitModalAsgn.subject})`,
           time: currentTime,
+          recipient_type: "teacher",
+          recipient: "all",
         });
       } catch (nErr) {
         console.error("Failed to insert student submission notification:", nErr);
@@ -1250,9 +1470,15 @@ const StudentDashboard = ({ onNavigate }) => {
         const { data, error } = await supabase
           .from("notifications")
           .select("*")
-          .order("id", { ascending: false });
+          .order("id", { ascending: false })
+          .limit(100);
 
         if (!error && data && active) {
+          // Persisted set of notification ids this student has already read.
+          const readKey = `gw_student_read_notifs_${studentProfile?.id || studentProfile?.email || "me"}`;
+          let readSet = new Set();
+          try { readSet = new Set(JSON.parse(localStorage.getItem(readKey) || "[]")); } catch {}
+
           const dbNotifs = data.map((n) => {
             const rawType = n.type || "study-material";
             const uiType = rawType.includes(":") ? rawType.split(":")[0] : rawType;
@@ -1264,14 +1490,39 @@ const StudentDashboard = ({ onNavigate }) => {
               time: n.time || "Just Now",
               group: "TODAY",
               detail: "",
-              unread: true
+              recipientType: n.recipient_type || null,
+              recipient: n.recipient || "all",
+              unread: !readSet.has(String(n.id + 100))
             };
           });
 
           const studentSubjects = studentProfile?.subjects || [];
-          const assignedTeachers = studentProfile?.assignedTeachers || [];
+
+          // A notification is "mine" if its recipient targeting (if present)
+          // matches this student, OR (for legacy rows without targeting) the
+          // message's subject matches one of the student's subjects.
+          const targetedForMe = (notif) => {
+            const rtype = notif.recipientType;
+            const recipient = notif.recipient || "all";
+            if (!rtype || rtype === "all") return null; // legacy / global → heuristics
+            if (rtype === "teacher" || rtype === "admin") return false;
+            if (rtype === "student") {
+              if (recipient === "all") return true;
+              const id = recipient.split(":")[1] || "";
+              return (
+                String(id) === String(studentProfile.id) ||
+                String(id) === String(studentProfile.student_id)
+              );
+            }
+            return null;
+          };
 
           const filteredDbNotifs = dbNotifs.filter((notif) => {
+            // 1) Prefer explicit recipient targeting when the row has it.
+            const targeted = targetedForMe(notif);
+            if (targeted !== null) return targeted;
+
+            // 2) Legacy rows (no recipient column value) — heuristic filter.
             // Block teacher-side submission notifications
             if (notif.rawType && notif.rawType.startsWith("submission:")) {
               return false;
@@ -1363,45 +1614,65 @@ const StudentDashboard = ({ onNavigate }) => {
         if (payload.new && active) {
           const studentSubjects = studentProfile?.subjects || [];
           const rawType = payload.new.type || "study-material";
+          const recipientType = payload.new.recipient_type || null;
+          const recipient = payload.new.recipient || "all";
 
-          if (rawType.startsWith("submission:")) return;
-          if (rawType.startsWith("test-submission:")) return;
-
-          let isNotificationForMe = false;
-
-          if (rawType.startsWith("test-submitted:")) {
-            const notifStudentId = rawType.split(":")[1];
-            isNotificationForMe =
-              String(notifStudentId) === String(studentProfile.id) ||
-              String(notifStudentId) === String(studentProfile.student_id);
-          } else if (rawType.startsWith("graded:") || rawType.startsWith("test-result:")) {
-            const notifStudentId = rawType.split(":")[1];
-            isNotificationForMe =
-              String(notifStudentId) === String(studentProfile.id) ||
-              String(notifStudentId) === String(studentProfile.student_id);
-          } else if (rawType === "weekly-test" || rawType.startsWith("weekly-test") || rawType === "batch") {
-            const match = payload.new.message?.match(/\(([^)]+)\)/);
-            if (match && studentSubjects.length > 0) {
-              const notifSubject = match[1].toLowerCase().trim();
-              isNotificationForMe = studentSubjects.some((sub) => {
-                if (!sub) return false;
-                const s = sub.toLowerCase().trim();
-                return s === notifSubject || notifSubject.includes(s) || s.includes(notifSubject);
-              });
-            } else {
+          // Prefer explicit recipient targeting when the row has it.
+          let isNotificationForMe = null;
+          if (recipientType && recipientType !== "all") {
+            if (recipientType === "teacher" || recipientType === "admin") {
               isNotificationForMe = false;
+            } else if (recipientType === "student") {
+              if (recipient === "all") {
+                isNotificationForMe = true;
+              } else {
+                const id = recipient.split(":")[1] || "";
+                isNotificationForMe =
+                  String(id) === String(studentProfile.id) ||
+                  String(id) === String(studentProfile.student_id);
+              }
             }
-          } else {
-            const match = payload.new.message?.match(/\(([^)]+)\)/);
-            if (match && studentSubjects.length > 0) {
-              const notifSubject = match[1].toLowerCase().trim();
-              isNotificationForMe = studentSubjects.some((sub) => {
-                if (!sub) return false;
-                const s = sub.toLowerCase().trim();
-                return s === notifSubject || notifSubject.includes(s) || s.includes(notifSubject);
-              });
+          }
+
+          // Legacy rows (no targeting) — heuristic fallback.
+          if (isNotificationForMe === null) {
+            if (rawType.startsWith("submission:")) return;
+            if (rawType.startsWith("test-submission:")) return;
+
+            if (rawType.startsWith("test-submitted:")) {
+              const notifStudentId = rawType.split(":")[1];
+              isNotificationForMe =
+                String(notifStudentId) === String(studentProfile.id) ||
+                String(notifStudentId) === String(studentProfile.student_id);
+            } else if (rawType.startsWith("graded:") || rawType.startsWith("test-result:")) {
+              const notifStudentId = rawType.split(":")[1];
+              isNotificationForMe =
+                String(notifStudentId) === String(studentProfile.id) ||
+                String(notifStudentId) === String(studentProfile.student_id);
+            } else if (rawType === "weekly-test" || rawType.startsWith("weekly-test") || rawType === "batch") {
+              const match = payload.new.message?.match(/\(([^)]+)\)/);
+              if (match && studentSubjects.length > 0) {
+                const notifSubject = match[1].toLowerCase().trim();
+                isNotificationForMe = studentSubjects.some((sub) => {
+                  if (!sub) return false;
+                  const s = sub.toLowerCase().trim();
+                  return s === notifSubject || notifSubject.includes(s) || s.includes(notifSubject);
+                });
+              } else {
+                isNotificationForMe = false;
+              }
             } else {
-              isNotificationForMe = false;
+              const match = payload.new.message?.match(/\(([^)]+)\)/);
+              if (match && studentSubjects.length > 0) {
+                const notifSubject = match[1].toLowerCase().trim();
+                isNotificationForMe = studentSubjects.some((sub) => {
+                  if (!sub) return false;
+                  const s = sub.toLowerCase().trim();
+                  return s === notifSubject || notifSubject.includes(s) || s.includes(notifSubject);
+                });
+              } else {
+                isNotificationForMe = false;
+              }
             }
           }
 
@@ -1414,6 +1685,8 @@ const StudentDashboard = ({ onNavigate }) => {
               time: payload.new.time || "Just Now",
               group: "TODAY",
               detail: "",
+              recipientType,
+              recipient,
               unread: true
             };
             setNotificationsList((prev) => [newNotif, ...prev]);
@@ -1427,6 +1700,12 @@ const StudentDashboard = ({ onNavigate }) => {
       supabase.removeChannel(channel);
     };
   }, [studentProfile]);
+
+  // Keep the bell badge in sync with the notifications list (persisted read state).
+  useEffect(() => {
+    const anyUnread = notificationsList.some((n) => n.unread);
+    setUnreadNotifications(anyUnread);
+  }, [notificationsList]);
 
   const [allMaterialsList, setAllMaterialsList] = useState(() => {
     try {
@@ -1545,6 +1824,23 @@ const StudentDashboard = ({ onNavigate }) => {
   const materialsList = useMemo(() => {
     let list = [...allMaterialsList];
 
+    // Base rule: a student only sees materials for their enrolled subjects.
+    // Matches by subject string (case-insensitive). If the student has no
+    // enrolled subjects on record, keep everything to avoid hiding content.
+    const studentSubjects = (studentProfile?.subjects || [])
+      .map((s) => String(s).toLowerCase().trim())
+      .filter(Boolean);
+    if (studentSubjects.length > 0) {
+      list = list.filter((m) => {
+        if (!m) return false;
+        const mSubject = String(m.subject || "").toLowerCase().trim();
+        if (!mSubject) return true;
+        return studentSubjects.some((sub) =>
+          mSubject === sub || mSubject.includes(sub) || sub.includes(mSubject)
+        );
+      });
+    }
+
     // Filter by Scope (My Batch vs All)
     if (studyMaterialScope === "My Batch" && studentProfile) {
       const studentBatch = String(studentProfile?.batchId || studentProfile?.batch_id || studentProfile?.batch || "").trim().toLowerCase();
@@ -1595,21 +1891,24 @@ const StudentDashboard = ({ onNavigate }) => {
     setTimeout(() => {
       setDownloadProgress(null);
       try {
-        // Construct file download from base64 if url exists
-        if (material.fileUrl && material.fileUrl.startsWith("data:")) {
+        const fileName = material.fileName || material.title || "study_material.pdf";
+        // Real URL (storage link) or base64 — download the actual file.
+        if (material.fileUrl && (material.fileUrl.startsWith("http") || material.fileUrl.startsWith("data:"))) {
           const link = document.createElement("a");
           link.href = material.fileUrl;
-          link.download = material.fileName || "study_material.pdf";
+          link.download = fileName;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
         } else {
-          // Fallback to text blob
-          const blob = new Blob([`Study Material: ${material.title}\nDescription: ${material.description}\nSubject: ${material.subject}`], { type: "application/pdf" });
+          // No usable file URL — fallback to an informational text note.
+          const blob = new Blob([`Study Material: ${material.title}\nDescription: ${material.description}\nSubject: ${material.subject}`], { type: "text/plain;charset=utf-8" });
           const url = URL.createObjectURL(blob);
           const link = document.createElement("a");
           link.href = url;
-          link.download = `${material.fileName || material.title || "material"}.pdf`;
+          link.download = `${fileName}.txt`;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
@@ -1630,12 +1929,27 @@ const StudentDashboard = ({ onNavigate }) => {
   });
 
   const handleMarkAllRead = () => {
+    const readKey = `gw_student_read_notifs_${studentProfile?.id || studentProfile?.email || "me"}`;
+    try {
+      const ids = notificationsList.map((n) => String(n.id));
+      localStorage.setItem(readKey, JSON.stringify(ids));
+    } catch {}
     setNotificationsList((prev) => prev.map((n) => ({ ...n, unread: false })));
     setUnreadNotifications(false);
   };
 
   const handleNotificationClick = (notif) => {
     if (!notif) return;
+    // Mark this notification as read and persist so it stays read after reload.
+    if (notif.unread) {
+      const readKey = `gw_student_read_notifs_${studentProfile?.id || studentProfile?.email || "me"}`;
+      try {
+        const readSet = new Set(JSON.parse(localStorage.getItem(readKey) || "[]"));
+        readSet.add(String(notif.id));
+        localStorage.setItem(readKey, JSON.stringify(Array.from(readSet)));
+      } catch {}
+      setNotificationsList((prev) => prev.map((n) => (n.id === notif.id ? { ...n, unread: false } : n)));
+    }
     const raw = (notif.rawType || notif.type || "").toLowerCase();
     const title = (notif.title || "").toLowerCase();
 
@@ -1865,9 +2179,15 @@ const StudentDashboard = ({ onNavigate }) => {
                         <p>{nextClass ? `${nextClass.subject || "Lecture"} · ${nextClass.date || "Today"} ${nextClass.time || ""}` : "Your teacher will schedule upcoming live classes soon."}</p>
                       </div>
                       {nextClass ? (
-                        <button className="join-class-btn" onClick={() => handleJoinClass(nextClass)}>
-                          Join Class
-                        </button>
+                        canJoinClass(nextClass, now) ? (
+                          <button className="join-class-btn" onClick={() => handleJoinClass(nextClass)}>
+                            {isLiveNow ? "Join Now" : "Join Class"}
+                          </button>
+                        ) : (
+                          <button className="join-class-btn" disabled style={{ opacity: 0.6, cursor: "not-allowed" }}>
+                            Join button opens 10 min before start
+                          </button>
+                        )
                       ) : (
                         <button className="join-class-btn" disabled style={{ opacity: 0.6, cursor: "not-allowed" }}>
                           No Class Scheduled
@@ -2544,14 +2864,8 @@ const StudentDashboard = ({ onNavigate }) => {
                       if (found) studentMark = found[1];
                     }
 
-                    // If studentMark has no score yet, look for any matching record with score in allMarks
-                    if (!studentMark || studentMark.score === undefined || studentMark.score === null) {
-                      const anyWithScore = Object.values(allMarks).find((m) => m && m.score !== undefined && m.score !== null);
-                      if (anyWithScore) {
-                        studentMark = { ...(studentMark || {}), ...anyWithScore };
-                      }
-                    }
-
+                    // If studentMark has no score yet, show it as pending (do NOT
+                    // borrow another student's marks — that leaks private data).
                     const score = studentMark?.score !== undefined && studentMark?.score !== null ? Number(studentMark.score) : null;
                     const remarks = studentMark?.remarks || "";
                     const submissionUrl = studentMark?.submissionUrl || testSubmissions[test.id]?.url;
@@ -2860,9 +3174,15 @@ const StudentDashboard = ({ onNavigate }) => {
                           </div>
                           <div className="class-actions">
                             {(isLive || isUpcoming) && (
-                              <button className="join-class-btn active" onClick={() => handleJoinClass(cls)}>
-                                <Play size={16} className="btn-icon" /> Join Class
-                              </button>
+                              canJoinClass(cls, now) ? (
+                                <button className="join-class-btn active" onClick={() => handleJoinClass(cls)}>
+                                  <Play size={16} className="btn-icon" /> {isLive ? "Join Now" : "Join Class"}
+                                </button>
+                              ) : (
+                                <button className="join-class-btn" disabled style={{ opacity: 0.6, cursor: "not-allowed" }}>
+                                  Available 10 min before start
+                                </button>
+                              )
                             )}
                           </div>
                         </div>

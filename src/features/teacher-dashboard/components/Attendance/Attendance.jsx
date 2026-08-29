@@ -149,7 +149,7 @@ const Attendance = ({ attendanceRecords, setAttendanceRecords, students, batches
   }, [selectedBatch, selectedSubject, selectedDate, existingRecord, students]);
 
 
-  const handleSaveAttendance = () => {
+  const handleSaveAttendance = async () => {
     const batchStudents = students.filter((s) => s.batchId === selectedBatch);
     const savedRecord = {
       id: existingRecord ? existingRecord.id : "a" + (attendanceRecords.length + 1),
@@ -171,7 +171,53 @@ const Attendance = ({ attendanceRecords, setAttendanceRecords, students, batches
 
     setAttendanceRecords(updatedRecords);
     setIsEditing(false);
-    alert("Attendance sheet saved successfully!");
+
+    // Persist to the database (one row per student) so the sheet survives reloads.
+    const teacherId = teacherProfile?.id || teacherProfile?.email || "";
+    if (teacherId) {
+      const rows = batchStudents.map((student) => ({
+        id: crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        teacher_id: teacherId,
+        date: selectedDate,
+        batch_id: selectedBatch,
+        subject: selectedSubject,
+        student_id: student.id,
+        status: (tempRecords[student.id] === "late" ? "Late" : tempRecords[student.id] === "absent" ? "Absent" : "Present"),
+        remarks: tempRemarks[student.id] || "",
+        is_online_class: onlineClassFlag,
+      }));
+
+      try {
+        // Remove any previous rows for this date/batch/subject/teacher, then insert fresh ones
+        // to avoid duplicates when the same sheet is re-submitted (e.g. after Correct).
+        await supabase
+          .from("attendance_logs")
+          .delete()
+          .eq("teacher_id", teacherId)
+          .eq("date", selectedDate)
+          .eq("batch_id", selectedBatch)
+          .eq("subject", selectedSubject);
+
+        const { error } = await supabase
+          .from("attendance_logs")
+          .insert(rows)
+          .select();
+
+        if (error) {
+          console.error("Attendance insert error:", error);
+          alert("Attendance saved locally but failed to sync to the database.");
+        } else {
+          alert("Attendance sheet saved successfully!");
+        }
+      } catch (err) {
+        console.error("Attendance save exception:", err);
+        alert("Attendance sheet saved successfully! (database sync failed)");
+      }
+    } else {
+      alert("Attendance sheet saved successfully!");
+    }
   };
 
   const getStats = () => {

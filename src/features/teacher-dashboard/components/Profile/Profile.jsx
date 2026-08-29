@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { User, Mail, Phone, BookOpen, GraduationCap, Shield, Edit3, Key, X } from "lucide-react";
+import supabase from "../../../../lib/supabase";
 import "./Profile.css";
 
 const Profile = ({ teacherProfile, setTeacherProfile }) => {
@@ -19,7 +20,7 @@ const Profile = ({ teacherProfile, setTeacherProfile }) => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const handleEditSubmit = (e) => {
+  const handleEditSubmit = async (e) => {
     e.preventDefault();
     const updated = {
       ...teacherProfile,
@@ -54,6 +55,27 @@ const Profile = ({ teacherProfile, setTeacherProfile }) => {
       }
     } catch (err) {
       console.error("Error saving profile to localStorage:", err);
+    }
+
+    // Persist to the database so the updated profile survives reloads.
+    const teacherId = teacherProfile?.id || "";
+    const dbUpdate = {
+      name: editName,
+      email: editEmail,
+      phone: editPhone,
+      contact: editPhone,
+      qualification: editQualification,
+      experience: editExperience,
+      avatar: editAvatar,
+    };
+    try {
+      if (teacherId) {
+        await supabase.from("teachers").update(dbUpdate).eq("id", teacherId);
+      } else if (editEmail) {
+        await supabase.from("teachers").update(dbUpdate).eq("email", editEmail.trim());
+      }
+    } catch (err) {
+      console.error("Error saving profile to database:", err);
     }
 
     setShowEditModal(false);

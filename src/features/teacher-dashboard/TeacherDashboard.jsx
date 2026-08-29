@@ -73,13 +73,8 @@ import Profile from "./components/Profile/Profile";
 
 // Mock Data Fallbacks
 import {
-  initialWeeklyTests,
-  initialOnlineClasses,
   initialAttendanceRecords,
-  initialNotifications,
   initialTeacherProfile,
-  initialStudents,
-  initialBatches
 } from "./mockData";
 
 import "./TeacherDashboard.css";
@@ -128,6 +123,91 @@ const loadLoggedTeacherProfile = () => {
     console.error("Error loading logged-in teacher profile:", err);
   }
   return initialTeacherProfile;
+};
+
+// Filter a set of material rows so that only the materials uploaded by the
+// logged-in teacher are returned. Matches against teacher id, name, and email
+// stored on the material row.
+const filterMaterialsByTeacher = (rows) => {
+  const profile = loadLoggedTeacherProfile();
+  const id = String(profile?.id || "").trim();
+  const names = [
+    profile?.name,
+    profile?.email,
+  ].map((v) => String(v || "").trim().toLowerCase()).filter(Boolean);
+
+  const rowsList = Array.isArray(rows) ? rows : [];
+  if (!id && names.length === 0) return rowsList;
+
+  return rowsList.filter((row) => {
+    if (!row) return false;
+    const rowTeacherId = String(row.teacher_id || row.teacherId || "").trim();
+    if (id && rowTeacherId && String(rowTeacherId).toLowerCase() === id.toLowerCase()) return true;
+    const rowTeacher = String(row.teacher || "").trim().toLowerCase();
+    if (!rowTeacher) return false;
+    return names.some((n) => n && (rowTeacher === n || rowTeacher.includes(n) || n.includes(rowTeacher)));
+  });
+};
+
+// Filter online classes so a teacher only sees classes that belong to them.
+// Matches by teacher id/name first, then falls back to the teacher's subjects
+// and batch names for legacy rows that lack an explicit teacher identifier.
+const filterClassesByTeacher = (classes) => {
+  const profile = loadLoggedTeacherProfile();
+  const id = String(profile?.id || "").trim();
+  const idEmail = String(profile?.email || "").trim().toLowerCase();
+  const names = [profile?.name, profile?.email]
+    .map((v) => String(v || "").trim().toLowerCase())
+    .filter(Boolean);
+  const subjects = (profile?.subjects || []).map((v) => String(v).toLowerCase().trim()).filter(Boolean);
+  const batchNames = (profile?.batches || []).map((v) => String(v).toLowerCase().trim()).filter(Boolean);
+  const norm = (v) => String(v || "").trim().toLowerCase();
+
+  const classList = Array.isArray(classes) ? classes : [];
+  if (names.length === 0 && !id && subjects.length === 0) return classList;
+
+  return classList.filter((c) => {
+    if (!c) return false;
+
+    // 1. Explicit teacher id / name match (most reliable).
+    const clsTeacherId = String(c.teacher_id || c.teacherId || "").trim().toLowerCase();
+    if (id && clsTeacherId && (clsTeacherId === id.toLowerCase() || clsTeacherId === idEmail)) return true;
+    const clsTeacher = norm(c.teacher);
+    if (clsTeacher && names.some((n) => n && (clsTeacher === n || clsTeacher.includes(n) || n.includes(clsTeacher)))) return true;
+
+    // 2. Subject match against teacher's subjects.
+    const clsSubject = norm(c.subject);
+    if (clsSubject && subjects.some((s) => s && (clsSubject === s || clsSubject.includes(s) || s.includes(clsSubject)))) return true;
+
+    // 3. Batch name match against teacher's batches.
+    const clsBatch = norm(c.student || c.batch);
+    if (clsBatch && batchNames.some((b) => b && (clsBatch === b || clsBatch.includes(b) || b.includes(clsBatch)))) return true;
+
+    return false;
+  });
+};
+
+// Filter assignments/tests so a teacher only sees their own. Assignments carry
+// a teacher name (from description JSON); matches by teacher id/name/email.
+const filterAssignmentsByTeacher = (items) => {
+  const profile = loadLoggedTeacherProfile();
+  const id = String(profile?.id || "").trim();
+  const names = [profile?.name, profile?.email]
+    .map((v) => String(v || "").trim().toLowerCase())
+    .filter(Boolean);
+  const norm = (v) => String(v || "").trim().toLowerCase();
+
+  const list = Array.isArray(items) ? items : [];
+  if (names.length === 0 && !id) return list;
+
+  return list.filter((item) => {
+    if (!item) return false;
+    const itemId = norm(item.teacherId || item.teacher_id);
+    if (id && itemId && itemId === id.toLowerCase()) return true;
+    const itemTeacher = norm(item.teacher);
+    if (!itemTeacher) return false;
+    return names.some((n) => n && (itemTeacher === n || itemTeacher.includes(n) || n.includes(itemTeacher)));
+  });
 };
 
 const VALID_TABS = ["dashboard", "batches", "materials", "assignments", "tests", "classes", "attendance", "reports", "notifications", "profile"];
@@ -192,6 +272,27 @@ const TeacherDashboard = ({ onNavigate }) => {
   const [viewAsgn, setViewAsgn] = useState(null);
   const [viewTestId, setViewTestId] = useState(null);
 
+  // Persist per-teacher notification read/deleted state in localStorage so the
+  // read badge and deletions survive reloads (notifications are shared DB rows).
+  const notifPersistenceKey = () =>
+    `gw_teacher_notifs_${localStorage.getItem("gw_logged_teacher_id") || "teacher"}`;
+
+  const applyNotifPersistence = (list) => {
+    let read = new Set();
+    let deleted = new Set();
+    try {
+      const raw = localStorage.getItem(notifPersistenceKey());
+      if (raw) {
+        const obj = JSON.parse(raw);
+        read = new Set(obj.read || []);
+        deleted = new Set(obj.deleted || []);
+      }
+    } catch (e) {}
+    return (Array.isArray(list) ? list : [])
+      .filter((n) => !deleted.has(String(n.id)))
+      .map((n) => ({ ...n, read: read.has(String(n.id)) || n.read === true }));
+  };
+
   // Fetch live students, batches, notifications, materials, and online classes from Supabase database
   useEffect(() => {
     let isMounted = true;
@@ -214,7 +315,14 @@ const TeacherDashboard = ({ onNavigate }) => {
             const filteredNotifs = dbNotifs.filter(n => {
               const rawType = n.type || "material";
               const msg = n.message || "";
-              
+              const rtype = n.recipient_type || null;
+
+              // Prefer explicit targeting when the row has it: only teacher
+              // (or global "all") notifications reach the teacher.
+              if (rtype && rtype !== "all") {
+                if (rtype === "student" || rtype === "admin") return false;
+              }
+
               if (rawType.startsWith("test-submitted:") || rawType.startsWith("graded:") || rawType.startsWith("test-result:")) {
                 return false;
               }
@@ -229,17 +337,18 @@ const TeacherDashboard = ({ onNavigate }) => {
               }
               return false;
             });
-            setNotifications(filteredNotifs);
+            setNotifications(applyNotifPersistence(filteredNotifs));
           }
           if (Array.isArray(dbClasses)) {
-            setOnlineClasses(dbClasses);
+            const myClasses = filterClassesByTeacher(dbClasses);
+            setOnlineClasses(myClasses);
             try {
-              localStorage.setItem("gw_classes_v3", JSON.stringify(dbClasses));
+              localStorage.setItem("gw_classes_v3", JSON.stringify(myClasses));
             } catch (e) {}
           }
-          if (Array.isArray(dbTests)) setWeeklyTests(dbTests);
+          if (Array.isArray(dbTests)) setWeeklyTests(filterAssignmentsByTeacher(dbTests));
           if (dbMaterialsRes && !dbMaterialsRes.error && Array.isArray(dbMaterialsRes.data)) {
-            const parsedMats = dbMaterialsRes.data.map((row) => {
+            const parsedMats = filterMaterialsByTeacher(dbMaterialsRes.data).map((row) => {
               try {
                 if (row.title && typeof row.title === "string" && row.title.startsWith("{")) {
                   const parsedTitle = JSON.parse(row.title);
@@ -301,7 +410,7 @@ const TeacherDashboard = ({ onNavigate }) => {
                 createdDate: row.createdAt ? new Date(row.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "",
               };
             });
-            setAssignments(parsedAssignments);
+            setAssignments(filterAssignmentsByTeacher(parsedAssignments));
           }
         }
       } catch (err) {
@@ -321,7 +430,14 @@ const TeacherDashboard = ({ onNavigate }) => {
             const filteredNotifs = dbNotifs.filter(n => {
               const rawType = n.type || "material";
               const msg = n.message || "";
-              
+              const rtype = n.recipient_type || null;
+
+              // Prefer explicit targeting when the row has it: only teacher
+              // (or global "all") notifications reach the teacher.
+              if (rtype && rtype !== "all") {
+                if (rtype === "student" || rtype === "admin") return false;
+              }
+
               if (rawType.startsWith("test-submitted:") || rawType.startsWith("graded:") || rawType.startsWith("test-result:")) {
                 return false;
               }
@@ -336,7 +452,7 @@ const TeacherDashboard = ({ onNavigate }) => {
               }
               return false;
             });
-            setNotifications(filteredNotifs);
+            setNotifications(applyNotifPersistence(filteredNotifs));
           }
         } catch (e) {
           console.error("Error refetching notifications:", e);
@@ -351,7 +467,7 @@ const TeacherDashboard = ({ onNavigate }) => {
         try {
           const { data, error } = await supabase.from("materials").select("*").order("created_at", { ascending: false });
           if (!error && Array.isArray(data) && isMounted) {
-            const parsedMats = data.map((row) => {
+            const parsedMats = filterMaterialsByTeacher(data).map((row) => {
               try {
                 if (row.title && typeof row.title === "string" && row.title.startsWith("{")) {
                   const parsedTitle = JSON.parse(row.title);
@@ -430,7 +546,7 @@ const TeacherDashboard = ({ onNavigate }) => {
                 createdDate: row.createdAt ? new Date(row.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "",
               };
             });
-            setAssignments(parsedAssignments);
+            setAssignments(filterAssignmentsByTeacher(parsedAssignments));
           }
         } catch (e) {
           console.error("Error refetching assignments:", e);
@@ -445,7 +561,7 @@ const TeacherDashboard = ({ onNavigate }) => {
         try {
           const dbTests = await adminService.fetchWeeklyTests();
           if (Array.isArray(dbTests) && isMounted) {
-            setWeeklyTests(dbTests);
+            setWeeklyTests(filterAssignmentsByTeacher(dbTests));
           }
         } catch (e) {
           console.error("Error refetching weekly tests:", e);
@@ -458,11 +574,11 @@ const TeacherDashboard = ({ onNavigate }) => {
       try {
         const dbAssignments = await adminService.fetchAssignments();
         if (Array.isArray(dbAssignments) && isMounted) {
-          setAssignments(dbAssignments);
+          setAssignments(filterAssignmentsByTeacher(dbAssignments));
         }
         const dbTests = await adminService.fetchWeeklyTests();
         if (Array.isArray(dbTests) && isMounted) {
-          setWeeklyTests(dbTests);
+          setWeeklyTests(filterAssignmentsByTeacher(dbTests));
         }
       } catch (e) {}
     };

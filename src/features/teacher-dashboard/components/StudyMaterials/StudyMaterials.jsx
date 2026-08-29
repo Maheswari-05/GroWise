@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { initialMaterials, SUBJECTS, generateId } from "./materialsData";
 import supabase from "../../../../lib/supabase";
+import * as adminService from "../../../../services/adminService";
 import { useEffect } from "react";
 import "./StudyMaterials.css";
 
@@ -43,6 +44,34 @@ const fileTypeOf = (name = "") => {
 const subjectColorMap = {
   Mathematics: { text: "#2D6BFF", bg: "rgba(45,107,255,0.08)",  border: "rgba(45,107,255,0.18)" },
   Science:     { text: "#27a55e", bg: "rgba(55,200,113,0.08)", border: "rgba(55,200,113,0.18)" },
+};
+
+// Resolve the currently logged-in teacher (id, name, email) and return a
+// predicate that tells whether a material row belongs to that teacher.
+const buildTeacherMatcher = () => {
+  const loggedId = localStorage.getItem("gw_logged_teacher_id");
+  let name = "";
+  let email = "";
+  try {
+    const raw = localStorage.getItem("gw_logged_teacher");
+    if (raw) {
+      const obj = JSON.parse(raw);
+      name = obj.name || "";
+      email = obj.email || "";
+    }
+  } catch (e) {}
+  const norm = (v) => String(v || "").trim().toLowerCase();
+  const ids = new Set([norm(loggedId)]);
+  const names = new Set([norm(name), norm(email)].filter(Boolean));
+
+  return (row) => {
+    if (!row) return false;
+    const rowId = norm(row.teacher_id || row.teacherId);
+    if (rowId && Array.from(ids).some((i) => i && i === rowId)) return true;
+    const rowTeacher = norm(row.teacher);
+    if (!rowTeacher) return false;
+    return Array.from(names).some((n) => n && (rowTeacher === n || rowTeacher.includes(n) || n.includes(rowTeacher)));
+  };
 };
 
 /* ── Toast ─────────────────────────────────────────────────── */
@@ -416,6 +445,7 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
   // Fetch materials dynamically from Supabase & realtime sync
   useEffect(() => {
     let isMounted = true;
+    const isMine = buildTeacherMatcher();
     const loadMaterials = async () => {
       try {
         const { data, error } = await supabase
@@ -424,7 +454,7 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
           .order("created_at", { ascending: false });
 
         if (!error && data && isMounted) {
-          const parsed = data.map((row) => {
+          const parsed = data.filter(isMine).map((row) => {
             try {
               if (row.title && typeof row.title === "string" && row.title.startsWith("{")) {
                 const parsedTitle = JSON.parse(row.title);
@@ -455,9 +485,9 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
             };
           });
 
-          if (parsed.length > 0) {
-            setMaterials(parsed);
-          }
+          // Always apply the filtered list (even when empty) so that stale
+          // seed/localStorage materials from other teachers are never shown.
+          setMaterials(parsed);
         }
       } catch (err) {
         console.error("Failed to load materials:", err);
@@ -466,16 +496,12 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
 
     loadMaterials();
 
-    const materialsChannel = supabase
-      .channel("teacher-materials-channel")
-      .on("postgres_changes", { event: "*", schema: "public", table: "materials" }, () => {
-        loadMaterials();
-      })
-      .subscribe();
-
+    // NOTE: realtime updates for 'materials' are handled by the parent
+    // TeacherDashboard subscription (pushed via setMaterials). Removing this
+    // duplicate subscription avoids re-downloading the whole table on every
+    // change, which was inflating egress.
     return () => {
       isMounted = false;
-      supabase.removeChannel(materialsChannel);
     };
   }, []);
 
@@ -528,20 +554,33 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
   const handleSave = async (data) => {
     // Resolve logged-in teacher name
     let teacherName = "Teacher";
+    let teacherId = "";
+    let teacherEmail = "";
     try {
+      teacherId = localStorage.getItem("gw_logged_teacher_id") || "";
       const raw = localStorage.getItem("gw_logged_teacher");
-      if (raw) teacherName = JSON.parse(raw).name || teacherName;
+      if (raw) {
+        const obj = JSON.parse(raw);
+        teacherName = obj.name || teacherName;
+        teacherEmail = obj.email || "";
+      }
     } catch (e) {}
-
-    // Strip base64 fileUrl — never store it in the DB row (too large).
-    // Keep it in local state only for the current session.
-    const sessionFileUrl = data.fileUrl || null;
 
     // Generate a UUID client-side — required because the table's id column
     // has no DEFAULT gen_random_uuid() and must not be null.
     const newId = crypto.randomUUID
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+
+    // Upload the file to Supabase Storage and persist a real public URL, so the
+    // material can be downloaded on later visits (not just the current session).
+    // If the fileUrl is already a real URL (e.g. http(s) or a storage link), keep it.
+    let fileUrl = data.fileUrl || null;
+    if (fileUrl && typeof fileUrl === "string" && fileUrl.startsWith("data:")) {
+      const ext = (data.fileName ? "." + data.fileName.split(".").pop() : "") || ".pdf";
+      const storageUrl = await adminService.uploadMaterialFile(fileUrl, `materials/${newId}${ext}`);
+      fileUrl = storageUrl || null;
+    }
 
     const dbPayload = {
       id: newId,
@@ -551,7 +590,7 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
         fileName:    data.fileName,
         fileSize:    data.fileSize,
         fileType:    data.fileType,
-        fileUrl:     null,            // never store base64 in DB
+        fileUrl,                             // real storage URL (or null)
         batch:       data.batch,
         grade:       data.grade,
         uploadDate:  data.uploadDate,
@@ -559,6 +598,7 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
       }),
       subject: data.subject,
       teacher: teacherName,
+      teacher_id: teacherId || null,
       flagged: false,
     };
 
@@ -585,7 +625,7 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
         flagged:     inserted.flagged,
         created_at:  inserted.created_at,
         ...data,                       // spread form data (title, desc, etc.)
-        fileUrl:     sessionFileUrl,   // restore base64 for in-session download
+        fileUrl,                       // real storage URL (survives reload)
       };
 
       // Update teacher list immediately (no extra round-trip needed)
@@ -597,8 +637,8 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
       const notifMsg = `New Study Material: "${data.title}" uploaded for ${data.batch || "your batch"} (${data.subject}).`;
 
       supabase.from("notifications").insert([
-        { type: `study-material:${teacherName}`, message: notifMsg, time: currentTime },
-        { type: "batch",                          message: notifMsg, time: currentTime },
+        { type: `study-material:${teacherName}`, message: notifMsg, time: currentTime, recipient_type: "student", recipient: "all" },
+        { type: "batch", message: notifMsg, time: currentTime, recipient_type: "student", recipient: "all" },
       ]).catch(() => {});
 
       try {
@@ -624,11 +664,8 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
         setModal(null);
         return;
       }
-        showToast(`Update failed: ${updateError.message}`, "warning");
-        setModal(null);
-        return;
       saveMaterials(materials.map((m) =>
-        m.id === data.id ? { ...data, fileUrl: sessionFileUrl } : m
+        m.id === data.id ? { ...data, fileUrl } : m
       ));
       showToast("Material updated successfully!");
     }

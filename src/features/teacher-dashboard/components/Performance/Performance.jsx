@@ -168,8 +168,9 @@ const Performance = ({
       const subs = Array.isArray(asgn.submissions) ? asgn.submissions : [];
 
       subs.forEach((sub) => {
-        if (sub.marks !== null && sub.marks !== undefined && sub.marks !== "" && !isNaN(Number(sub.marks))) {
-          const pct = (Number(sub.marks) / (maxMarks || 20)) * 100;
+        const val = sub.score ?? sub.marks;
+        if (val !== null && val !== undefined && val !== "" && !isNaN(Number(val))) {
+          const pct = (Number(val) / (maxMarks || 20)) * 100;
           totalScorePct += pct;
           gradedCount++;
         }
@@ -266,8 +267,9 @@ const Performance = ({
         const maxMarks = Number(a.maxMarks || a.totalMarks || 20);
         const subs = Array.isArray(a.submissions) ? a.submissions : [];
         subs.forEach((sub) => {
-          if (sub.marks !== null && sub.marks !== undefined && sub.marks !== "" && !isNaN(Number(sub.marks))) {
-            asgnScoreSum += (Number(sub.marks) / (maxMarks || 20)) * 100;
+          const val = sub.score ?? sub.marks;
+          if (val !== null && val !== undefined && val !== "" && !isNaN(Number(val))) {
+            asgnScoreSum += (Number(val) / (maxMarks || 20)) * 100;
             asgnScoreCount++;
           }
         });
