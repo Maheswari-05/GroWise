@@ -202,20 +202,8 @@ const Notifications = ({ notifications, setNotifications, assignments, setAssign
                   <div className="notif-item-right" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                     {asgnObj && (
                       <button
-                        className="notif-row-action-btn"
+                        className="notif-row-action-btn notif-grade-btn"
                         title="Grade Assignment"
-                        style={{ 
-                          background: "#2D6BFF", 
-                          color: "#ffffff", 
-                          border: "none", 
-                          borderRadius: "4px", 
-                          padding: "4px 8px", 
-                          fontSize: "12px", 
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          height: "28px"
-                        }}
                         onClick={() => handleGradeSubmission(asgnObj)}
                       >
                         Grade
@@ -223,20 +211,8 @@ const Notifications = ({ notifications, setNotifications, assignments, setAssign
                     )}
                     {testObj && (
                       <button
-                        className="notif-row-action-btn"
+                        className="notif-row-action-btn notif-grade-btn"
                         title="Grade Test"
-                        style={{ 
-                          background: "#2D6BFF", 
-                          color: "#ffffff", 
-                          border: "none", 
-                          borderRadius: "4px", 
-                          padding: "4px 8px", 
-                          fontSize: "12px", 
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          height: "28px"
-                        }}
                         onClick={() => {
                           if (setActiveNav && setViewTestId) {
                              setViewTestId(testObj.id);
@@ -249,21 +225,8 @@ const Notifications = ({ notifications, setNotifications, assignments, setAssign
                     )}
                     {(studentSub?.attachmentUrl || studentSub?.submissionUrl) && (
                       <button
-                        className="notif-row-action-btn"
+                        className="notif-row-action-btn notif-viewpdf-btn"
                         title="View Answer Sheet"
-                        style={{ 
-                          background: "#27a55e", 
-                          color: "#ffffff", 
-                          border: "none", 
-                          borderRadius: "4px", 
-                          padding: "4px 10px", 
-                          fontSize: "12px", 
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "4px",
-                          height: "28px"
-                        }}
                         onClick={() => {
                           const url = studentSub.attachmentUrl || studentSub.submissionUrl;
                           if (url.startsWith("data:")) {

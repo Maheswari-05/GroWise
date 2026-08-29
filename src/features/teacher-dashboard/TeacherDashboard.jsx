@@ -878,6 +878,7 @@ const TeacherDashboard = ({ onNavigate }) => {
             batches={assignedBatches && assignedBatches.length > 0 ? assignedBatches : batches}
             viewTestId={viewTestId}
             setViewTestId={setViewTestId}
+            subjects={teacherProfile?.subjects}
           />
         );
       case "classes":

@@ -72,7 +72,7 @@ const DeleteTestModal = ({ test, onClose, onConfirm }) => (
 );
 
 /* ── Create / Edit Test Modal ─────────────────────────────────────── */
-const TestModal = ({ mode, initial, batches = [], onClose, onSave }) => {
+const TestModal = ({ mode, initial, batches = [], onClose, onSave, subjects = [] }) => {
   const [title, setTitle] = useState(initial?.title || "");
   const [subject, setSubject] = useState(initial?.subject || "Mathematics");
   const [batchId, setBatchId] = useState(initial?.batchId || batches[0]?.id || "");
@@ -149,13 +149,17 @@ const TestModal = ({ mode, initial, batches = [], onClose, onSave }) => {
             <div className="wt-form-group">
               <label>Subject *</label>
               <select value={subject} onChange={(e) => setSubject(e.target.value)}>
-                <option value="Mathematics">Mathematics</option>
-                <option value="Science">Science</option>
-                <option value="Physics">Physics</option>
-                <option value="Chemistry">Chemistry</option>
-                <option value="Biology">Biology</option>
-                <option value="English">English</option>
-                <option value="Social Studies">Social Studies</option>
+                {subjects.length > 0
+                  ? subjects.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))
+                  : ["Mathematics", "Science", "Physics", "Chemistry", "Biology", "English", "Social Studies"].map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
               </select>
             </div>
 
@@ -263,7 +267,7 @@ const TestModal = ({ mode, initial, batches = [], onClose, onSave }) => {
 };
 
 /* ── Main WeeklyTests Component ─────────────────────────────────────── */
-const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches = [], viewTestId = null, setViewTestId }) => {
+const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches = [], viewTestId = null, setViewTestId, subjects = [] }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBatch, setSelectedBatch] = useState("all");
   const [selectedSubject, setSelectedSubject] = useState("all");
@@ -961,6 +965,7 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
           mode="create"
           initial={null}
           batches={batches}
+          subjects={subjects}
           onClose={() => setModalMode(null)}
           onSave={handleSaveTest}
         />
@@ -971,6 +976,7 @@ const WeeklyTests = ({ weeklyTests = [], setWeeklyTests, students = [], batches 
           mode="edit"
           initial={modalMode.test}
           batches={batches}
+          subjects={subjects}
           onClose={() => setModalMode(null)}
           onSave={handleSaveTest}
         />
