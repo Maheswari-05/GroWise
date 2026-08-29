@@ -1130,58 +1130,55 @@ export async function sendPasswordInviteEmail(email, role = 'student', name = ''
     console.log("📧 Sending password setup link to:", trimmedEmail, "Role:", role);
     console.log("🔗 Redirect URL:", redirectUrl);
 
-    // 1. Try sending reset password email directly first
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
-      redirectTo: redirectUrl,
-    });
-
-    if (!resetError) {
-      console.log("✅ Reset password email sent directly to:", trimmedEmail);
-      return { success: true };
-    }
-
-    console.log("User may not exist yet in Supabase Auth, creating account...", resetError.message);
-
-    // 2. If resetPasswordForEmail failed (e.g. user does not exist in Supabase Auth), create account
+    // ── Ensure the Auth account exists first ────────────────────────────
+    // resetPasswordForEmail does NOT error when a user doesn't exist (anti
+    // enumeration), so for a brand-new teacher/student it would "succeed"
+    // without creating an account or sending any email. To fix that, we
+    // create (or detect) the account via signUp with a temporary password,
+    // then send the real password-set email.
     const tempPass = 'SetupPass@' + Math.floor(100000 + Math.random() * 900000);
     const { error: signUpError } = await supabase.auth.signUp({
       email: trimmedEmail,
       password: tempPass,
-      options: { 
+      options: {
         data: { role, name },
         emailRedirectTo: redirectUrl
       }
     });
 
-    if (signUpError && !signUpError.message?.toLowerCase().includes('already registered')) {
+    // Restore admin session (signUp signs out the current session)
+    if (adminSession) {
+      await supabase.auth.setSession({
+        access_token: adminSession.access_token,
+        refresh_token: adminSession.refresh_token,
+      });
+    }
+
+    const signUpMsg = (signUpError?.message || "").toLowerCase();
+    const accountAlreadyExists =
+      signUpError && signUpMsg.includes("already registered");
+
+    if (signUpError && !accountAlreadyExists) {
+      // A real error (e.g. email provider not enabled / SMTP misconfigured)
       throw new Error(`Failed to create auth account: ${signUpError.message}`);
     }
 
-    // Restore admin session after signUp
-    if (adminSession) {
-      await supabase.auth.setSession({
-        access_token: adminSession.access_token,
-        refresh_token: adminSession.refresh_token,
-      });
+    if (accountAlreadyExists) {
+      console.log("Account already exists in Auth - sending password set email.");
+    } else {
+      console.log("✅ New Auth account created for:", trimmedEmail);
     }
 
-    // Small delay to ensure Supabase Auth syncs user before reset request
+    // Small delay so Supabase Auth has synced the user before reset request
     await new Promise((r) => setTimeout(r, 600));
 
-    const { error: secondResetErr } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+    // ── Send the actual password-set / reset email ──────────────────────
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
       redirectTo: redirectUrl,
     });
 
-    // Restore admin session again
-    if (adminSession) {
-      await supabase.auth.setSession({
-        access_token: adminSession.access_token,
-        refresh_token: adminSession.refresh_token,
-      });
-    }
-
-    if (secondResetErr) {
-      console.warn("Second reset attempt warning:", secondResetErr.message);
+    if (resetError) {
+      console.warn("Reset email send warning:", resetError.message);
     }
 
     console.log("✅ Password setup email processed for:", trimmedEmail);
