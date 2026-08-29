@@ -427,7 +427,12 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
     return initialMaterials;
   });
 
-  const materials = propMaterials && propMaterials.length > 0 ? propMaterials : localMaterials;
+  // Always surface ONLY the logged-in teacher's own notes/materials. The
+  // parent TeacherDashboard passes the full (unfiltered) `materials` list via
+  // props + realtime, so filter BOTH propMaterials and localMaterials through
+  // buildTeacherMatcher() — otherwise a teacher would see every teacher's notes.
+  const isMine = buildTeacherMatcher();
+  const materials = (propMaterials && propMaterials.length > 0 ? propMaterials : localMaterials).filter(isMine);
 
   const setMaterials = (newMaterials) => {
     const next = typeof newMaterials === "function" ? newMaterials(materials) : newMaterials;
