@@ -109,18 +109,19 @@
   width: 100%;
   padding: 11px;
   border-radius: 10px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #2D6BFF;
+  border: 1px solid transparent;
+  background: var(--gradient);
+  color: #ffffff;
   font-family: var(--font-main);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.22s ease;
+  box-shadow: 0 4px 12px rgba(45, 107, 255, 0.2);
 }
 
 .notif-view-all-btn:hover {
-  background: #2D6BFF;
-  color: white;
-  border-color: #2D6BFF;
+  filter: brightness(1.06);
+  color: #fff;
+  transform: translateY(-1px);
 }

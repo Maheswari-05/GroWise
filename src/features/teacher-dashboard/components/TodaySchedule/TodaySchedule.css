@@ -126,9 +126,9 @@
   gap: 6px;
   padding: 7px 14px;
   border-radius: 8px;
-  border: 1px solid rgba(45, 107, 255, 0.25);
-  background: #ffffff;
-  color: #2D6BFF;
+  border: 1px solid transparent;
+  background: var(--gradient);
+  color: #ffffff;
   font-family: var(--font-main);
   font-size: 12.5px;
   font-weight: 700;
@@ -136,12 +136,12 @@
   white-space: nowrap;
   flex-shrink: 0;
   transition: all 0.22s ease;
+  box-shadow: 0 3px 10px rgba(45, 107, 255, 0.2);
 }
 
 .schedule-join-btn:hover {
-  background: #2D6BFF;
-  color: white;
-  border-color: #2D6BFF;
+  filter: brightness(1.06);
+  color: #fff;
   box-shadow: 0 4px 12px rgba(45, 107, 255, 0.25);
 }
 

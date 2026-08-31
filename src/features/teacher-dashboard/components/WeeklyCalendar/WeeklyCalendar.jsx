@@ -102,150 +102,96 @@ const WeeklyCalendar = ({ onlineClasses = [], batches = [], setActiveNav }) => {
     return s === "live" || s === "live now";
   }).length;
 
+  const openAction = handleOpenClass;
+
   return (
-    <div className="td-card wc-card">
-      <div className="td-card-header">
-        <div className="wc-header-title">
-          <div className="wc-header-icon">
-            <Calendar size={18} />
+    <div className="td-card wc-shell">
+      {/* ── Top bar (Teams / Outlook style) ─────────────────── */}
+      <div className="wc-topbar">
+        <div className="wc-topbar-left">
+          <div className={`wc-live-pill ${liveCount > 0 ? "is-live" : ""}`}>
+            <span className="wc-live-dot" />
+            {liveCount > 0
+              ? `${liveCount} live ${liveCount === 1 ? "class" : "classes"}`
+              : "No live classes"}
           </div>
-          <div>
-            <h2 className="td-card-title">Weekly Classes Calendar</h2>
-            <span className="wc-subtitle">Your classes for the week</span>
+
+          <div className="wc-topbar-sep" />
+
+          <button className="wc-today-btn" onClick={goToday}>Today</button>
+
+          <div className="wc-chevrons">
+            <button onClick={goPrev} aria-label="Previous week"><ChevronLeft size={17} /></button>
+            <button onClick={goNext} aria-label="Next week"><ChevronRight size={17} /></button>
           </div>
+
+          <span className="wc-range">{weekRangeLabel}</span>
         </div>
-        <div className="wc-nav">
-          <button className="wc-nav-btn" onClick={goToday}>
-            This Week
+
+        <div className="wc-topbar-right">
+          <span className="wc-topbar-hint">Weekly Classes</span>
+          <button className="wc-manage-btn" onClick={openAction}>
+            Manage <ChevronRight size={14} />
           </button>
-          <button className="wc-nav-btn" onClick={goPrev} aria-label="Previous week">
-            <ChevronLeft size={16} />
-          </button>
-          <button className="wc-nav-btn" onClick={goNext} aria-label="Next week">
-            <ChevronRight size={16} />
-          </button>
-          <span className="wc-range-label">{weekRangeLabel}</span>
         </div>
       </div>
 
+      {/* ── Weekday header row (Teams month/week style) ─────── */}
+      <div className="wc-weekdays">
+        {weekDays.map((day, i) => {
+          const iso = toISODate(day);
+          const isToday = iso === todayISO;
+          return (
+            <div className={`wc-wd ${isToday ? "wc-wd--today" : ""}`} key={`wd-${iso}`}>
+              <span className="wc-wd-name">{DAY_LABELS[i]}</span>
+              <span className={`wc-wd-num ${isToday ? "wc-wd-num--today" : ""}`}>{day.getDate()}</span>
+            </div>
+          );
+        })}
+      </div>
+
       <div className="wc-layout">
-        {/* Calendar — week grid */}
+        {/* ── Calendar — week grid ─────────────────────────── */}
         <div className="wc-calendar">
           {weekDays.map((day, i) => {
             const iso = toISODate(day);
             const dayClasses = classesByDay[iso] || [];
             const isToday = iso === todayISO;
             return (
-              <div className={`wc-day ${isToday ? "wc-day--today" : ""}`} key={iso}>
-                <div className="wc-day-header">
-                  <span className="wc-day-name">{DAY_LABELS[i]}</span>
-                  <span className={`wc-day-num ${isToday ? "wc-day-num--today" : ""}`}>{day.getDate()}</span>
-                </div>
-                <div className="wc-day-body">
-                  {dayClasses.length === 0 ? (
-                    <div className="wc-day-empty">No classes</div>
-                  ) : (
-                    dayClasses.map((c) => {
-                      const meta = statusMeta(c);
-                      const batchObj = getBatch(c.batchId);
-                      return (
-                        <button
-                          className={`wc-class-chip ${meta.key}`}
-                          key={c.id}
-                          onClick={handleOpenClass}
-                          title={`${c.subject || c.title} @ ${c.time}`}
-                        >
-                          <span className="wc-class-time">
-                            <Clock size={11} /> {String(c.time || "").split(" - ")[0].trim() || "TBD"}
-                          </span>
-                          <span className="wc-class-subject">{c.subject || c.title || "Class"}</span>
-                          <span className="wc-class-meta">
-                            {batchObj?.grade ? `${batchObj.grade} · ` : ""}{batchObj?.name || c.batch || c.student || "Batch"}
-                          </span>
-                          <span className="wc-class-status" style={{ color: meta.color, background: meta.bg }}>
-                            {meta.label}
-                          </span>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Sidebar — all classes this week grouped by day */}
-        <div className="wc-sidebar">
-          <div className="wc-sidebar-header">
-            <h3>Classes This Week</h3>
-            <span className="wc-count-badge">{totalCount}</span>
-          </div>
-
-          {liveCount > 0 && (
-            <div className="wc-live-note">
-              <span className="wc-live-dot" />
-              {liveCount} live {liveCount === 1 ? "class" : "classes"} right now
-            </div>
-          )}
-
-          <div className="wc-sidebar-list">
-            {weekDays.map((day, i) => {
-              const iso = toISODate(day);
-              const dayClasses = classesByDay[iso] || [];
-              if (dayClasses.length === 0) return null;
-              const isToday = iso === todayISO;
-              return (
-                <div className="wc-sidebar-day" key={iso}>
-                  <div className="wc-sidebar-day-head">
-                    <span className="wc-sidebar-day-name">
-                      {DAY_LABELS[i]}
-                      {isToday && <em className="wc-today-tag">Today</em>}
-                    </span>
-                    <span className="wc-sidebar-day-date">
-                      {day.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                    </span>
-                  </div>
-                  {dayClasses.map((c) => {
+              <div className={`wc-col ${isToday ? "wc-col--today" : ""}`} key={iso}>
+                {dayClasses.length === 0 ? (
+                  <div className="wc-col-empty" />
+                ) : (
+                  dayClasses.map((c) => {
                     const meta = statusMeta(c);
                     const batchObj = getBatch(c.batchId);
                     return (
-                      <button className={`wc-sidebar-item ${meta.key}`} key={c.id} onClick={handleOpenClass}>
-                        <div className="wc-sidebar-item-time">
-                          {String(c.time || "").split(" - ")[0].trim() || "TBD"}
-                        </div>
-                        <div className="wc-sidebar-item-info">
-                          <div className="wc-sidebar-item-title">
-                            <Video size={13} />
-                            {c.subject || c.title || "Class"}
-                          </div>
-                          <div className="wc-sidebar-item-meta">
-                            <span><Users size={11} /> {batchObj?.name || c.batch || c.student || "Batch"}</span>
-                            {batchObj?.grade && <span><FlaskConical size={11} /> {batchObj.grade}</span>}
-                          </div>
-                        </div>
-                        <span className="wc-sidebar-item-status" style={{ color: meta.color, background: meta.bg }}>
+                      <button
+                        className={`wc-event ${meta.key}`}
+                        key={c.id}
+                        onClick={openAction}
+                        title={`${c.subject || c.title} — ${String(c.time || "").split(" - ")[0].trim() || "TBD"}`}
+                      >
+                        <span className="wc-event-bar" />
+                        <span className="wc-event-body">
+                          <span className="wc-event-time">
+                            <Clock size={11} /> {String(c.time || "").split(" - ")[0].trim() || "TBD"}
+                          </span>
+                          <span className="wc-event-title">{c.subject || c.title || "Class"}</span>
+                          <span className="wc-event-meta">
+                            {batchObj?.grade ? `${batchObj.grade} · ` : ""}{batchObj?.name || c.batch || c.student || "Batch"}
+                          </span>
+                        </span>
+                        <span className="wc-event-status" style={{ color: meta.color, background: meta.bg }}>
                           {meta.label}
                         </span>
                       </button>
                     );
-                  })}
-                </div>
-              );
-            })}
-
-            {totalCount === 0 && (
-              <div className="wc-sidebar-empty">
-                <Calendar size={26} />
-                <p>No classes scheduled for this week.</p>
-                <button className="td-view-all-btn" onClick={handleOpenClass}>Schedule / View Classes</button>
+                  })
+                )}
               </div>
-            )}
-          </div>
-
-          <button className="wc-sidebar-footer-btn" onClick={handleOpenClass}>
-            Manage Online Classes <ChevronRight size={14} />
-          </button>
+            );
+          })}
         </div>
       </div>
     </div>
