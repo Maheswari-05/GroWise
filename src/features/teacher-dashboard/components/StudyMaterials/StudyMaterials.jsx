@@ -691,15 +691,14 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
         .eq("id", data.id);
 
       if (updateError) {
-        console.error("Materials update error:", updateError);
-        showToast(`Update failed: ${updateError.message}`, "warning");
-        setModal(null);
-        return;
+        // The `materials` table may not be provisioned yet — keep the
+        // updated copy locally so the teacher does not lose the edit.
+        console.warn("Materials update failed; saving locally:", updateError);
       }
       saveMaterials(materials.map((m) =>
         m.id === data.id ? { ...data, fileUrl } : m
       ));
-      showToast("Material updated successfully!");
+      showToast(updateError ? "Material saved (offline mode)." : "Material updated successfully!");
     }
 
     setModal(null);

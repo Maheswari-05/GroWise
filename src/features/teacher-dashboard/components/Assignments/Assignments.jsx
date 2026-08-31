@@ -735,24 +735,45 @@ const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssi
     const next = typeof updater === "function" ? updater(assignments) : updater;
     if (propSetAssignments) propSetAssignments(next);
     setLocalAssignments(next);
+    try {
+      localStorage.setItem("gw_assignments_v2", JSON.stringify(next || []));
+      window.dispatchEvent(new Event("storage"));
+    } catch (e) {}
   };
 
-  // ── Load from Supabase on mount + realtime ──────────────────
+  // ── Load from localStorage + Supabase (merged) on mount ─────
   const loadAssignments = useCallback(async () => {
+    // Start from anything already saved locally so no data is lost when
+    // the `assignments` table isn't provisioned yet.
+    let merged = [];
+    try {
+      const raw = localStorage.getItem("gw_assignments_v2");
+      if (raw) merged = JSON.parse(raw) || [];
+    } catch (e) {}
+
+    // Merge in any DB rows (by id), newer first.
     try {
       const { data, error } = await supabase
         .from("assignments")
         .select("*")
         .order("created_at", { ascending: false });
-      if (!error && data) {
-        const isMine = buildTeacherMatcher();
-        const myAssignments = data.map(parseDbRow).filter(isMine);
-        setLocalAssignments(myAssignments);
-        if (propSetAssignments) propSetAssignments(myAssignments);
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const dbRows = data.map(parseDbRow);
+        const idSet = new Set(merged.map((a) => String(a.id)));
+        const newOnes = dbRows.filter((a) => !idSet.has(String(a.id)));
+        merged = [...newOnes, ...merged];
       }
     } catch (err) {
       console.error("Failed to load assignments:", err);
     }
+
+    const isMine = buildTeacherMatcher();
+    const myAssignments = merged.filter(isMine);
+    setLocalAssignments(myAssignments);
+    if (propSetAssignments) propSetAssignments(myAssignments);
+    try {
+      localStorage.setItem("gw_assignments_v2", JSON.stringify(myAssignments));
+    } catch (e) {}
   }, []);
 
   useEffect(() => {
@@ -840,15 +861,26 @@ const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssi
 
       const { error: insertError } = await supabase.from("assignments").insert(dbRow);
       if (insertError) {
-        console.error("Assignment insert error:", insertError);
-        showToast(`Create failed: ${insertError.message}`, "warning");
-        setModal(null);
-        return;
+        // The `assignments` table may not be provisioned yet — keep a local
+        // copy so the teacher does not lose the assignment.
+        console.warn("Assignment insert failed; saving locally:", insertError);
       }
 
-      // Re-fetch so UI has the exact DB state
-      await loadAssignments();
-      showToast("Assignment created successfully!");
+      // Persist a local copy immediately so the UI reflects the new
+      // assignment whether the DB insert succeeded or not.
+      const localAsgn = parseDbRow({
+        id: newId,
+        title: data.title,
+        subject: data.subject,
+        batch_id: data.batchId || data.batch,
+        description: descPayload,
+        due_date: data.dueDate || null,
+        total_marks: Number(data.maxMarks) || 20,
+        status: "Active",
+        created_at: new Date().toISOString(),
+      });
+      setAssignments((p) => [localAsgn, ...(p || [])]);
+      showToast(insertError ? "Assignment saved (offline mode)." : "Assignment created successfully!");
 
       // Notify students (fire-and-forget)
       const currentTime = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
@@ -894,14 +926,14 @@ const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssi
         .eq("id", data.id);
 
       if (updateError) {
-        console.error("Assignment update error:", updateError);
-        showToast(`Update failed: ${updateError.message}`, "warning");
-        setModal(null);
-        return;
+        // The `assignments` table may not be provisioned yet — keep the
+        // updated copy locally so the teacher does not lose the edit.
+        console.warn("Assignment update failed; saving locally:", updateError);
       }
 
-      await loadAssignments();
-      showToast("Assignment updated successfully!");
+      // Update local state so the change shows immediately (offline-safe).
+      setAssignments((p) => p.map((a) => (a.id === data.id ? { ...a, ...data } : a)));
+      showToast(updateError ? "Assignment saved (offline mode)." : "Assignment updated successfully!");
     }
     setModal(null);
   };
@@ -934,15 +966,15 @@ const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssi
       .eq("id", updated.id);
 
     if (saveError) {
-      console.error("Failed to save marks:", saveError);
-      showToast(`Save failed: ${saveError.message}`, "warning");
-      return;
+      // The `assignments` table may not be provisioned yet — persist marks
+      // locally so grading is not lost.
+      console.warn("Failed to save marks to DB; saving locally:", saveError);
     }
 
-    // Update local UI
+    // Update local UI (offline-safe)
     setAssignments(p => p.map(a => a.id === updated.id ? updated : a));
     setViewAsgn(updated);
-    showToast("Marks saved successfully!");
+    showToast(saveError ? "Marks saved (offline mode)." : "Marks saved successfully!");
 
     // Grade notifications (fire-and-forget)
     const currentTime = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
@@ -969,12 +1001,11 @@ const Assignments = ({ assignments: propAssignments, setAssignments: propSetAssi
       .eq("id", deleteTarget.id);
 
     if (error) {
-      console.error("Delete error:", error);
-      showToast(`Delete failed: ${error.message}`, "warning");
-    } else {
-      setAssignments(p => p.filter(a => a.id !== deleteTarget.id));
-      showToast(`"${deleteTarget.title}" deleted.`, "warning");
+      // The `assignments` table may not be provisioned yet — remove locally.
+      console.warn("Delete from DB failed; removing locally:", error);
     }
+    setAssignments(p => p.filter(a => a.id !== deleteTarget.id));
+    showToast(`"${deleteTarget.title}" deleted.`, "warning");
     setDeleteTarget(null);
   };
 
