@@ -71,12 +71,9 @@ const ContactPage = ({ onNavigate }) => {
       console.warn("Could not log notification:", err);
     }
 
-    // Simulate quick server response
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setIsSubmitted(true);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }, 600);
+    setIsSubmitting(false);
+    setIsSubmitted(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (

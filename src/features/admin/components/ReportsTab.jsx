@@ -245,27 +245,17 @@ const ReportsTab = ({
                 <line key={y} x1="50" y1={y} x2="460" y2={y} stroke="#f1f5f9" strokeWidth="1" />
               ))}
               {/* Area fill */}
-              <polygon fill="url(#areaGrad)" points="50,130 130,100 210,70 290,50 370,60 450,35 450,150 50,150" />
-              {/* Line */}
-              <polyline fill="none" stroke="#2D6BFF" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round"
-                points="50,130 130,100 210,70 290,50 370,60 450,35" />
-              {/* Data points */}
-              {[[50,130,"65%"],[130,100,"75%"],[210,70,"85%"],[290,50,"90%"],[370,60,"88%"],[450,35,"95%"]].map(([x,y,label], i) => (
-                <g key={i}>
-                  <circle cx={x} cy={y} r="5" fill="#fff" stroke="#2D6BFF" strokeWidth="3">
-                    <title>{label}</title>
-                  </circle>
-                </g>
-              ))}
+              {/* No fabricated trend data — real monthly trends are shown once
+                  attendance logs accumulate. */}
               {/* Y Labels */}
               <text x="12" y="34" fontSize="10" fill="#94a3b8">100%</text>
               <text x="18" y="74" fontSize="10" fill="#94a3b8">75%</text>
               <text x="18" y="114" fontSize="10" fill="#94a3b8">50%</text>
               <text x="18" y="154" fontSize="10" fill="#94a3b8">25%</text>
-              {/* X Labels */}
-              {[["50","Feb"],["130","Mar"],["210","Apr"],["290","May"],["370","Jun"],["450","Jul"]].map(([x,m]) => (
-                <text key={m} x={x} y="172" textAnchor="middle" fontSize="10" fontWeight="600" fill="#64748b">{m}</text>
-              ))}
+              {/* Empty-state hint */}
+              <text x="250" y="92" textAnchor="middle" fontSize="12" fill="#94a3b8">
+                No attendance trend data available
+              </text>
             </svg>
           </div>
 

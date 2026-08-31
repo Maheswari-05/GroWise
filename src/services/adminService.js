@@ -1051,12 +1051,30 @@ export async function updateBatch(batch) {
 }
 
 export async function updateAttendanceLog(log) {
-  const row = toSnakeCase(log);
-  const id = row.id;
-  delete row.id;
-  delete row.created_at;
-  const { error } = await supabase.from('attendance_logs').update(row).eq('id', id);
-  handleError(error, 'updateAttendanceLog');
+  // DB table may not be provisioned — non-fatal.
+  try {
+    const row = toSnakeCase(log);
+    const id = row.id;
+    delete row.id;
+    delete row.created_at;
+    const { error } = await supabase.from('attendance_logs').update(row).eq('id', id);
+    handleError(error, 'updateAttendanceLog');
+  } catch (e) {
+    console.warn('updateAttendanceLog warning:', e);
+  }
+  // Always persist to the local cache so edits survive a reload even when the
+  // attendance_logs table isn't provisioned (or the row is local-only).
+  try {
+    const idStr = String(log.id);
+    const raw = localStorage.getItem('gw_attendance_logs_v3');
+    const logs = raw ? JSON.parse(raw) : [];
+    const idx = logs.findIndex((l) => String(l.id) === idStr);
+    const updated = [...logs];
+    if (idx >= 0) updated[idx] = { ...updated[idx], ...log };
+    else updated.push({ ...log });
+    localStorage.setItem('gw_attendance_logs_v3', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+  } catch (e) {}
 }
 
 export async function updateSettings(settingsObj) {
@@ -1100,8 +1118,20 @@ export async function deleteBatch(id) {
 }
 
 export async function deleteMaterial(id) {
-  const { error } = await supabase.from('materials').delete().eq('id', id);
-  handleError(error, 'deleteMaterial');
+  // DB table may not be provisioned — non-fatal. Always persist to the local
+  // cache as well so the deletion survives a reload.
+  try {
+    const { error } = await supabase.from('materials').delete().eq('id', id);
+    handleError(error, 'deleteMaterial');
+  } catch (e) {
+    console.warn('deleteMaterial warning:', e);
+  }
+  try {
+    const raw = localStorage.getItem('gw_materials_v2');
+    const mats = raw ? JSON.parse(raw) : [];
+    localStorage.setItem('gw_materials_v2', JSON.stringify(mats.filter((m) => String(m.id) !== String(id))));
+    window.dispatchEvent(new Event('storage'));
+  } catch (e) {}
 }
 
 // ============================================================
@@ -1109,8 +1139,20 @@ export async function deleteMaterial(id) {
 // ============================================================
 
 export async function flagMaterial(id, flagged) {
-  const { error } = await supabase.from('materials').update({ flagged }).eq('id', id);
-  handleError(error, 'flagMaterial');
+  // DB table may not be provisioned — non-fatal. Always persist to the local
+  // cache as well so the flagged state survives a reload.
+  try {
+    const { error } = await supabase.from('materials').update({ flagged }).eq('id', id);
+    handleError(error, 'flagMaterial');
+  } catch (e) {
+    console.warn('flagMaterial warning:', e);
+  }
+  try {
+    const raw = localStorage.getItem('gw_materials_v2');
+    const mats = raw ? JSON.parse(raw) : [];
+    localStorage.setItem('gw_materials_v2', JSON.stringify(mats.map((m) => (String(m.id) === String(id) ? { ...m, flagged } : m))));
+    window.dispatchEvent(new Event('storage'));
+  } catch (e) {}
 }
 
 export async function toggleUserStatus(table, id, newStatus) {

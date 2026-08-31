@@ -199,11 +199,11 @@ const AssignmentsTab = ({
                   </thead>
                   <tbody>
                     <tr>
-                      <td className="font-semibold">{selectedAssignment.student || "Sneha"}</td>
+                      <td className="font-semibold">{selectedAssignment.student || "Student"}</td>
                       <td className="font-mono text-sm">{selectedAssignment.status !== "Pending" ? selectedAssignment.dueDate : "--"}</td>
                       <td>
                         {selectedAssignment.status !== "Pending" ? (
-                          <span className="link-text font-mono text-xs cursor-pointer">submission_v1.pdf</span>
+                          <span className="link-text font-mono text-xs cursor-pointer">{selectedAssignment.attachmentName || selectedAssignment.attachmentFile || "submission"}</span>
                         ) : (
                           <span className="text-muted text-xs">No attachment</span>
                         )}

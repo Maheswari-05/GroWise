@@ -224,7 +224,35 @@ const StudentDashboard = ({ onNavigate }) => {
           throw studentError;
         }
 
-        const student = studentRows?.[0] || null;
+        let student = studentRows?.[0] || null;
+
+        // Fallback: a student created only locally (teacher/admin writes
+        // gw_students_v2) may not have a DB row yet. Load them from the local
+        // cache so the dashboard works on the same browser even when the
+        // students table lookup misses (or the table isn't provisioned).
+        if (!student) {
+          try {
+            const localStuds = JSON.parse(localStorage.getItem("gw_students_v2") || "[]");
+            const match = (Array.isArray(localStuds) ? localStuds : []).find(
+              (s) => String(s.email || "").trim().toLowerCase() === normalizedEmail
+            );
+            if (match) {
+              student = {
+                id: match.id,
+                name: match.name,
+                email: match.email,
+                contact: match.contact,
+                subjects: match.subjects || [],
+                batch: match.batch || "",
+                batch_id: match.batchId || match.batch_id || "",
+                batchName: match.batchName || match.batch || "",
+                teacher: match.teacher || "",
+                teacher_id: match.teacherId || match.teacher_id || "",
+                status: match.status || "Active",
+              };
+            }
+          } catch (e) {}
+        }
 
         if (!student) {
           console.error("Student profile not found for email:", normalizedEmail);
@@ -988,66 +1016,14 @@ const StudentDashboard = ({ onNavigate }) => {
 
   const [activePerformanceSubject, setActivePerformanceSubject] = useState("Mathematics");
 
-  const [performanceData, setPerformanceData] = useState([
-    {
-      subject: "Mathematics",
-      progress: 90,
-      grade: "A",
-      topicsCovered: [
-        "Algebraic Equations",
-        "Complex Numbers & Quadratic Formulations",
-        "Matrices & Determinants",
-        "Calculus & Functions"
-      ],
-      tests: [
-        { name: "Maths-Algebra Test", score: "18 / 20 (90%)", status: "Passed", badgeClass: "passed" }
-      ],
-      assignments: [
-        { name: "Algebra Worksheet", score: "18 / 20", status: "Evaluated", badgeClass: "evaluated" },
-        { name: "Calculus Practice", score: "20 / 20", status: "Evaluated", badgeClass: "evaluated" }
-      ]
-    },
-    {
-      subject: "Physics",
-      progress: 80,
-      grade: "A-",
-      topicsCovered: [
-        "Newtonian Mechanics",
-        "Electrostatics",
-        "Thermal Dynamics",
-        "Quantum Physics Fundamentals & Wave Optics"
-      ],
-      tests: [
-        { name: "Physics-Quantum Mechanics Test", score: "16 / 20 (80%)", status: "Passed", badgeClass: "passed" }
-      ],
-      assignments: [
-        { name: "Quantum Mechanics Homework", score: "18 / 20", status: "Evaluated", badgeClass: "evaluated" },
-        { name: "Optics Assignment", score: "--", status: "Pending", badgeClass: "pending" }
-      ]
-    },
-    {
-      subject: "Chemistry",
-      progress: 65,
-      grade: "B",
-      topicsCovered: [
-        "Chemical Bonding & Periodic Properties",
-        "Aldehydes, Ketones & Carboxylic Acids"
-      ],
-      tests: [
-        { name: "Chemistry-Aldehydes Test", score: "Grading In Progress", status: "Result Pending", badgeClass: "pending" }
-      ],
-      assignments: [
-        { name: "Organic Chemistry Revision", score: "Submitted", status: "Grading Pending", badgeClass: "submitted" },
-        { name: "Hydrocarbons Worksheet", score: "Overdue", status: "Overdue", badgeClass: "overdue" }
-      ]
-    }
-  ]);
+  const [performanceData, setPerformanceData] = useState([]);
+
 
   const [assignments, setAssignments] = useState([]);
 
-  // Rebuild the Performance tab from real assignment & weekly-test data instead
-  // of hardcoded demo values. Keeps the hardcoded defaults as a fallback until
-  // the student actually has graded items.
+  // Build the Performance tab from real assignment & weekly-test data only.
+  // Starts empty and shows an empty state until the student has actual items —
+  // no fabricated marks or grades are ever displayed.
   useEffect(() => {
     if (!Array.isArray(assignments) && !Array.isArray(weeklyTests)) return;
 
@@ -1142,97 +1118,115 @@ const StudentDashboard = ({ onNavigate }) => {
 
   const fetchAssignments = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from("assignments")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const profile = studentProfileRef.current;
+      const studentBatch     = String(profile?.batchId || profile?.batch_id || profile?.batch || "").trim().toLowerCase();
+      const studentBatchName = String(profile?.batchName || "").trim().toLowerCase();
+      const studentSubjects  = (profile?.subjects || []).map(s => String(s).toLowerCase().trim());
+      const sId   = String(profile?.id   || profile?.student_id || "").trim().toLowerCase();
+      const sName = String(profile?.name || "").trim().toLowerCase();
+      const assignedTeachers = (profile?.assignedTeachers || []).map(t =>
+        String(t).toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim()
+      );
+      const norm = (v) => String(v || "").trim().toLowerCase();
 
-      if (!error && data) {
-        const profile = studentProfileRef.current;
-        const studentBatch     = String(profile?.batchId || profile?.batch_id || profile?.batch || "").trim().toLowerCase();
-        const studentBatchName = String(profile?.batchName || "").trim().toLowerCase();
-        const studentSubjects  = (profile?.subjects || []).map(s => String(s).toLowerCase().trim());
-        const sId   = String(profile?.id   || profile?.student_id || "").trim().toLowerCase();
-        const sName = String(profile?.name || "").trim().toLowerCase();
+      const parseDesc = (d) => {
+        let out = {};
+        if (d && typeof d === "string" && d.startsWith("{")) { try { out = JSON.parse(d); } catch (e) {} }
+        return out;
+      };
 
-        const parsed = data
-          .filter(row => {
-            if (!row) return false;
-            let parsedDesc = {};
-            try {
-              if (row.description && typeof row.description === "string" && row.description.startsWith("{")) {
-                parsedDesc = JSON.parse(row.description);
-              }
-            } catch (e) {}
-            const rowBatch   = String(row.batch_id || row.batch || parsedDesc.batch || "").trim().toLowerCase();
-            const rowSubject = String(row.subject || "").trim().toLowerCase();
-            const rowTeacher = String(parsedDesc.teacher || row.teacher || "").trim().toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "");
-            const assignedTeachers = (profile?.assignedTeachers || []).map(t =>
-              String(t).toLowerCase().replace(/^(mr\.|mrs\.|ms\.)\s*/, "").trim()
-            );
+      const matchesStudent = (row) => {
+        if (!row) return false;
+        const desc = parseDesc(row.description);
+        const rowBatch   = norm(row.batch_id || row.batch || row.batchId || desc.batch);
+        const rowSubject = norm(row.subject);
+        const rowTeacher = norm(desc.teacher || row.teacher).replace(/^(mr\.|mrs\.|ms\.)\s*/, "");
+        // Global / all batches → show to everyone
+        if (!rowBatch || rowBatch === "all" || rowBatch === "all batches") return true;
+        // Batch match
+        if (studentBatch     && (rowBatch === studentBatch     || rowBatch.includes(studentBatch)     || studentBatch.includes(rowBatch)))     return true;
+        if (studentBatchName && (rowBatch === studentBatchName || rowBatch.includes(studentBatchName) || studentBatchName.includes(rowBatch))) return true;
+        // Subject match
+        if (rowSubject && studentSubjects.length > 0 && studentSubjects.some(s => rowSubject === s || rowSubject.includes(s) || s.includes(rowSubject))) return true;
+        // Teacher match
+        if (rowTeacher && assignedTeachers.some(t => t && (rowTeacher === t || rowTeacher.includes(t) || t.includes(rowTeacher)))) return true;
+        // Fallback: hide unless student has no identifying info
+        if (!studentBatch && !studentBatchName && studentSubjects.length === 0 && assignedTeachers.length === 0) return true;
+        return false;
+      };
 
-            // Global / all batches → show to everyone
-            if (!rowBatch || rowBatch === "all" || rowBatch === "all batches") return true;
-            // Batch match
-            if (studentBatch     && (rowBatch === studentBatch     || rowBatch.includes(studentBatch)     || studentBatch.includes(rowBatch)))     return true;
-            if (studentBatchName && (rowBatch === studentBatchName || rowBatch.includes(studentBatchName) || studentBatchName.includes(rowBatch))) return true;
-            // Subject match
-            if (rowSubject && studentSubjects.length > 0 && studentSubjects.some(s => rowSubject === s || rowSubject.includes(s) || s.includes(rowSubject))) return true;
-            // Teacher match
-            if (rowTeacher && assignedTeachers.some(t => t && (rowTeacher === t || rowTeacher.includes(t) || t.includes(rowTeacher)))) return true;
-            // Fallback: hide unless student has no identifying info
-            if (!studentBatch && !studentBatchName && studentSubjects.length === 0 && assignedTeachers.length === 0) return true;
-            return false;
-          })
-          .map(row => {
-            let parsedDesc = {};
-            try {
-              if (row.description && typeof row.description === "string" && row.description.startsWith("{")) {
-                parsedDesc = JSON.parse(row.description);
-              }
-            } catch (e) {}
+      const toUI = (row) => {
+        const desc = parseDesc(row.description);
+        const submissionsList =
+          (Array.isArray(desc.submissions) ? desc.submissions : [])
+          || (Array.isArray(row.submissions) ? row.submissions : []);
+        const mySub = submissionsList.find(sub => {
+          const subId   = String(sub.studentId || sub.id || "").toLowerCase().trim();
+          const subName = String(sub.name || "").toLowerCase().trim();
+          return (sId && subId === sId) || (sName && subName === sName);
+        });
 
-            const submissionsList = parsedDesc.submissions || [];
-            const mySub = submissionsList.find(sub => {
-              const subId   = String(sub.studentId || sub.id || "").toLowerCase().trim();
-              const subName = String(sub.name || "").toLowerCase().trim();
-              return (sId && subId === sId) || (sName && subName === sName);
-            });
+        let uiStatus   = "Pending";
+        let uiScore    = "";
+        let uiRemarks  = "";
+        const maxMarks = row.total_marks || row.maxMarks || row.totalMarks || 20;
+        if (mySub) {
+          if (mySub.status === "reviewed") {
+            uiStatus  = "Evaluated";
+            uiScore   = `${mySub.score} / ${maxMarks}`;
+            uiRemarks = mySub.remarks || "";
+          } else if (mySub.status === "submitted") {
+            uiStatus = "Submitted";
+          } else if (mySub.status === "missing") {
+            uiStatus = "Overdue";
+          }
+        }
 
-            let uiStatus = "Pending";
-            let uiScore  = "";
-            let uiRemarks = "";
-            if (mySub) {
-              if (mySub.status === "reviewed") {
-                uiStatus  = "Evaluated";
-                uiScore   = `${mySub.score} / ${row.total_marks || 20}`;
-                uiRemarks = mySub.remarks || "";
-              } else if (mySub.status === "submitted") {
-                uiStatus = "Submitted";
-              } else if (mySub.status === "missing") {
-                uiStatus = "Overdue";
-              }
-            }
+        const descText = typeof desc.description === "string"
+          ? desc.description
+          : (typeof row.description === "string" && !row.description.startsWith("{")
+              ? row.description
+              : "");
+        const createdRaw = row.created_at || row.createdAt || row.createdDate;
 
-            return {
-              id:             row.id,
-              subject:        row.subject,
-              status:         uiStatus,
-              title:          row.title,
-              description:    parsedDesc.description || (row.description && !row.description.startsWith("{") ? row.description : ""),
-              attachmentName: parsedDesc.attachmentName || "",
-              attachmentUrl:  parsedDesc.attachmentUrl  || "",
-              assignedDate:   new Date(row.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-              dueDate:        row.due_date,
-              maxMarks:       row.total_marks || 20,
-              score:          uiScore,
-              teacherRemarks: uiRemarks,
-              rawSubmissions: submissionsList,
-            };
-          });
+        return {
+          id:             row.id,
+          subject:        row.subject,
+          status:         uiStatus,
+          title:          row.title,
+          description:    descText,
+          attachmentName: desc.attachmentName || row.attachmentName || "",
+          attachmentUrl:  desc.attachmentUrl  || row.attachmentUrl  || "",
+          assignedDate:   createdRaw ? new Date(createdRaw).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "",
+          dueDate:        row.due_date || row.dueDate || "",
+          maxMarks:       maxMarks,
+          score:          uiScore,
+          teacherRemarks: uiRemarks,
+          rawSubmissions: submissionsList,
+        };
+      };
 
-        setAssignments(parsed);
+      // Merge assignments written by the teacher (localStorage) with any DB rows.
+      // The teacher writes to gw_assignments_v2; without this, locally-created
+      // assignments would be invisible to students when the table isn't ready.
+      const merged = new Map();
+      try {
+        const local = JSON.parse(localStorage.getItem("gw_assignments_v2") || "[]");
+        (Array.isArray(local) ? local : [])
+          .filter(matchesStudent)
+          .forEach((a) => { if (a && a.id != null) merged.set(String(a.id), toUI(a)); });
+      } catch (e) {}
+
+      try {
+        const { data } = await supabase.from("assignments").select("*").order("created_at", { ascending: false });
+        if (Array.isArray(data)) {
+          data.filter(matchesStudent).forEach((row) => { if (row && row.id != null) merged.set(String(row.id), toUI(row)); });
+        }
+      } catch (e) {
+        console.warn("Error fetching assignments from DB:", e);
       }
+
+      setAssignments(Array.from(merged.values()));
     } catch (err) {
       console.error("Error fetching assignments:", err);
     }
@@ -3494,6 +3488,11 @@ const StudentDashboard = ({ onNavigate }) => {
 
               {/* Three Horizontal Cards */}
               <section className="performance-cards-list">
+                {performanceData.length === 0 && (
+                  <div className="performance-empty-state">
+                    <p>No performance data yet. Your grades and progress will appear here once your teacher publishes tests and assignments.</p>
+                  </div>
+                )}
                 {performanceData.map((data) => {
                   let Icon = BookOpen;
                   let colorClass = "chem";

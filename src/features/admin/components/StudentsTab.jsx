@@ -795,27 +795,29 @@ const StudentsTab = ({
                       </tr>
                     ) : (
                       weeklyTests.map((t, idx) => {
-                        // Find if this student has taken this test, or simulate score
-                        const isMath = t.subject === "Mathematics" && selectedStudent.subjects.includes("Mathematics");
-                        const isPhysics = t.subject === "Physics" && selectedStudent.subjects.includes("Physics");
-                        const isChemistry = t.subject === "Chemistry" && selectedStudent.subjects.includes("Chemistry");
-                        
+                        // Enrolled = the test subject matches one of the student's subjects.
+                        const subjects = Array.isArray(selectedStudent.subjects)
+                          ? selectedStudent.subjects.map((s) => String(s).toLowerCase())
+                          : [];
+                        const isEnrolled = subjects.some(
+                          (s) => s === String(t.subject || "").toLowerCase()
+                        );
+
                         let marks = "--";
                         let percentStr = "--";
                         let statusText = "Not Enrolled";
 
-                        if (isMath || isPhysics || isChemistry) {
+                        if (isEnrolled) {
                           if (t.status === "Published") {
-                            // Give Sneha her actual marks, give other students a simulated 85% score
-                            if (selectedStudent.name === "Sneha") {
+                            // Show real marks only when the student actually has
+                            // recorded marks — never fabricate a score.
+                            if (t.marksObtained != null && t.percent != null) {
                               marks = `${t.marksObtained} / ${t.totalMarks}`;
                               percentStr = `${t.percent}%`;
+                              statusText = "Evaluated";
                             } else {
-                              const score = Math.round(t.totalMarks * 0.85);
-                              marks = `${score} / ${t.totalMarks}`;
-                              percentStr = `85%`;
+                              statusText = "Result Pending";
                             }
-                            statusText = "Evaluated";
                           } else {
                             statusText = "Result Pending";
                           }
