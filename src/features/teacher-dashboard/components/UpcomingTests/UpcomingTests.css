@@ -108,3 +108,24 @@
   color: #2D6BFF;
   background: rgba(45, 107, 255, 0.04);
 }
+
+/* ── Empty State ─────────────────────────────────────────── */
+
+.upcoming-tests-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 140px;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.upcoming-tests-empty p {
+  font-family: var(--font-main);
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+}

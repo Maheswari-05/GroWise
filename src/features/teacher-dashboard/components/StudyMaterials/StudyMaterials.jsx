@@ -617,8 +617,34 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
         .single();
 
       if (insertError) {
-        console.error("Materials insert error:", insertError);
-        showToast(`Upload failed: ${insertError.message}`, "warning");
+        // The `materials` table may not be provisioned yet (or a network
+        // issue). Persist locally so the teacher does not lose the upload —
+        // it survives logout/login (same browser) like weekly tests do.
+        console.warn("Materials insert failed; saving locally:", insertError);
+        const localMaterial = {
+          id: "mat_" + Date.now(),
+          subject: data.subject,
+          teacher: data.teacher,
+          flagged: false,
+          created_at: new Date().toISOString(),
+          ...data,
+          fileUrl,
+        };
+        setMaterials([localMaterial, ...materials]);
+        showToast("Material saved (offline mode).");
+
+        const currentTime = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+        const notifMsg = `New Study Material: "${data.title}" uploaded for ${data.batch || "your batch"} (${data.subject}).`;
+        try {
+          const existing = JSON.parse(localStorage.getItem("gw_notifications_v3") || "[]");
+          localStorage.setItem("gw_notifications_v3", JSON.stringify([{
+            id: `notif_${Date.now()}`, type: "study-material",
+            title: "New Study Material Uploaded", message: notifMsg,
+            time: "Just now", date: new Date().toISOString(),
+            read: false, batch: data.batch, subject: data.subject,
+          }, ...existing]));
+        } catch (e) {}
+
         setModal(null);
         return;
       }

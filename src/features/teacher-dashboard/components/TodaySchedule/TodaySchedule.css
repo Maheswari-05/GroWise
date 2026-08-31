@@ -144,3 +144,23 @@
   border-color: #2D6BFF;
   box-shadow: 0 4px 12px rgba(45, 107, 255, 0.25);
 }
+
+/* ── Empty State ─────────────────────────────────────────── */
+
+.schedule-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 220px;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.schedule-empty p {
+  font-family: var(--font-main);
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+}

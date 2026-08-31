@@ -3,6 +3,7 @@ import Sidebar from "./components/Sidebar/Sidebar";
 import Header from "./components/Header/Header";
 import SummaryCards from "./components/SummaryCards/SummaryCards";
 import TodaySchedule from "./components/TodaySchedule/TodaySchedule";
+import WeeklyCalendar from "./components/WeeklyCalendar/WeeklyCalendar";
 import UpcomingTests from "./components/UpcomingTests/UpcomingTests";
 import RecentSubmissions from "./components/RecentSubmissions/RecentSubmissions";
 import NotificationsCard from "./components/NotificationsCard/NotificationsCard";
@@ -973,6 +974,11 @@ const TeacherDashboard = ({ onNavigate }) => {
               />
               <UpcomingTests weeklyTests={weeklyTests} batches={assignedBatches} setActiveNav={handleSetActiveNav} />
             </div>
+            <WeeklyCalendar
+              onlineClasses={onlineClasses}
+              batches={assignedBatches}
+              setActiveNav={handleSetActiveNav}
+            />
             <div className="td-row-three">
               <RecentSubmissions assignments={assignments} students={assignedStudents} setActiveNav={handleSetActiveNav} />
               <NotificationsCard notifications={notifications} setActiveNav={handleSetActiveNav} />
