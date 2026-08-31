@@ -68,6 +68,10 @@ alter table public.materials     enable row level security;
 alter table public.weekly_tests  enable row level security;
 alter table public.assignments   enable row level security;
 
+drop policy if exists "materials anon all"    on public.materials;
+drop policy if exists "weekly_tests anon all" on public.weekly_tests;
+drop policy if exists "assignments anon all"  on public.assignments;
+
 create policy "materials anon all"    on public.materials    for all using (true) with check (true);
 create policy "weekly_tests anon all" on public.weekly_tests for all using (true) with check (true);
 create policy "assignments anon all"  on public.assignments  for all using (true) with check (true);
