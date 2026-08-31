@@ -74,7 +74,7 @@ const OnlineClasses = ({
   // New Class Form State
   const [newTitle, setNewTitle] = useState("");
   const [newSubject, setNewSubject] = useState(
-    teacherProfile.subjects?.[0] || "Mathematics"
+    teacherProfile.subjects?.[0] || ""
   );
   const [newBatch, setNewBatch] = useState("");
   const [newDate, setNewDate] = useState(new Date().toISOString().split("T")[0]);

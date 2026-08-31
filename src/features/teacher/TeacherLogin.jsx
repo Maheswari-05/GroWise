@@ -40,38 +40,37 @@ const TeacherLogin = ({ onNavigate }) => {
       }
 
       if (data?.user) {
-        console.log("✅ Teacher Supabase login successful for:", data.user.email);
+        console.log("✅ Teacher auth successful for:", data.user.email);
 
-        // 2. Look up their profile in Supabase database
+        // 2. Verify this user is actually a teacher in the teachers table
         const { data: profileData, error: profileError } = await supabase
           .from("teachers")
           .select("*")
           .ilike("email", normalizedEmail)
           .maybeSingle();
 
-        let profile = null;
-        if (!profileError && profileData) {
-          profile = {
-            id: profileData.id,
-            name: profileData.name,
-            email: profileData.email,
-            phone: profileData.contact || profileData.phone || "",
-            qualification: profileData.qualification || "",
-            subjects: profileData.subjects || [],
-            status: profileData.status || "Active",
-          };
+        if (profileError || !profileData) {
+          console.error("❌ Not a valid teacher account:", normalizedEmail);
+          await supabase.auth.signOut();
+          setError("This account is not registered as a teacher. Please use the correct login portal.");
+          setIsLoading(false);
+          return;
         }
 
-        const loggedTeacher = profile || {
-          id: data.user.id,
-          name: data.user.user_metadata?.name || normalizedEmail.split("@")[0],
-          email: normalizedEmail,
-          subjects: [],
-          status: "Active",
+        console.log("✅ Teacher role verified for:", profileData.name);
+
+        const profile = {
+          id: profileData.id,
+          name: profileData.name,
+          email: profileData.email,
+          phone: profileData.contact || profileData.phone || "",
+          qualification: profileData.qualification || "",
+          subjects: profileData.subjects || [],
+          status: profileData.status || "Active",
         };
 
-        localStorage.setItem("gw_logged_teacher_id", loggedTeacher.id);
-        localStorage.setItem("gw_logged_teacher", JSON.stringify(loggedTeacher));
+        localStorage.setItem("gw_logged_teacher_id", profile.id);
+        localStorage.setItem("gw_logged_teacher", JSON.stringify(profile));
         onNavigate("teacher-dashboard");
       } else {
         setError("Login failed. Please try again.");

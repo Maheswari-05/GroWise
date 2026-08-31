@@ -42,7 +42,24 @@ const AdminLogin = ({ onNavigate }) => {
         return;
       }
       
-      console.log("✅ Admin login successful for:", normalizedEmail);
+      console.log("✅ Admin auth successful for:", normalizedEmail);
+      
+      // Verify this user is actually an admin in the admins table
+      const { data: adminData, error: adminError } = await supabase
+        .from("admins")
+        .select("id, email, name")
+        .eq("email", normalizedEmail)
+        .maybeSingle();
+      
+      if (adminError || !adminData) {
+        console.error("❌ Not a valid admin account:", normalizedEmail);
+        await supabase.auth.signOut();
+        setError("This account does not have administrator privileges. Please contact support.");
+        setIsLoading(false);
+        return;
+      }
+      
+      console.log("✅ Admin role verified for:", adminData.email);
       
       // Auto-create admin profile row on first login
       try {

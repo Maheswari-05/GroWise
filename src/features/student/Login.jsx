@@ -45,8 +45,25 @@ const Login = ({ onNavigate }) => {
       }
 
       if (data?.user) {
-        console.log("✅ Student login successful for:", data.user.email);
+        console.log("✅ Student auth successful for:", data.user.email);
         console.log("User ID:", data.user.id);
+        
+        // Verify this user is actually a student in the students table
+        const { data: studentData, error: studentError } = await supabase
+          .from("students")
+          .select("id, name, email")
+          .eq("email", normalizedEmail)
+          .maybeSingle();
+        
+        if (studentError || !studentData) {
+          console.error("❌ Not a valid student account:", normalizedEmail);
+          await supabase.auth.signOut();
+          setError("This account is not registered as a student. Please use the correct login portal.");
+          setIsLoading(false);
+          return;
+        }
+        
+        console.log("✅ Student role verified for:", studentData.name);
         onNavigate("dashboard");
       } else {
         setError("Login failed. Please try again.");

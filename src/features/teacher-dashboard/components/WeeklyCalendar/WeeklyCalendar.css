@@ -1,6 +1,6 @@
 /* ============================================================
-   WEEKLY CLASSES CALENDAR  —  Professional flat design
-   Clean, modern, professional with solid colors and good spacing
+   WEEKLY CLASSES CALENDAR  —  Teams-style time-based calendar
+   Time column on left, day columns with events positioned by time
 ============================================================ */
 
 .wc-shell {
@@ -90,17 +90,19 @@
   font-size: 13px;
   font-weight: 600;
   color: #ffffff;
-  background: #2563eb;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
   border: none;
   padding: 8px 16px;
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
 }
 
 .wc-today-btn:hover {
-  background: #1d4ed8;
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.2);
+  background: linear-gradient(135deg, #1d4ed8, #1e40af);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+  transform: translateY(-1px);
 }
 
 .wc-chevrons {
@@ -151,27 +153,33 @@
   padding: 10px 18px;
   border-radius: 8px;
   border: none;
-  background: #10b981;
+  background: linear-gradient(135deg, #2563eb, #10b981);
   color: #ffffff;
   font-family: var(--font-main);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
 }
 
 .wc-manage-btn:hover {
-  background: #059669;
-  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.2);
+  background: linear-gradient(135deg, #1d4ed8, #059669);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+  transform: translateY(-1px);
 }
 
 /* ── Weekday header row ──────────────────────────────────── */
 
 .wc-weekdays {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: 80px repeat(7, 1fr);
   border-bottom: 1px solid #e5e7eb;
   background: #f9fafb;
+}
+
+.wc-time-gutter {
+  border-right: 1px solid #e5e7eb;
 }
 
 .wc-wd {
@@ -221,59 +229,103 @@
   color: #ffffff;
 }
 
-/* ── Layout: calendar only ────────────────────────────────── */
+/* ── Calendar wrapper with scrolling ─────────────────────── */
 
-.wc-layout {
-  display: block;
-  background: #ffffff;
+.wc-calendar-wrapper {
+  overflow-y: auto;
+  max-height: 600px;
 }
 
-/* ── Calendar grid ───────────────────────────────────────── */
+.wc-calendar-wrapper::-webkit-scrollbar {
+  width: 8px;
+}
 
-.wc-calendar {
+.wc-calendar-wrapper::-webkit-scrollbar-track {
+  background: #f9fafb;
+}
+
+.wc-calendar-wrapper::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+.wc-calendar-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* ── Calendar grid (time column + day columns) ───────────── */
+
+.wc-calendar-grid {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  min-height: 780px; /* 13 hours * 60px */
+}
+
+/* ── Time column (left side) ─────────────────────────────── */
+
+.wc-time-column {
+  border-right: 1px solid #e5e7eb;
+  background: #f9fafb;
+  position: relative;
+}
+
+.wc-time-slot {
+  height: 60px;
+  border-bottom: 1px solid #f3f4f6;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 4px 12px 0 0;
+}
+
+.wc-time-label {
+  font-family: var(--font-main);
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* ── Days grid (right side with 7 columns) ───────────────── */
+
+.wc-days-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  min-height: 360px;
-  background: #ffffff;
+  position: relative;
 }
 
-.wc-col {
-  min-height: 220px;
-  padding: 12px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.wc-day-column {
+  position: relative;
   border-right: 1px solid #f3f4f6;
   background: #ffffff;
 }
 
-.wc-col:last-child {
+.wc-day-column:last-child {
   border-right: none;
 }
 
-.wc-col--today {
+.wc-day-column--today {
   background: #eff6ff;
-  border-left: 3px solid #2563eb;
-  border-right: 1px solid #dbeafe;
 }
 
-.wc-col--today:last-child {
-  border-right: none;
+.wc-hour-line {
+  height: 60px;
+  border-bottom: 1px solid #f3f4f6;
 }
 
-.wc-col-empty {
-  flex: 1;
-}
+/* ── Time-positioned events ──────────────────────────────── */
 
-/* ── Event block ──────────────────────────────────────────── */
-
-.wc-event {
-  position: relative;
+.wc-time-event {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 56px;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px 10px 16px;
-  border-radius: 8px;
+  flex-direction: row;
+  gap: 0;
+  padding: 8px 10px 8px 14px;
+  border-radius: 6px;
   background: #ffffff;
   border: 1px solid #e5e7eb;
   text-align: left;
@@ -281,55 +333,65 @@
   font-family: var(--font-main);
   overflow: hidden;
   transition: all 0.2s ease;
+  z-index: 1;
 }
 
-.wc-event-bar {
+.wc-time-event:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: scale(1.02);
+  z-index: 10;
+  border-color: #2563eb;
+}
+
+.wc-time-event .wc-event-bar {
   position: absolute;
   left: 0;
-  top: 8px;
-  bottom: 8px;
+  top: 6px;
+  bottom: 6px;
   width: 4px;
   border-radius: 2px;
   background: #2563eb;
 }
 
-.wc-event.live .wc-event-bar { background: #ef4444; }
-.wc-event.completed .wc-event-bar { background: #10b981; }
-.wc-event.cancelled .wc-event-bar,
-.wc-event.missed .wc-event-bar { background: #9ca3af; }
+.wc-time-event.live .wc-event-bar { background: #ef4444; }
+.wc-time-event.completed .wc-event-bar { background: #10b981; }
+.wc-time-event.cancelled .wc-event-bar,
+.wc-time-event.missed .wc-event-bar { background: #9ca3af; }
 
-.wc-event:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transform: translateY(-2px);
-  border-color: #d1d5db;
+.wc-time-event.cancelled,
+.wc-time-event.missed {
+  opacity: 0.6;
 }
 
-.wc-event.cancelled,
-.wc-event.missed {
-  opacity: 0.65;
+.wc-event-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .wc-event-time {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 11px;
+  gap: 4px;
+  font-size: 10px;
   font-weight: 600;
   color: #6b7280;
 }
 
 .wc-event-title {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: #111827;
-  line-height: 1.3;
+  line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .wc-event-meta {
-  font-size: 11px;
+  font-size: 10px;
   color: #6b7280;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -338,288 +400,70 @@
 
 .wc-event-status {
   align-self: flex-start;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.4px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  margin-top: 4px;
-}
-
-/* ── Sidebar (this week's classes) ───────────────────────── */
-
-.wc-sidebar {
-  border-left: 1px solid #e5e7eb;
-  background: #f9fafb;
-  display: flex;
-  flex-direction: column;
-  padding: 20px;
-  max-height: 600px;
-  align-self: stretch;
-}
-
-.wc-sidebar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.wc-sidebar-header h3 {
-  font-family: var(--font-head);
-  font-size: 16px;
-  font-weight: 700;
-  color: #111827;
-  margin: 0;
-}
-
-.wc-count-badge {
-  font-family: var(--font-main);
-  font-size: 13px;
-  font-weight: 700;
-  color: #2563eb;
-  background: #dbeafe;
-  border-radius: 6px;
-  padding: 4px 12px;
-}
-
-.wc-sidebar-list {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding-right: 4px;
-}
-
-.wc-sidebar-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.wc-sidebar-list::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 999px;
-}
-
-.wc-sidebar-day-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.wc-sidebar-day-name {
-  font-family: var(--font-main);
-  font-size: 13px;
-  font-weight: 700;
-  color: #111827;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.wc-today-tag {
-  font-style: normal;
-  font-size: 10px;
-  font-weight: 700;
-  color: #ffffff;
-  background: #2563eb;
-  border-radius: 6px;
-  padding: 3px 8px;
-  margin-left: 8px;
-}
-
-.wc-sidebar-day-date {
-  font-family: var(--font-main);
-  font-size: 12px;
-  color: #9ca3af;
-  font-weight: 500;
-}
-
-.wc-sidebar-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 12px 14px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  text-align: left;
-  cursor: pointer;
-  font-family: var(--font-main);
-  margin-bottom: 8px;
-  transition: all 0.2s ease;
-}
-
-.wc-sidebar-item:hover {
-  border-color: #2563eb;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
-  transform: translateX(3px);
-}
-
-.wc-sidebar-item-time {
-  font-family: var(--font-main);
-  font-size: 13px;
-  font-weight: 700;
-  color: #2563eb;
-  background: #eff6ff;
-  border-radius: 6px;
-  padding: 6px 10px;
+  letter-spacing: 0.3px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 2px;
   white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.wc-sidebar-item-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.wc-sidebar-item-title {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #111827;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.wc-sidebar-item-title svg {
-  color: #9ca3af;
-  flex-shrink: 0;
-}
-
-.wc-sidebar-item-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 4px;
-  font-size: 11px;
-  color: #6b7280;
-}
-
-.wc-sidebar-item-meta span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.wc-sidebar-item-status {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.wc-sidebar-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 40px 16px;
-  text-align: center;
-  color: #9ca3af;
-}
-
-.wc-sidebar-empty p {
-  font-family: var(--font-main);
-  font-size: 14px;
-  margin: 0;
-  color: #6b7280;
-}
-
-.td-view-all-btn {
-  font-family: var(--font-main);
-  font-size: 13px;
-  font-weight: 600;
-  color: #ffffff;
-  background: #2563eb;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  margin-top: 8px;
-}
-
-.td-view-all-btn:hover {
-  background: #1d4ed8;
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.2);
-}
-
-.wc-sidebar-footer-btn {
-  margin-top: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  padding: 12px;
-  border-radius: 8px;
-  border: none;
-  background: #2563eb;
-  color: #ffffff;
-  font-family: var(--font-main);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.wc-sidebar-footer-btn:hover {
-  background: #1d4ed8;
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.2);
 }
 
 /* ── Responsive ──────────────────────────────────────────── */
 
 @media (max-width: 1400px) {
-  .wc-layout {
-    grid-template-columns: 1fr 300px;
-  }
-  .wc-calendar {
-    grid-template-columns: repeat(4, 1fr);
-  }
   .wc-weekdays {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: 70px repeat(7, 1fr);
+  }
+  
+  .wc-calendar-grid {
+    grid-template-columns: 70px 1fr;
+  }
+  
+  .wc-time-slot {
+    padding-right: 8px;
   }
 }
 
 @media (max-width: 1200px) {
-  .wc-layout {
-    grid-template-columns: 1fr;
+  .wc-topbar {
+    padding: 16px 20px;
   }
-  .wc-calendar {
-    grid-template-columns: repeat(7, 1fr);
+  
+  .wc-calendar-wrapper {
+    max-height: 500px;
   }
+}
+
+@media (max-width: 900px) {
   .wc-weekdays {
-    grid-template-columns: repeat(7, 1fr);
+    grid-template-columns: 60px repeat(7, 1fr);
   }
-  .wc-sidebar {
-    border-left: none;
-    border-top: 1px solid #e5e7eb;
-    max-height: none;
+  
+  .wc-calendar-grid {
+    grid-template-columns: 60px 1fr;
+  }
+  
+  .wc-time-label {
+    font-size: 10px;
+  }
+  
+  .wc-topbar-hint {
+    display: none;
   }
 }
 
 @media (max-width: 700px) {
-  .wc-calendar {
-    grid-template-columns: repeat(1, 1fr);
-  }
-  .wc-weekdays {
-    grid-template-columns: repeat(1, 1fr);
-  }
-  .wc-topbar-hint {
-    display: none;
-  }
   .wc-topbar {
-    padding: 16px;
+    padding: 14px 16px;
+  }
+  
+  .wc-days-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .wc-weekdays {
+    grid-template-columns: 60px repeat(3, 1fr);
   }
 }

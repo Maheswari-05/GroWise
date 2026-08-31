@@ -96,7 +96,6 @@ const WeeklyCalendar = ({ onlineClasses = [], batches = [], setActiveNav }) => {
 
   const handleOpenClass = () => setActiveNav && setActiveNav("classes");
 
-  const totalCount = weekClasses.length;
   const liveCount = weekClasses.filter((c) => {
     const s = normStatus(c.status);
     return s === "live" || s === "live now";
@@ -104,9 +103,29 @@ const WeeklyCalendar = ({ onlineClasses = [], batches = [], setActiveNav }) => {
 
   const openAction = handleOpenClass;
 
+  // Time slots from 8 AM to 8 PM
+  const timeSlots = useMemo(() => {
+    const slots = [];
+    for (let h = 8; h <= 20; h++) {
+      const hour = h > 12 ? h - 12 : h === 0 ? 12 : h;
+      const period = h >= 12 ? 'PM' : 'AM';
+      slots.push({ hour: h, label: `${hour}:00 ${period}` });
+    }
+    return slots;
+  }, []);
+
+  // Calculate position for each class based on time
+  const getEventPosition = (timeStr) => {
+    const minutes = parseTime(timeStr);
+    const startMinutes = 8 * 60; // 8 AM
+    const relativeMinutes = minutes - startMinutes;
+    const pixelsPerMinute = 60 / 60; // 60px per hour
+    return Math.max(0, relativeMinutes * pixelsPerMinute);
+  };
+
   return (
     <div className="td-card wc-shell">
-      {/* ── Top bar (Teams / Outlook style) ─────────────────── */}
+      {/* ── Top bar ─────────────────────────────────────── */}
       <div className="wc-topbar">
         <div className="wc-topbar-left">
           <div className={`wc-live-pill ${liveCount > 0 ? "is-live" : ""}`}>
@@ -136,8 +155,9 @@ const WeeklyCalendar = ({ onlineClasses = [], batches = [], setActiveNav }) => {
         </div>
       </div>
 
-      {/* ── Weekday header row (Teams month/week style) ─────── */}
+      {/* ── Weekday header row ─────────────────────────── */}
       <div className="wc-weekdays">
+        <div className="wc-time-gutter"></div>
         {weekDays.map((day, i) => {
           const iso = toISODate(day);
           const isToday = iso === todayISO;
@@ -150,48 +170,65 @@ const WeeklyCalendar = ({ onlineClasses = [], batches = [], setActiveNav }) => {
         })}
       </div>
 
-      <div className="wc-layout">
-        {/* ── Calendar — week grid ─────────────────────────── */}
-        <div className="wc-calendar">
-          {weekDays.map((day, i) => {
-            const iso = toISODate(day);
-            const dayClasses = classesByDay[iso] || [];
-            const isToday = iso === todayISO;
-            return (
-              <div className={`wc-col ${isToday ? "wc-col--today" : ""}`} key={iso}>
-                {dayClasses.length === 0 ? (
-                  <div className="wc-col-empty" />
-                ) : (
-                  dayClasses.map((c) => {
+      {/* ── Calendar with time slots ───────────────────── */}
+      <div className="wc-calendar-wrapper">
+        <div className="wc-calendar-grid">
+          {/* Time column */}
+          <div className="wc-time-column">
+            {timeSlots.map((slot) => (
+              <div className="wc-time-slot" key={slot.hour}>
+                <span className="wc-time-label">{slot.label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Day columns */}
+          <div className="wc-days-grid">
+            {weekDays.map((day, i) => {
+              const iso = toISODate(day);
+              const dayClasses = classesByDay[iso] || [];
+              const isToday = iso === todayISO;
+              return (
+                <div className={`wc-day-column ${isToday ? "wc-day-column--today" : ""}`} key={iso}>
+                  {/* Hour lines */}
+                  {timeSlots.map((slot) => (
+                    <div className="wc-hour-line" key={slot.hour}></div>
+                  ))}
+                  
+                  {/* Events positioned by time */}
+                  {dayClasses.map((c) => {
                     const meta = statusMeta(c);
                     const batchObj = getBatch(c.batchId);
+                    const topPosition = getEventPosition(c.time);
+                    
                     return (
                       <button
-                        className={`wc-event ${meta.key}`}
+                        className={`wc-time-event ${meta.key}`}
                         key={c.id}
                         onClick={openAction}
+                        style={{ top: `${topPosition}px` }}
                         title={`${c.subject || c.title} — ${String(c.time || "").split(" - ")[0].trim() || "TBD"}`}
                       >
                         <span className="wc-event-bar" />
-                        <span className="wc-event-body">
-                          <span className="wc-event-time">
+                        <div className="wc-event-content">
+                          <div className="wc-event-time">
                             <Clock size={11} /> {String(c.time || "").split(" - ")[0].trim() || "TBD"}
-                          </span>
-                          <span className="wc-event-title">{c.subject || c.title || "Class"}</span>
-                          <span className="wc-event-meta">
+                          </div>
+                          <div className="wc-event-title">{c.subject || c.title || "Class"}</div>
+                          <div className="wc-event-meta">
                             {batchObj?.grade ? `${batchObj.grade} · ` : ""}{batchObj?.name || c.batch || c.student || "Batch"}
+                          </div>
+                          <span className="wc-event-status" style={{ color: meta.color, background: meta.bg }}>
+                            {meta.label}
                           </span>
-                        </span>
-                        <span className="wc-event-status" style={{ color: meta.color, background: meta.bg }}>
-                          {meta.label}
-                        </span>
+                        </div>
                       </button>
                     );
-                  })
-                )}
-              </div>
-            );
-          })}
+                  })}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
