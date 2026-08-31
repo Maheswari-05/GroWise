@@ -71,3 +71,21 @@ alter table public.assignments   enable row level security;
 create policy "materials anon all"    on public.materials    for all using (true) with check (true);
 create policy "weekly_tests anon all" on public.weekly_tests for all using (true) with check (true);
 create policy "assignments anon all"  on public.assignments  for all using (true) with check (true);
+
+-- ============================================================
+-- MIGRATION (idempotent — safe to re-run)
+-- The live `materials` table was created WITHOUT the
+-- `teacher_email` column that StudyMaterials.jsx writes, so any
+-- insert that includes teacher_email returns 400 and the upload
+-- only saves locally (cross-device data loss). Add the missing
+-- column if it isn't present yet.
+-- ============================================================
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'materials' and column_name = 'teacher_email'
+  ) then
+    alter table public.materials add column teacher_email text;
+  end if;
+end $$;
