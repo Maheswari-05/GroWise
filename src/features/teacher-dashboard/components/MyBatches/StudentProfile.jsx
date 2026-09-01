@@ -236,7 +236,10 @@ const StudentProfile = ({ student, batchName, onClose }) => {
           .select('status')
           .eq('student_id', student.id);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error fetching student attendance:', error);
+          return; // Exit early instead of throwing
+        }
 
         if (logs && logs.length > 0) {
           const presentCount = logs.filter(log => log.status === 'Present').length;

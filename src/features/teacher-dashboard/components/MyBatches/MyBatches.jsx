@@ -73,7 +73,10 @@ const MyBatches = ({ batches: propBatches = [], students: propStudents = [] }) =
           .from('attendance_logs')
           .select('student_id, status');
 
-        if (error) throw error;
+        if (error) {
+          console.error("Error fetching attendance data:", error);
+          return; // Exit early if table doesn't exist or query fails
+        }
 
         // Calculate attendance percentage for each student
         const attendanceMap = {};

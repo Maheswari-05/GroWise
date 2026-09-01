@@ -669,10 +669,15 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
         const currentTime = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
         const notifMsg = `New Study Material: "${data.title}" uploaded for ${data.batch || "your batch"} (${data.subject}).`;
 
-        supabase.from("notifications").insert([
-          { type: `study-material:${teacherName}`, message: notifMsg, time: currentTime, recipient_type: "student", recipient: "all" },
-          { type: "batch", message: notifMsg, time: currentTime, recipient_type: "student", recipient: "all" },
-        ]).catch(() => {});
+        // Notifications (fire-and-forget — never block the upload)
+        try {
+          await supabase.from("notifications").insert([
+            { type: `study-material:${teacherName}`, message: notifMsg, time: currentTime, recipient_type: "student", recipient: "all" },
+            { type: "batch", message: notifMsg, time: currentTime, recipient_type: "student", recipient: "all" },
+          ]);
+        } catch (notifError) {
+          console.log("Notification insert failed (non-critical):", notifError);
+        }
 
         try {
           const existing = JSON.parse(localStorage.getItem("gw_notifications_v3") || "[]");
