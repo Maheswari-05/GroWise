@@ -31,8 +31,21 @@ const TeachersTab = ({
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
 
   const generateTeacherId = () => {
-    const suffix = Date.now().toString().slice(-6);
-    return `TCH${suffix}`;
+    // Generate unique teacher ID with timestamp + random suffix
+    const timestamp = Date.now().toString().slice(-6);
+    const randomSuffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+    let nextId = `TCH${timestamp}${randomSuffix}`;
+    
+    // Ensure uniqueness against existing teachers
+    let attempts = 0;
+    while (teachers.some(t => t.id === nextId) && attempts < 10) {
+      const newTimestamp = Date.now().toString().slice(-6);
+      const newSuffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+      nextId = `TCH${newTimestamp}${newSuffix}`;
+      attempts++;
+    }
+    
+    return nextId;
   };
 
   // Form State

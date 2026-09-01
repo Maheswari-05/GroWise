@@ -31,8 +31,21 @@ const StudentsTab = ({
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
 
   const generateStudentId = () => {
-    const suffix = Date.now().toString().slice(-6);
-    return `STU${suffix}`;
+    // Generate unique student ID with timestamp + random suffix
+    const timestamp = Date.now().toString().slice(-6);
+    const randomSuffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+    let nextId = `STU${timestamp}${randomSuffix}`;
+    
+    // Ensure uniqueness against existing students
+    let attempts = 0;
+    while (students.some(s => s.id === nextId) && attempts < 10) {
+      const newTimestamp = Date.now().toString().slice(-6);
+      const newSuffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+      nextId = `STU${newTimestamp}${newSuffix}`;
+      attempts++;
+    }
+    
+    return nextId;
   };
 
   // Calculate student attendance percentage
