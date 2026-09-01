@@ -23,7 +23,20 @@ const SubjectsTab = ({
   });
 
   const handleAddNewClick = () => {
-    const nextId = String(subjects.length + 1);
+    // Generate unique subject ID using timestamp to avoid duplicates
+    const timestamp = Date.now().toString().slice(-6);
+    const randomSuffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+    let nextId = `SUB${timestamp}${randomSuffix}`;
+    
+    // Ensure uniqueness against existing subjects
+    let attempts = 0;
+    while (subjects.some(s => s.id === nextId) && attempts < 10) {
+      const newTimestamp = Date.now().toString().slice(-6);
+      const newSuffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+      nextId = `SUB${newTimestamp}${newSuffix}`;
+      attempts++;
+    }
+    
     setFormData({
       id: nextId,
       name: "",
