@@ -557,84 +557,123 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
 
   /* CRUD handlers */
   const handleSave = async (data) => {
-    // Resolve logged-in teacher name
-    let teacherName = "Teacher";
-    let teacherId = "";
-    let teacherEmail = "";
     try {
-      teacherId = localStorage.getItem("gw_logged_teacher_id") || "";
-      const raw = localStorage.getItem("gw_logged_teacher");
-      if (raw) {
-        const obj = JSON.parse(raw);
-        teacherName = obj.name || teacherName;
-        teacherEmail = obj.email || "";
+      // Resolve logged-in teacher name
+      let teacherName = "Teacher";
+      let teacherId = "";
+      let teacherEmail = "";
+      try {
+        teacherId = localStorage.getItem("gw_logged_teacher_id") || "";
+        const raw = localStorage.getItem("gw_logged_teacher");
+        if (raw) {
+          const obj = JSON.parse(raw);
+          teacherName = obj.name || teacherName;
+          teacherEmail = obj.email || "";
+        }
+      } catch (e) {}
+
+      // Generate a UUID client-side — required because the table's id column
+      // has no DEFAULT gen_random_uuid() and must not be null.
+      const newId = crypto.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+
+      // Upload the file to Supabase Storage and persist a real public URL, so the
+      // material can be downloaded on later visits (not just the current session).
+      // If the fileUrl is already a real URL (e.g. http(s) or a storage link), keep it.
+      let fileUrl = data.fileUrl || null;
+      if (fileUrl && typeof fileUrl === "string" && fileUrl.startsWith("data:")) {
+        const ext = (data.fileName ? "." + data.fileName.split(".").pop() : "") || ".pdf";
+        const storageUrl = await adminService.uploadMaterialFile(fileUrl, `materials/${newId}${ext}`);
+        fileUrl = storageUrl || null;
       }
-    } catch (e) {}
 
-    // Generate a UUID client-side — required because the table's id column
-    // has no DEFAULT gen_random_uuid() and must not be null.
-    const newId = crypto.randomUUID
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+      const dbPayload = {
+        id: newId,
+        title: JSON.stringify({
+          title:       data.title,
+          description: data.description,
+          fileName:    data.fileName,
+          fileSize:    data.fileSize,
+          fileType:    data.fileType,
+          fileUrl,                             // real storage URL (or null)
+          batch:       data.batch,
+          grade:       data.grade,
+          uploadDate:  data.uploadDate,
+          downloads:   data.downloads ?? 0,
+        }),
+        subject: data.subject,
+        teacher: teacherName,
+        teacher_id: teacherId || null,
+        teacher_email: teacherEmail || null,
+        flagged: false,
+      };
 
-    // Upload the file to Supabase Storage and persist a real public URL, so the
-    // material can be downloaded on later visits (not just the current session).
-    // If the fileUrl is already a real URL (e.g. http(s) or a storage link), keep it.
-    let fileUrl = data.fileUrl || null;
-    if (fileUrl && typeof fileUrl === "string" && fileUrl.startsWith("data:")) {
-      const ext = (data.fileName ? "." + data.fileName.split(".").pop() : "") || ".pdf";
-      const storageUrl = await adminService.uploadMaterialFile(fileUrl, `materials/${newId}${ext}`);
-      fileUrl = storageUrl || null;
-    }
+      if (modal === "upload") {
+        // ── INSERT ──────────────────────────────────────────────
+        const { data: inserted, error: insertError } = await supabase
+          .from("materials")
+          .insert(dbPayload)
+          .select()
+          .single();
 
-    const dbPayload = {
-      id: newId,
-      title: JSON.stringify({
-        title:       data.title,
-        description: data.description,
-        fileName:    data.fileName,
-        fileSize:    data.fileSize,
-        fileType:    data.fileType,
-        fileUrl,                             // real storage URL (or null)
-        batch:       data.batch,
-        grade:       data.grade,
-        uploadDate:  data.uploadDate,
-        downloads:   data.downloads ?? 0,
-      }),
-      subject: data.subject,
-      teacher: teacherName,
-      teacher_id: teacherId || null,
-      teacher_email: teacherEmail || null,
-      flagged: false,
-    };
+        if (insertError) {
+          // The `materials` table may not be provisioned yet (or a network
+          // issue). Persist locally so the teacher does not lose the upload —
+          // it survives logout/login (same browser) like weekly tests do.
+          console.warn("Materials insert failed; saving locally:", insertError);
+          const localMaterial = {
+            id: "mat_" + Date.now(),
+            subject: data.subject,
+            teacher: data.teacher,
+            flagged: false,
+            created_at: new Date().toISOString(),
+            ...data,
+            fileUrl,
+          };
+          setMaterials([localMaterial, ...materials]);
+          showToast("Material saved (offline mode).");
 
-    if (modal === "upload") {
-      // ── INSERT ──────────────────────────────────────────────
-      const { data: inserted, error: insertError } = await supabase
-        .from("materials")
-        .insert(dbPayload)
-        .select()
-        .single();
+          const currentTime = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+          const notifMsg = `New Study Material: "${data.title}" uploaded for ${data.batch || "your batch"} (${data.subject}).`;
+          try {
+            const existing = JSON.parse(localStorage.getItem("gw_notifications_v3") || "[]");
+            localStorage.setItem("gw_notifications_v3", JSON.stringify([{
+              id: `notif_${Date.now()}`, type: "study-material",
+              title: "New Study Material Uploaded", message: notifMsg,
+              time: "Just now", date: new Date().toISOString(),
+              read: false, batch: data.batch, subject: data.subject,
+            }, ...existing]));
+          } catch (e) {}
 
-      if (insertError) {
-        // The `materials` table may not be provisioned yet (or a network
-        // issue). Persist locally so the teacher does not lose the upload —
-        // it survives logout/login (same browser) like weekly tests do.
-        console.warn("Materials insert failed; saving locally:", insertError);
-        const localMaterial = {
-          id: "mat_" + Date.now(),
-          subject: data.subject,
-          teacher: data.teacher,
-          flagged: false,
-          created_at: new Date().toISOString(),
-          ...data,
-          fileUrl,
+          setModal(null);
+          return;
+        }
+
+        // Build local object from the saved row + keep session file URL
+        const newMaterial = {
+          id:          inserted.id,
+          subject:     inserted.subject,
+          teacher:     inserted.teacher,
+          flagged:     inserted.flagged,
+          created_at:  inserted.created_at,
+          ...data,                       // spread form data (title, desc, etc.)
+          fileUrl,                       // real storage URL (survives reload)
         };
-        setMaterials([localMaterial, ...materials]);
-        showToast("Material saved (offline mode).");
 
+        // Update teacher list immediately (no extra round-trip needed)
+        setMaterials([newMaterial, ...materials]);
+        showToast("Material uploaded successfully!");
+
+        // Notifications (fire-and-forget — never block the upload)
         const currentTime = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
         const notifMsg = `New Study Material: "${data.title}" uploaded for ${data.batch || "your batch"} (${data.subject}).`;
+
+        supabase.from("notifications").insert([
+          { type: `study-material:${teacherName}`, message: notifMsg, time: currentTime, recipient_type: "student", recipient: "all" },
+          { type: "batch", message: notifMsg, time: currentTime, recipient_type: "student", recipient: "all" },
+        ]).catch(() => {});
+
         try {
           const existing = JSON.parse(localStorage.getItem("gw_notifications_v3") || "[]");
           localStorage.setItem("gw_notifications_v3", JSON.stringify([{
@@ -645,63 +684,32 @@ const StudyMaterials = ({ materials: propMaterials, setMaterials: propSetMateria
           }, ...existing]));
         } catch (e) {}
 
-        setModal(null);
-        return;
+      } else {
+        // ── UPDATE ──────────────────────────────────────────────
+        const { error: updateError } = await supabase
+          .from("materials")
+          .update(dbPayload)
+          .eq("id", data.id);
+
+        if (updateError) {
+          // The `materials` table may not be provisioned yet — keep the
+          // updated copy locally so the teacher does not lose the edit.
+          console.warn("Materials update failed; saving locally:", updateError);
+        }
+        saveMaterials(materials.map((m) =>
+          m.id === data.id ? { ...data, fileUrl } : m
+        ));
+        showToast(updateError ? "Material saved (offline mode)." : "Material updated successfully!");
       }
 
-      // Build local object from the saved row + keep session file URL
-      const newMaterial = {
-        id:          inserted.id,
-        subject:     inserted.subject,
-        teacher:     inserted.teacher,
-        flagged:     inserted.flagged,
-        created_at:  inserted.created_at,
-        ...data,                       // spread form data (title, desc, etc.)
-        fileUrl,                       // real storage URL (survives reload)
-      };
-
-      // Update teacher list immediately (no extra round-trip needed)
-      setMaterials([newMaterial, ...materials]);
-      showToast("Material uploaded successfully!");
-
-      // Notifications (fire-and-forget — never block the upload)
-      const currentTime = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-      const notifMsg = `New Study Material: "${data.title}" uploaded for ${data.batch || "your batch"} (${data.subject}).`;
-
-      supabase.from("notifications").insert([
-        { type: `study-material:${teacherName}`, message: notifMsg, time: currentTime, recipient_type: "student", recipient: "all" },
-        { type: "batch", message: notifMsg, time: currentTime, recipient_type: "student", recipient: "all" },
-      ]).catch(() => {});
-
-      try {
-        const existing = JSON.parse(localStorage.getItem("gw_notifications_v3") || "[]");
-        localStorage.setItem("gw_notifications_v3", JSON.stringify([{
-          id: `notif_${Date.now()}`, type: "study-material",
-          title: "New Study Material Uploaded", message: notifMsg,
-          time: "Just now", date: new Date().toISOString(),
-          read: false, batch: data.batch, subject: data.subject,
-        }, ...existing]));
-      } catch (e) {}
-
-    } else {
-      // ── UPDATE ──────────────────────────────────────────────
-      const { error: updateError } = await supabase
-        .from("materials")
-        .update(dbPayload)
-        .eq("id", data.id);
-
-      if (updateError) {
-        // The `materials` table may not be provisioned yet — keep the
-        // updated copy locally so the teacher does not lose the edit.
-        console.warn("Materials update failed; saving locally:", updateError);
-      }
-      saveMaterials(materials.map((m) =>
-        m.id === data.id ? { ...data, fileUrl } : m
-      ));
-      showToast(updateError ? "Material saved (offline mode)." : "Material updated successfully!");
+      // Always close modal after successful save
+      setModal(null);
+    } catch (error) {
+      console.error("Error saving material:", error);
+      showToast("Failed to save material. Please try again.", "error");
+      // Close modal even on error so user can retry
+      setModal(null);
     }
-
-    setModal(null);
   };
 
   const handleDelete = async () => {
