@@ -1233,6 +1233,7 @@ export async function sendPasswordInviteEmail(email, role = 'student', name = ''
   const { data: { session: adminSession } } = await supabase.auth.getSession();
 
   try {
+    // Use current origin (works for both localhost and production)
     const baseUrl = window.location.origin;
     const redirectUrl = role === 'teacher'
       ? `${baseUrl}/#/teacher-reset-password`
@@ -1240,6 +1241,7 @@ export async function sendPasswordInviteEmail(email, role = 'student', name = ''
 
     console.log("📧 Sending password setup link to:", trimmedEmail, "Role:", role);
     console.log("🔗 Redirect URL:", redirectUrl);
+    console.log("🌐 Current origin:", baseUrl);
 
     // ── Ensure the Auth account exists first ────────────────────────────
     // resetPasswordForEmail does NOT error when a user doesn't exist (anti
