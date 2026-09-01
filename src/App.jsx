@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import supabase from "./lib/supabase";
+import { startAutoCleanup, checkDatabaseUsage } from "./utils/dbOptimizer";
 import LandingPage from "./features/landing/LandingPage";
 import RoleSelector from "./features/auth/RoleSelector";
 import ForgotPassword from "./features/auth/ForgotPassword";
@@ -22,6 +23,17 @@ function App() {
   // Bumped to force a live re-verification when re-entering the same protected
   // view (e.g. logging in while already sitting on that dashboard's login).
   const [guardNonce, setGuardNonce] = useState(0);
+
+  // Initialize database optimization on app mount
+  useEffect(() => {
+    console.log('🚀 Initializing database optimization...');
+    startAutoCleanup();
+    
+    // Check database usage for monitoring (development only)
+    if (import.meta.env.DEV) {
+      checkDatabaseUsage();
+    }
+  }, []);
 
   useEffect(() => {
     const onHashChange = () => {
