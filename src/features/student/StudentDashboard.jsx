@@ -1805,19 +1805,9 @@ const StudentDashboard = ({ onNavigate }) => {
 
       if (!active) return;
 
-      // Merge Supabase and LocalStorage without duplicates
-      const map = new Map();
-      supabaseMaterials.forEach((m) => {
-        if (m && m.id) map.set(String(m.id), m);
-      });
-      localList.forEach((m) => {
-        if (m && m.id && !map.has(String(m.id))) {
-          map.set(String(m.id), m);
-        }
-      });
-
-      const merged = Array.from(map.values());
-      setAllMaterialsList(merged);
+      // Use ONLY Supabase materials (primary source of truth)
+      // Don't merge with localStorage to prevent duplicates
+      setAllMaterialsList(supabaseMaterials);
     };
 
     fetchMaterials();
