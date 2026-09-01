@@ -1233,10 +1233,10 @@ export async function sendPasswordInviteEmail(email, role = 'student', name = ''
   const { data: { session: adminSession } } = await supabase.auth.getSession();
 
   try {
-    const baseUrl = window.location.origin + window.location.pathname;
+    const baseUrl = window.location.origin;
     const redirectUrl = role === 'teacher'
-      ? `${baseUrl}?role=teacher`
-      : `${baseUrl}?role=student`;
+      ? `${baseUrl}/#/teacher-reset-password`
+      : `${baseUrl}/#/reset-password`;
 
     console.log("📧 Sending password setup link to:", trimmedEmail, "Role:", role);
     console.log("🔗 Redirect URL:", redirectUrl);

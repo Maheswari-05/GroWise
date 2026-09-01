@@ -229,8 +229,8 @@ const ResetPassword = ({ onNavigate }) => {
     if (!resendEmailInput.trim()) return;
     setResendLoading(true);
     try {
-      const baseUrl = window.location.origin + window.location.pathname;
-      const redirectUrl = `${baseUrl}?role=student`;
+      const baseUrl = window.location.origin;
+      const redirectUrl = `${baseUrl}/#/reset-password`;
       const { error: sendErr } = await supabase.auth.resetPasswordForEmail(resendEmailInput.trim().toLowerCase(), {
         redirectTo: redirectUrl,
       });
