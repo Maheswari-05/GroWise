@@ -491,8 +491,8 @@ const StudentDashboard = ({ onNavigate }) => {
           if (studentBatchId && (tBatchId === studentBatchId || tBatchId === studentBatchName || studentBatchId.includes(tBatchId) || tBatchId.includes(studentBatchId))) return true;
           if (studentBatchName && (tBatchId === studentBatchName || tBatchId === studentBatchId || studentBatchName.includes(tBatchId) || tBatchId.includes(studentBatchName))) return true;
 
-          // Subject match
-          if (tSub && studentSubjects.length > 0 && studentSubjects.some((sub) => sub && (tSub === sub || tSub.includes(sub) || sub.includes(tSub)))) return true;
+          // Subject match - exact match only
+          if (tSub && studentSubjects.length > 0 && studentSubjects.some((sub) => sub && tSub === sub)) return true;
 
           // Teacher match
           if (tTeacher && assignedTeachers.some((at) => at && (tTeacher === at || tTeacher.includes(at) || at.includes(tTeacher)))) return true;
@@ -875,9 +875,9 @@ const StudentDashboard = ({ onNavigate }) => {
             }
           }
 
-          // 4. Subject match (substring aware so "Web Development" matches "Web Dev")
+          // 4. Subject match - exact match only to prevent cross-subject visibility
           if (classSubject && studentSubjs.length > 0) {
-            if (studentSubjs.some((sub) => sub && (classSubject === sub || classSubject.includes(sub) || sub.includes(classSubject)))) {
+            if (studentSubjs.some((sub) => sub && classSubject === sub)) {
               return true;
             }
           }
@@ -1136,8 +1136,8 @@ const StudentDashboard = ({ onNavigate }) => {
         // Batch match
         if (studentBatch     && (rowBatch === studentBatch     || rowBatch.includes(studentBatch)     || studentBatch.includes(rowBatch)))     return true;
         if (studentBatchName && (rowBatch === studentBatchName || rowBatch.includes(studentBatchName) || studentBatchName.includes(rowBatch))) return true;
-        // Subject match
-        if (rowSubject && studentSubjects.length > 0 && studentSubjects.some(s => rowSubject === s || rowSubject.includes(s) || s.includes(rowSubject))) return true;
+        // Subject match - use exact match only to prevent "DAS" showing for "AIML" student
+        if (rowSubject && studentSubjects.length > 0 && studentSubjects.some(s => rowSubject === s)) return true;
         // Teacher match
         if (rowTeacher && assignedTeachers.some(t => t && (rowTeacher === t || rowTeacher.includes(t) || t.includes(rowTeacher)))) return true;
         // Fallback: hide unless student has no identifying info
@@ -1849,7 +1849,7 @@ const StudentDashboard = ({ onNavigate }) => {
         const mSubject = String(m.subject || "").toLowerCase().trim();
         if (!mSubject) return true;
         return studentSubjects.some((sub) =>
-          mSubject === sub || mSubject.includes(sub) || sub.includes(mSubject)
+          mSubject === sub
         );
       });
     }
@@ -1872,7 +1872,7 @@ const StudentDashboard = ({ onNavigate }) => {
         if (!mBatch || mBatch === "all batches" || mBatch === "all" || mBatch === "all grades") return true;
         if (studentBatch && (mBatch === studentBatch || mBatch.includes(studentBatch) || studentBatch.includes(mBatch))) return true;
         if (studentBatchName && (mBatch === studentBatchName || mBatch.includes(studentBatchName) || studentBatchName.includes(mBatch))) return true;
-        if (mSubject && studentSubjects.some(sub => mSubject === sub || mSubject.includes(sub) || sub.includes(mSubject))) return true;
+        if (mSubject && studentSubjects.some(sub => mSubject === sub)) return true;
         if (mTeacher && assignedTeachers.some(t => t && (t === mTeacher || t.includes(mTeacher) || mTeacher.includes(t)))) return true;
         return false;
       });
