@@ -562,18 +562,25 @@
 }
 
 .live-class-card .card-middle {
-  margin: 10px 0 12px;
+  margin: 12px 0 14px;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
 }
 
 .live-class-card .live-class-title {
   font-size: 15.5px;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.4;
   color: #0f172a;
-  margin: 0 0 4px;
-  white-space: nowrap;
+  margin: 0 0 6px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .live-class-card .live-class-schedule {
@@ -581,9 +588,13 @@
   color: #64748b;
   font-weight: 500;
   margin: 0;
-  white-space: nowrap;
+  line-height: 1.5;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .live-class-card .join-class-btn {
