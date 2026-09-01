@@ -937,6 +937,13 @@ export async function addSubject(subject) {
 export async function addBatch(batch) {
   const row = toSnakeCase(batch);
   delete row.created_at;
+  // The `batches` table has no DEFAULT for id, so supply a client-side UUID
+  // (matches the study-material/assignment insertion pattern).
+  if (!row.id) {
+    row.id = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `batch_${Date.now()}`;
+  }
   const { error } = await supabase.from('batches').insert(row);
   handleError(error, 'addBatch');
 }
