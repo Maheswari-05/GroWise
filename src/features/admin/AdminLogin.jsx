@@ -66,7 +66,7 @@ const AdminLogin = ({ onNavigate }) => {
       if (adminError || !adminData) {
         console.error("❌ Not a valid admin account:", normalizedEmail);
         await supabase.auth.signOut();
-        setError("This account does not have administrator privileges. Please contact support.");
+        setError("This account does not have administrator privileges. Please use the correct login portal.");
         setIsLoading(false);
         return;
       }
