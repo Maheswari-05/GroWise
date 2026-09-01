@@ -202,6 +202,11 @@ const SubmissionsPanel = ({ asgn, onClose, onSave }) => {
     });
     onSave({ ...asgn, submissions: nextSubmissions });
     setSaved(true);
+    
+    // Auto-close modal after 1.5 seconds
+    setTimeout(() => {
+      onClose();
+    }, 1500);
   };
 
   const sc = subjectColor[asgn.subject] || subjectColor.Mathematics;
@@ -516,12 +521,28 @@ const AssignmentModal = ({ mode, initial, onClose, onSave, batches = [], student
           <div className="as-field-row">
             <div className="as-field">
               <label className="as-label">Subject *</label>
-              <input
+              <select
                 className="as-input"
-                placeholder="e.g. Mathematics"
                 value={form.subject}
                 onChange={e => set("subject", e.target.value)}
-              />
+              >
+                <option value="">Select Subject</option>
+                <option value="Mathematics">Mathematics</option>
+                <option value="Physics">Physics</option>
+                <option value="Chemistry">Chemistry</option>
+                <option value="Biology">Biology</option>
+                <option value="Computer Science">Computer Science</option>
+                <option value="English">English</option>
+                <option value="Science">Science</option>
+                <option value="Social Studies">Social Studies</option>
+                <option value="History">History</option>
+                <option value="Geography">Geography</option>
+                <option value="AIML">AIML</option>
+                <option value="DAS">DAS</option>
+                <option value="Web Development">Web Development</option>
+                <option value="Python">Python</option>
+                <option value="Java">Java</option>
+              </select>
             </div>
              <div className="as-field">
                <label className="as-label">Batch *</label>
