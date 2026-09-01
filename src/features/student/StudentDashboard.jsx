@@ -185,20 +185,10 @@ const StudentDashboard = ({ onNavigate }) => {
 
         let studentEmail = "";
 
-        // 1. Prefer the currently authenticated Supabase user
+        // Prefer the currently authenticated Supabase user
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (!authError && user) {
           studentEmail = user.email;
-        }
-
-        // 2. Fallback: use the localStorage bypass entry (demo / hardcoded login)
-        if (!studentEmail) {
-          const loggedStudentStr = localStorage.getItem("gw_logged_student");
-          if (loggedStudentStr) {
-            try {
-              studentEmail = JSON.parse(loggedStudentStr).email;
-            } catch (e) { }
-          }
         }
 
         if (!studentEmail) {

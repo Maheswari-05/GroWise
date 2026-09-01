@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import supabase from "./lib/supabase";
 import LandingPage from "./features/landing/LandingPage";
 import RoleSelector from "./features/auth/RoleSelector";
 import ForgotPassword from "./features/auth/ForgotPassword";
@@ -15,6 +16,12 @@ import ContactPage from "./features/contact/ContactPage";
 function App() {
   const [currentView, setCurrentView] = useState("landing");
   const [route, setRoute] = useState(window.location.hash);
+  // Live role guard: only renders a dashboard after verifying the current
+  // Supabase session maps to a row in the matching role table.
+  const [guard, setGuard] = useState({ view: null, loading: false, ok: false });
+  // Bumped to force a live re-verification when re-entering the same protected
+  // view (e.g. logging in while already sitting on that dashboard's login).
+  const [guardNonce, setGuardNonce] = useState(0);
 
   useEffect(() => {
     const onHashChange = () => {
@@ -96,6 +103,61 @@ function App() {
     };
   }, []);
 
+  // Harden dashboard access: when one of the protected views becomes active,
+  // verify the live Supabase session maps to a real row in the matching role
+  // table before allowing the dashboard to render. This replaces the previous
+  // soft localStorage-flag guards.
+  useEffect(() => {
+    const view = currentView;
+    const protectedViews = ["admin-dashboard", "teacher-dashboard", "dashboard"];
+    if (!protectedViews.includes(view)) {
+      setGuard({ view: null, loading: false, ok: false });
+      return;
+    }
+
+    let cancelled = false;
+    setGuard({ view, loading: true, ok: false });
+
+    (async () => {
+      let ok = false;
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (!error && user) {
+          const email = (user.email || "").trim().toLowerCase();
+          if (view === "admin-dashboard") {
+            const { data: row } = await supabase
+              .from("admin_profiles")
+              .select("id")
+              .eq("id", user.id)
+              .maybeSingle();
+            ok = !!row && row.id === user.id;
+          } else if (view === "teacher-dashboard") {
+            const { data: row } = await supabase
+              .from("teachers")
+              .select("id")
+              .ilike("email", email)
+              .maybeSingle();
+            ok = !!row;
+          } else if (view === "dashboard") {
+            const { data: row } = await supabase
+              .from("students")
+              .select("id")
+              .ilike("email", email)
+              .maybeSingle();
+            ok = !!row;
+          }
+        }
+      } catch (e) {
+        ok = false;
+      }
+      if (!cancelled) {
+        setGuard({ view, loading: false, ok });
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [currentView, guardNonce]);
+
   const navigateTo = (view) => {
     setCurrentView(view);
     if (view === "landing") {
@@ -120,10 +182,13 @@ function App() {
       window.location.hash = "/reset-password";
     } else if (view === "admin-dashboard") {
       window.location.hash = "/admin-dashboard";
+      if (currentView === "admin-dashboard") setGuardNonce((n) => n + 1);
     } else if (view === "dashboard") {
       window.location.hash = "/dashboard";
+      if (currentView === "dashboard") setGuardNonce((n) => n + 1);
     } else if (view === "teacher-dashboard") {
       window.location.hash = "/teacher-dashboard";
+      if (currentView === "teacher-dashboard") setGuardNonce((n) => n + 1);
     }
     window.scrollTo({ top: 0, behavior: "instant" });
   };
@@ -199,21 +264,33 @@ function App() {
   // empty dashboard. Teacher/admin use localStorage markers; the student
   // dashboard already guards itself against a missing Supabase session.
   if (hashPath === "#/admin-dashboard" || currentView === "admin-dashboard") {
-    if (!localStorage.getItem("gw_admin_logged")) {
-      return <AdminLogin onNavigate={navigateTo} />;
+    if (guard.view !== "admin-dashboard") {
+      return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", color: "#64748b", fontFamily: "inherit" }}>Checking admin access…</div>;
     }
-    return <AdminDashboard onNavigate={navigateTo} />;
+    if (guard.ok) {
+      return <AdminDashboard onNavigate={navigateTo} />;
+    }
+    return <AdminLogin onNavigate={navigateTo} />;
   }
 
   if (hashPath === "#/teacher-dashboard" || currentView === "teacher-dashboard") {
-    if (!localStorage.getItem("gw_logged_teacher_id")) {
-      return <TeacherLogin onNavigate={navigateTo} />;
+    if (guard.view !== "teacher-dashboard") {
+      return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", color: "#64748b", fontFamily: "inherit" }}>Checking teacher access…</div>;
     }
-    return <TeacherDashboard onNavigate={navigateTo} />;
+    if (guard.ok) {
+      return <TeacherDashboard onNavigate={navigateTo} />;
+    }
+    return <TeacherLogin onNavigate={navigateTo} />;
   }
 
   if (currentView === "dashboard" || hashPath === "#/dashboard") {
-    return <StudentDashboard onNavigate={navigateTo} />;
+    if (guard.view !== "dashboard") {
+      return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", color: "#64748b", fontFamily: "inherit" }}>Checking student access…</div>;
+    }
+    if (guard.ok) {
+      return <StudentDashboard onNavigate={navigateTo} />;
+    }
+    return <Login onNavigate={navigateTo} />;
   }
 
   if (currentView === "contact" || hashPath === "#/contact") {

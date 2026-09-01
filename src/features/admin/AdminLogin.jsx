@@ -43,14 +43,26 @@ const AdminLogin = ({ onNavigate }) => {
       }
       
       console.log("✅ Admin auth successful for:", normalizedEmail);
-      
-      // Verify this user is actually an admin in the admins table
+
+      const userId = data.user.id;
+
+      // Auto-provision the admin profile row on first login so a valid admin
+      // (one present in Supabase Auth) can access the dashboard.
+      try {
+        await ensureAdminProfile(userId, data.user.email);
+      } catch (profileErr) {
+        console.warn("Could not create/fetch admin profile:", profileErr);
+      }
+
+      // Verify this user is actually provisioned as an admin in the
+      // admin_profiles table (keyed on the auth user id, matching
+      // fetchAdminProfile / ensureAdminProfile).
       const { data: adminData, error: adminError } = await supabase
-        .from("admins")
+        .from("admin_profiles")
         .select("id, email, name")
-        .eq("email", normalizedEmail)
+        .eq("id", userId)
         .maybeSingle();
-      
+
       if (adminError || !adminData) {
         console.error("❌ Not a valid admin account:", normalizedEmail);
         await supabase.auth.signOut();
@@ -58,17 +70,10 @@ const AdminLogin = ({ onNavigate }) => {
         setIsLoading(false);
         return;
       }
-      
-      console.log("✅ Admin role verified for:", adminData.email);
-      
-      // Auto-create admin profile row on first login
-      try {
-        await ensureAdminProfile(data.user.id, data.user.email);
-      } catch (profileErr) {
-        console.warn("Could not create/fetch admin profile:", profileErr);
-      }
 
-      // Remember the admin session so the dashboard route can be soft-guarded.
+      console.log("✅ Admin role verified for:", adminData.email);
+
+      // Remember the admin session marker for downstream in-app convenience.
       localStorage.setItem("gw_admin_logged", "1");
 
       onNavigate('admin-dashboard');
