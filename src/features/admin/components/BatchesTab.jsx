@@ -26,7 +26,16 @@ const BatchesTab = ({
   });
 
   const handleAddNewClick = () => {
-    const nextId = "BAT" + String(batches.length + 101);
+    // Generate unique batch ID based on timestamp to avoid duplicates
+    let nextId;
+    let attempts = 0;
+    do {
+      const timestamp = Date.now().toString().slice(-6);
+      const randomSuffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+      nextId = `BAT${timestamp}${randomSuffix}`;
+      attempts++;
+    } while (batches.some(b => b.id === nextId) && attempts < 10);
+    
     setFormData({
       id: nextId,
       name: "",
