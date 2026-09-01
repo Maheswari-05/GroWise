@@ -1730,22 +1730,13 @@ const StudentDashboard = ({ onNavigate }) => {
     setUnreadNotifications(anyUnread);
   }, [notificationsList]);
 
-  const [allMaterialsList, setAllMaterialsList] = useState(() => {
-    try {
-      const stored = localStorage.getItem("gw_materials_v2");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {}
-    return [];
-  });
+  const [allMaterialsList, setAllMaterialsList] = useState([]);
   const [studyMaterialSearch, setStudyMaterialSearch] = useState("");
   const [studyMaterialSubject, setStudyMaterialSubject] = useState("All");
   const [studyMaterialScope, setStudyMaterialScope] = useState("All");
   const [previewMaterial, setPreviewMaterial] = useState(null);
 
-  // Fetch materials dynamically from Supabase & localStorage and sync real-time
+  // Fetch materials dynamically from Supabase ONLY (single source of truth)
   useEffect(() => {
     let active = true;
 
@@ -1793,20 +1784,9 @@ const StudentDashboard = ({ onNavigate }) => {
         console.error("Error fetching study materials from Supabase:", err);
       }
 
-      // Read localStorage backup
-      let localList = [];
-      try {
-        const raw = localStorage.getItem("gw_materials_v2");
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) localList = parsed;
-        }
-      } catch (e) {}
-
       if (!active) return;
 
       // Use ONLY Supabase materials (primary source of truth)
-      // Don't merge with localStorage to prevent duplicates
       setAllMaterialsList(supabaseMaterials);
     };
 
